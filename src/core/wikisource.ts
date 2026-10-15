@@ -196,7 +196,7 @@ async function readWork(
 ): Promise<string | null> {
   const links = chapterLinks(html, page).slice(0, opts.maxChapters ?? 150);
   const own = htmlToText(html);
-  if (depth === 0) opts.log?.(`Wikisource "${page}": ${links.length} capítulos, ${own.length} caracteres na página`);
+  opts.log?.(`Wikisource "${page}": ${links.length} capítulos, ${own.length} caracteres na página${links.length && links.length < 4 ? ` (${links.join(' | ')})` : ''}`);
   // um link só: é o índice de verdade (ex.: a edição) — desce nele
   if (links.length === 1 && depth < 2) {
     const sub = await parsePage(f, links[0]).catch(() => null);

@@ -63,11 +63,19 @@ async function fromGutenberg(f: Fetch, catalog: GutBook[], a: AcervoEntry): Prom
   return text.length > 2000 ? { text, source: `gutenberg:${b.id}` } : null;
 }
 
+/**
+ * Tamanho mínimo para aceitar o texto (evita publicar só o prefácio ou um
+ * trecho de um romance): romances e ensaios são longos; poemas e peças, não.
+ */
+const MIN_CHARS: Record<string, number> = { Romance: 40_000, Ensaio: 40_000, Contos: 15_000, Poesia: 4_000, Teatro: 10_000 };
+
 async function fromWikisource(f: Fetch, a: AcervoEntry): Promise<{ text: string; source: string } | null> {
   if (!a.find.wikisource) return null;
   const text = await fetchWikisourceBook(f, a.find.wikisource, { author: a.author.split(' ').pop(), authorFull: a.author, log: (m) => console.log(`    ${m}`) })
     .catch((e: unknown) => { console.log(`    Wikisource (${a.find.wikisource}): ${e instanceof Error ? e.message : String(e)}`); return null; });
-  return text && text.length > 1500 ? { text, source: `wikisource:${a.find.wikisource}` } : null;
+  const min = MIN_CHARS[a.kind] ?? 4_000;
+  if (text && text.length < min) console.log(`    Wikisource: só ${Math.round(text.length / 1000)} mil caracteres (mínimo para ${a.kind}: ${min / 1000} mil) — provavelmente um trecho, não a obra`);
+  return text && text.length >= min ? { text, source: `wikisource:${a.find.wikisource}` } : null;
 }
 
 /** Capa da Open Library: procura pelo título e autor, prefere edição em português. */
