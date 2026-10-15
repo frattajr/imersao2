@@ -22,6 +22,7 @@ function Root() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'fade' }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="read/[id]" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="lab" />
         <Stack.Screen name="paste" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="glossary/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>

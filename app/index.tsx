@@ -94,6 +94,7 @@ export default function Library() {
         <SectionTitle>Adicionar</SectionTitle>
         <BookCard emoji="📚" title="Abrir PDF ou EPUB" sub="Um livro do seu aparelho" onPress={() => void importBook()} />
         <BookCard emoji="✍️" title="Colar meu texto" sub="Qualquer história ou capítulo" onPress={() => router.push('/paste')} />
+        <BookCard emoji="🎧" title="Laboratório de som" sub="Teste, reaproveite e gere sons" onPress={() => router.push('/lab')} />
 
         <SectionTitle>Histórias</SectionTitle>
         {SAMPLE_BOOKS.map((s) => {
