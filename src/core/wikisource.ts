@@ -184,14 +184,24 @@ export async function fetchWikisourceBook(
   return null;
 }
 
-/** Texto de uma página de obra: os capítulos (subpáginas) ou o próprio texto. */
+/**
+ * Texto de uma página de obra: os capítulos (subpáginas) ou o próprio texto.
+ * Obras grandes têm dois níveis ("Os Sertões/A Terra/I"): quando uma
+ * subpágina é só um índice, desce mais um nível.
+ */
 async function readWork(
   f: Fetch, page: string, html: string,
   opts: { maxChapters?: number; step?: (done: number, total: number) => void; log?: (m: string) => void },
+  depth = 0,
 ): Promise<string | null> {
   const links = chapterLinks(html, page).slice(0, opts.maxChapters ?? 150);
   const own = htmlToText(html);
-  opts.log?.(`Wikisource "${page}": ${links.length} capítulos, ${own.length} caracteres na página`);
+  if (depth === 0) opts.log?.(`Wikisource "${page}": ${links.length} capítulos, ${own.length} caracteres na página`);
+  // um link só: é o índice de verdade (ex.: a edição) — desce nele
+  if (links.length === 1 && depth < 2) {
+    const sub = await parsePage(f, links[0]).catch(() => null);
+    if (sub) return readWork(f, links[0], sub, opts, depth + 1);
+  }
   if (links.length < 2) return own.length > 1500 ? own : null;
   const parts: string[] = new Array(links.length).fill('');
   let next = 0, done = 0;
@@ -199,7 +209,11 @@ async function readWork(
     while (next < links.length) {
       const i = next++;
       const sub = await parsePage(f, links[i]).catch(() => null);
-      const text = sub ? htmlToText(sub) : '';
+      let text = sub ? htmlToText(sub) : '';
+      // subpágina que é só índice de outra camada de capítulos
+      if (sub && text.length < 500 && depth < 2 && chapterLinks(sub, links[i]).length >= 2) {
+        text = (await readWork(f, links[i], sub, { ...opts, step: undefined }, depth + 1)) ?? text;
+      }
       if (text) {
         const title = chapterTitle(links[i]);
         // não repete o título se o capítulo já começa com ele

@@ -90,4 +90,27 @@ describe('Wikisource', () => {
     const text = await fetchWikisourceBook(f as never, 'Senhora', { author: 'Alencar' });
     expect(text?.startsWith('Há anos raiou')).toBe(true);
   });
+
+  it('obra em dois níveis: edição → partes → capítulos', async () => {
+    const big = (t: string) => `<p>${(t + ' ').repeat(30)}</p>`;
+    const pages: Record<string, string> = {
+      'Os Sertões': '<p>Edições:</p><ul><li><a href="/wiki/Os_Sert%C3%B5es/1902">1902</a></li></ul>',
+      'Os Sertões/1902': '<ul><li><a href="/wiki/Os_Sert%C3%B5es/1902/A_Terra">A Terra</a></li><li><a href="/wiki/Os_Sert%C3%B5es/1902/O_Homem">O Homem</a></li></ul>',
+      'Os Sertões/1902/A Terra': '<ul><li><a href="/wiki/Os_Sert%C3%B5es/1902/A_Terra/I">I</a></li><li><a href="/wiki/Os_Sert%C3%B5es/1902/A_Terra/II">II</a></li></ul>',
+      'Os Sertões/1902/A Terra/I': big('O planalto central do Brasil desce, nos litorais do Sul, em escarpas inteiriças.'),
+      'Os Sertões/1902/A Terra/II': big('Do alto da serra de Monte Santo atufa-se o olhar em horizontes vastos.'),
+      'Os Sertões/1902/O Homem': big('A gênese das raças mestiças do Brasil é problema que por muito tempo ainda desafiará o esforço dos melhores espíritos.'),
+    };
+    const f = async (url: string) => {
+      const u = new URL(url).searchParams;
+      if (u.get('list') === 'search') return new Response(JSON.stringify({ query: { search: [] } }));
+      const page = u.get('page')!;
+      return new Response(JSON.stringify(pages[page] ? { parse: { text: pages[page] } } : { error: { code: 'missingtitle' } }));
+    };
+    const text = (await fetchWikisourceBook(f as never, 'Os Sertões'))!;
+    expect(text).toContain('O planalto central');
+    expect(text).toContain('Do alto da serra');
+    expect(text).toContain('A gênese das raças');
+    expect(text.indexOf('O planalto')).toBeLessThan(text.indexOf('A gênese'));
+  });
 });
