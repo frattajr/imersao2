@@ -38,12 +38,12 @@ const fake = async (url: string): Promise<Response> => {
 const out = await mkdtemp(join(tmpdir(), 'gut-'));
 const cat = await buildMirror(fake as typeof fetch, out, { texts: 4, log: () => undefined });
 const saved = JSON.parse(await readFile(join(out, 'catalog.json'), 'utf8'));
-ok(cat && saved.books.length === 4, 'catálogo: 3 do Gutendex (sem o audiolivro) + 1 só do CSV (sem livro em inglês nem áudio)');
+ok(cat && saved.books.length === 4, 'catálogo: CSV (sem livro em inglês nem áudio) + Gutendex (sem o audiolivro), sem repetir');
 ok(saved.books[0].id === 55752 && saved.books.at(-1).id === 3333, 'ordenado por downloads (os do CSV, sem contagem, por último)');
 ok(!('text/html' in saved.books[0].formats) && saved.books[0].formats['image/jpeg'], 'guarda só os formatos que o app usa');
 const lus = saved.books.find((b: { id: number }) => b.id === 3333);
 ok(lus.authors[0].name === 'Camões, Luís de' && lus.authors[0].death_year === 1580, 'autor do CSV com anos (inclusive "1524?")');
-ok(saved.source.includes('gutendex (2 páginas)') && saved.source.includes('catálogo oficial (+1)'), 'registra as fontes');
+ok(saved.source.includes('gutendex (2 páginas)') && saved.source.includes('catálogo oficial (2)'), 'registra as fontes');
 const files = await readdir(join(out, 'books'));
 ok(saved.texts.join() === '3333,54829,55752' && files.length === 3, 'textos copiados (livro sem texto é pulado; outro formato quando o cache falha)');
 const t = await readFile(join(out, 'books', '55752.txt'), 'utf8');
@@ -55,7 +55,12 @@ const down = async (url: string) => (url.includes('gutendex') ? Promise.reject(n
 const origSetTimeout = globalThis.setTimeout;
 (globalThis as { setTimeout: unknown }).setTimeout = ((fn: () => void, _ms?: number) => origSetTimeout(fn, 0)) as typeof setTimeout; // sem esperar os intervalos entre tentativas
 const cat2 = await buildMirror(down as typeof fetch, out2, { texts: 1, log: () => undefined });
-ok(cat2 && cat2.books.length === 2 && cat2.source.startsWith('catálogo oficial'), 'Gutendex fora do ar: usa só o catálogo oficial');
+ok(cat2 && cat2.books.length === 2 && cat2.source === 'catálogo oficial (2)', 'Gutendex fora do ar: usa só o catálogo oficial');
+
+// prazo esgotado: publica o catálogo mesmo sem os textos
+const out4 = await mkdtemp(join(tmpdir(), 'gut-'));
+const cat4 = await buildMirror(fake as typeof fetch, out4, { texts: 4, budgetMs: 1, log: () => undefined });
+ok(cat4 && cat4.books.length >= 2 && cat4.texts.length === 0, 'sem tempo: publica o catálogo e pula os textos');
 
 // tudo fora do ar: não escreve catálogo (o app consulta ao vivo) e não lança erro
 const out3 = await mkdtemp(join(tmpdir(), 'gut-'));

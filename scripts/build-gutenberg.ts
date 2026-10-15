@@ -45,61 +45,81 @@ function slim(b: GutBook): GutBook {
   return { ...b, summaries: (b.summaries ?? []).slice(0, 1).map((s) => s.slice(0, 700)), subjects: b.subjects.slice(0, 6), bookshelves: b.bookshelves.slice(0, 4), formats };
 }
 
-export async function buildMirror(f: Fetch, out: string, opts: { texts?: number; log?: (m: string) => void; maxPages?: number } = {}) {
+export async function buildMirror(
+  f: Fetch, out: string,
+  opts: { texts?: number; log?: (m: string) => void; maxPages?: number; budgetMs?: number } = {},
+) {
   const log = opts.log ?? console.log;
+  const t0 = Date.now();
+  const budget = opts.budgetMs ?? 14 * 60_000; // cabe com folga no limite do passo do deploy
+  const left = () => budget - (Date.now() - t0);
   const byId = new Map<number, GutBook>();
   const sources: string[] = [];
+  const texts: number[] = [];
 
-  // 1) Gutendex: tem número de downloads e resumo
+  const sorted = () => [...byId.values()].sort((a, b) => b.download_count - a.download_count);
+  const save = async () => {
+    if (!byId.size) return null;
+    const catalog = { generatedAt: new Date().toISOString(), source: sources.join(' + '), books: sorted(), texts: [...texts].sort((a, b) => a - b) };
+    await writeFile(join(out, 'catalog.json'), JSON.stringify(catalog));
+    return catalog;
+  };
+
+  // 1) catálogo oficial do Gutenberg (CSV): completo e rápido
+  log('Gutenberg: baixando o catálogo oficial (CSV)…');
+  const csv = await get(f, CSV, 90_000, 2);
+  if (csv) {
+    const list = booksFromCatalogCsv(await csv.text());
+    list.forEach((b) => byId.set(b.id, b));
+    sources.push(`catálogo oficial (${list.length})`);
+    log(`  ${list.length} livros em português.`);
+  } else log('  catálogo oficial indisponível.');
+  await save(); // já publica algo mesmo se o resto falhar
+
+  // 2) Gutendex: número de downloads (ordem por popularidade) e resumos. Lento: prazo curto.
+  log('Gutenberg: enriquecendo com o Gutendex…');
   let url: string | null = GUTENDEX, pages = 0;
-  while (url && pages < (opts.maxPages ?? 40)) {
-    const r = await get(f, url, 45_000);
-    if (!r) { log(`Gutendex não respondeu (${url}); seguindo com o que já veio.`); break; }
+  const gutendexUntil = Date.now() + Math.min(5 * 60_000, left() / 2);
+  while (url && pages < (opts.maxPages ?? 15) && Date.now() < gutendexUntil) {
+    const r = await get(f, url, 30_000, 2);
+    if (!r) { log(`  Gutendex não respondeu na página ${pages + 1}; seguindo com o que já veio.`); break; }
     const page = (await r.json()) as GutPage;
     page.results.filter(readable).forEach((b) => byId.set(b.id, slim(b)));
     url = page.next;
     pages++;
+    log(`  página ${pages} ok (${byId.size} livros).`);
   }
   if (pages) sources.push(`gutendex (${pages} páginas)`);
+  if (!byId.size) { log('Nenhum livro obtido: catálogo não escrito (o app consulta o Gutendex ao vivo).'); return null; }
+  await save();
 
-  // 2) catálogo oficial: completa o que faltou (e salva o deploy se o Gutendex cair)
-  const csv = await get(f, CSV, 120_000, 2);
-  if (csv) {
-    const extra = booksFromCatalogCsv(await csv.text()).filter((b) => !byId.has(b.id));
-    extra.forEach((b) => byId.set(b.id, b));
-    sources.push(`catálogo oficial (+${extra.length})`);
-  } else log('Catálogo oficial (CSV) indisponível.');
-
-  const books = [...byId.values()].sort((a, b) => b.download_count - a.download_count);
-  if (!books.length) { log('Nenhum livro obtido: catálogo não escrito (o app consulta o Gutendex ao vivo).'); return null; }
-
-  // 3) textos dos mais lidos, já limpos
+  // 3) textos dos mais lidos, já limpos (até acabar o prazo)
   await mkdir(join(out, 'books'), { recursive: true });
-  const want = books.slice(0, opts.texts ?? 60);
-  const texts: number[] = [];
+  const want = sorted().slice(0, opts.texts ?? 60);
+  log(`Gutenberg: copiando o texto de ${want.length} livros…`);
   let next = 0;
   const worker = async () => {
-    while (next < want.length) {
+    while (next < want.length && left() > 20_000) {
       const b = want[next++];
       const urls = [`https://www.gutenberg.org/cache/epub/${b.id}/pg${b.id}.txt`, ...Object.entries(b.formats).filter(([k]) => k.startsWith('text/plain')).map(([, v]) => v)];
-      for (const u of urls) {
-        const r = await get(f, u, 60_000, 2);
+      for (const u of [...new Set(urls)]) {
+        const r = await get(f, u, 30_000, 2);
         if (!r) continue;
         const text = cleanGutenbergText(new TextDecoder('utf-8').decode(await r.arrayBuffer()));
         if (text.length > 500) {
           await writeFile(join(out, 'books', `${b.id}.txt`), text);
           texts.push(b.id);
+          if (texts.length % 10 === 0) { log(`  ${texts.length} textos copiados.`); await save(); }
           break;
         }
       }
-      await sleep(300); // gentileza com o servidor do Gutenberg
+      await sleep(250); // gentileza com o servidor do Gutenberg
     }
   };
-  await Promise.all([worker(), worker(), worker()]);
+  await Promise.all([worker(), worker(), worker(), worker()]);
 
-  const catalog = { generatedAt: new Date().toISOString(), source: sources.join(' + '), books, texts: texts.sort((a, b) => a - b) };
-  await writeFile(join(out, 'catalog.json'), JSON.stringify(catalog));
-  log(`Gutenberg: ${books.length} livros (${catalog.source}), ${texts.length} com texto copiado.`);
+  const catalog = await save();
+  log(`Gutenberg: ${catalog!.books.length} livros (${catalog!.source}), ${texts.length} com texto copiado, em ${Math.round((Date.now() - t0) / 1000)} s.`);
   return catalog;
 }
 
