@@ -5,8 +5,8 @@
  * como ilustração central e o título em letra de livro.
  */
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { memo, useState } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import type { Mood } from '../core/types';
 import { FONTS } from './prefs';
 
@@ -74,12 +74,23 @@ function Motif({ mood, w, h, id }: { mood: Mood; w: number; h: number; id: strin
   }
 }
 
-export const Cover = memo(function Cover({ id, title, author, emoji, mood, width, aspect = 1.5, showTitle = true }: {
+export const Cover = memo(function Cover({ id, title, author, emoji, mood, width, aspect = 1.5, showTitle = true, image }: {
   id: string; title: string; author?: string; emoji: string; mood: Mood; width: number; aspect?: number; showTitle?: boolean;
+  /** capa real (ex.: Project Gutenberg); se não carregar, usa a capa desenhada */
+  image?: string;
 }) {
   const art = ART[mood] ?? ART.calm;
   const h = width * aspect;
   const small = width < 140;
+  const [failed, setFailed] = useState(false);
+  if (image && !failed) {
+    return (
+      <View style={[st.box, { width, height: h, borderRadius: small ? 10 : 14 }]} accessibilityRole="image" accessibilityLabel={`Capa de ${title}`}>
+        <LinearGradient colors={art.colors} style={StyleSheet.absoluteFill} />
+        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} />
+      </View>
+    );
+  }
   return (
     <View style={[st.box, { width, height: h, borderRadius: small ? 10 : 14 }]} accessibilityRole="image" accessibilityLabel={`Capa de ${title}`}>
       <LinearGradient colors={art.colors} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={StyleSheet.absoluteFill} />

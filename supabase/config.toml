@@ -16,3 +16,6 @@ verify_jwt = true
 
 [functions.sound-resolve]
 verify_jwt = true
+
+[functions.gutenberg]
+verify_jwt = true

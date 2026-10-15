@@ -48,7 +48,7 @@ npx supabase login
 npx supabase link --project-ref SEU_PROJETO
 npx supabase db push                          # cria tabelas, regras de acesso e buckets
 npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-... AI_DAILY_LIMIT=300
-npx supabase functions deploy sound-plan glossary extract-pdf sound-resolve
+npx supabase functions deploy sound-plan glossary extract-pdf sound-resolve gutenberg
 ```
 
 No painel do Supabase: **Authentication → Sign In / Providers → Allow anonymous sign-ins** (ligado). O leitor começa sem cadastro.
@@ -108,6 +108,15 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
 - **Biblioteca** (`app/index.tsx`): destaque no topo (continuar lendo), filtro por tema (Mistério, Fantasia, Aconchego, Suspense, Aventura, Meus livros), fileiras por tema e por ambiente sonoro e uma ficha de cada livro. As capas são desenhadas em código (`src/ui/Cover.tsx`) a partir do clima da história.
 - **Capítulos** (`src/core/chapters.ts`): o glossário identifica "Capítulo 1", "CAPÍTULO III", "Parte 2", "Chapter 4"… ou, sem títulos, divide o livro em partes. Escolha um capítulo para ver os termos dele, sugestões de personagens e lugares (só do que já foi lido) e ir direto para ele.
 - **Configurações** (`app/settings.tsx`, botão ⚙ na biblioteca e no leitor): volume do ambiente, suavidade das transições, volume dos sons da história, frequência dos detalhes de ambiente, suavização automática, tema, letra, chave da ElevenLabs e o repositório de sons.
+
+## Clássicos do Project Gutenberg
+
+A biblioteca mostra os livros em português do [Project Gutenberg](https://www.gutenberg.org), em domínio público, pelo catálogo [Gutendex](https://gutendex.com/books/?languages=pt) (`src/services/gutenberg.ts`):
+
+- **Na tela inicial:** fileira "Clássicos em português" (os mais baixados) e fileiras por categoria (Romances, Contos, Poesia, Teatro, História e viagens), com as capas reais. A lista fica guardada por 24 h.
+- **Catálogo completo** (`app/catalog.tsx`): busca por título ou autor e "carregar mais".
+- **Ao abrir:** o app baixa o texto uma vez (prefere o `.txt`; se não houver, o EPUB), tira o cabeçalho e o rodapé do Gutenberg, remonta os parágrafos e guarda na biblioteca. Os capítulos ("CAPÍTULO I", "CAPITULO PRIMEIRO"…) aparecem no glossário.
+- **Na versão web**, o navegador pode bloquear o download direto do gutenberg.org (CORS). Nesse caso o app usa a função `gutenberg` do servidor, que só aceita endereços do Gutenberg e só para leitores logados. No celular, o download é direto.
 
 ## Verificações
 

@@ -12,6 +12,10 @@ import { analyze, LAYER_LABEL } from '../src/core/analyze';
 import { detectChapters } from '../src/core/chapters';
 import type { BookMeta, Layer, Mood } from '../src/core/types';
 import { GENRES, SAMPLE_BOOKS, type Genre } from '../src/data/books';
+import {
+  authorName, bookId, category, CATEGORY_MOOD, cleanTitle, coverUrl, GUT_CATEGORIES, isGutId, openGutenbergBook, popularPortuguese,
+  savedGutInfo, synopsisOf, type GutBook,
+} from '../src/services/gutenberg';
 import { pickAndImport } from '../src/services/importer';
 import { deleteRemote, downloadText, onSynced, syncSoon } from '../src/services/sync';
 import { getRepo } from '../src/state/db';
@@ -20,7 +24,8 @@ import { ProgressBar, RoundButton } from '../src/ui/components';
 import { FONTS, usePrefs } from '../src/ui/prefs';
 
 const MINE = 'Meus livros';
-type Shelf = Genre | typeof MINE;
+const CLASSICS = 'Clássicos';
+type Shelf = Genre | typeof MINE | typeof CLASSICS;
 
 interface Item {
   id: string;
@@ -35,6 +40,18 @@ interface Item {
   layers: Layer[];
   meta?: BookMeta;
   sample: boolean;
+  /** capa real (Project Gutenberg) */
+  image?: string;
+  /** livro do catálogo do Project Gutenberg */
+  gut?: GutBook;
+}
+
+function gutItem(b: GutBook, meta?: BookMeta): Item {
+  const cat = category(b);
+  return {
+    id: bookId(b), title: cleanTitle(b.title), author: authorName(b), emoji: '📜', mood: CATEGORY_MOOD[cat], genre: CLASSICS,
+    synopsis: synopsisOf(b), pages: meta?.n ?? 0, chapters: 0, layers: [], meta, sample: false, image: coverUrl(b), gut: b,
+  };
 }
 
 const pctOf = (b?: BookMeta | null) => (!b ? 0 : b.done ? 100 : b.n && b.idx > 0 ? Math.round(((b.idx + 1) / b.n) * 100) : 0);
@@ -71,6 +88,12 @@ export default function Library() {
   const [shelf, setShelf] = useState<Shelf | 'Todos'>('Todos');
   const [detail, setDetail] = useState<Item | null>(null);
   const [busy, setBusy] = useState<{ msg: string; pct: number | null; error?: boolean } | null>(null);
+  const [gut, setGut] = useState<GutBook[]>([]);
+  const [gutState, setGutState] = useState<'loading' | 'ok' | 'error'>('loading');
+
+  useEffect(() => {
+    popularPortuguese().then((b) => { setGut(b); setGutState('ok'); }).catch(() => setGutState('error'));
+  }, []);
 
   const load = useCallback(async () => {
     const repo = await getRepo();
@@ -82,8 +105,10 @@ export default function Library() {
       const pages = (await repo.getPages(b.id)) ?? [];
       const sample = pages.slice(0, 40);
       const layers = topLayers(sample);
+      const g = isGutId(b.id) ? await savedGutInfo(b.id) : null;
       return {
         id: b.id, title: b.title, author: b.sub || 'Meu livro', emoji: b.emoji, genre: MINE, meta: b, sample: false,
+        image: isGutId(b.id) ? coverUrl(Number(b.id.slice(4))) : undefined, gut: g ?? undefined,
         mood: analyze(sample.join('\n')).mood ?? LAYER_MOOD[layers[0]] ?? 'calm',
         synopsis: (pages.find((p) => p.length > 80) ?? pages[0] ?? '').slice(0, 220),
         pages: b.n || pages.length, chapters: pages.length ? detectChapters(pages).length : 0, layers,
@@ -95,6 +120,7 @@ export default function Library() {
   useEffect(() => onSynced(() => void load()), [load]);
 
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
+  const classics = useMemo(() => gut.map((b) => gutItem(b, byId.get(bookId(b)))), [gut, byId]);
   const all = useMemo(() => [...mine, ...SAMPLE_ITEMS.map((s) => ({ ...s, meta: byId.get(s.id) }))], [mine, byId]);
   const reading = useMemo(() => all.filter((i) => i.meta && !i.meta.done && pctOf(i.meta) > 0)
     .sort((a, b) => (b.meta!.updatedAt ?? 0) - (a.meta!.updatedAt ?? 0)), [all]);
@@ -106,6 +132,17 @@ export default function Library() {
     if (it.sample) {
       const s = SAMPLE_BOOKS.find((x) => x.id === it.id)!;
       await repo.addBook({ id: s.id, title: s.title, kind: 'builtin', sub: s.sub, emoji: s.emoji });
+    } else if (it.gut && !(await repo.hasText(it.id))) {
+      // clássico do Project Gutenberg: baixa uma vez e guarda na biblioteca
+      try {
+        setBusy({ msg: `Baixando “${it.title}”…`, pct: null });
+        await openGutenbergBook(it.gut, (msg, pct) => setBusy({ msg, pct }));
+        setBusy(null);
+        void load();
+      } catch (e) {
+        setBusy({ msg: e instanceof Error ? e.message : 'Não consegui baixar este livro.', pct: null, error: true });
+        return;
+      }
     } else if (!(await repo.hasText(it.id))) {
       setBusy({ msg: `Baixando “${it.title}”…`, pct: null });
       const pages = await downloadText(it.id);
@@ -116,6 +153,7 @@ export default function Library() {
   };
 
   const openGlossary = async (it: Item) => {
+    if (it.gut && !it.meta) return void open(it); // ainda não baixado: baixa e abre a leitura
     setDetail(null);
     if (it.sample) {
       const s = SAMPLE_BOOKS.find((x) => x.id === it.id)!;
@@ -149,7 +187,7 @@ export default function Library() {
   const Poster = ({ it, w = posterW }: { it: Item; w?: number }) => (
     <Pressable onPress={() => setDetail(it)} accessibilityRole="button" accessibilityLabel={`${it.title}, ${it.genre}`}
       style={({ pressed }) => ({ width: w, gap: 6, transform: [{ scale: pressed ? 0.97 : 1 }] })}>
-      <Cover id={it.id} title={it.title} author={it.author} emoji={it.emoji} mood={it.mood} width={w} />
+      <Cover id={it.id} title={it.title} author={it.author} emoji={it.emoji} mood={it.mood} width={w} image={it.image} />
       {pctOf(it.meta) > 0 && pctOf(it.meta) < 100 ? <ProgressBar pct={pctOf(it.meta)} height={3} /> : null}
     </Pressable>
   );
@@ -178,8 +216,17 @@ export default function Library() {
     </>
   );
 
-  const shelves: (Shelf | 'Todos')[] = ['Todos', ...GENRES, MINE];
-  const filtered = shelf === 'Todos' ? [] : all.filter((i) => i.genre === shelf);
+  const shelves: (Shelf | 'Todos')[] = ['Todos', CLASSICS, ...GENRES, MINE];
+  const filtered = shelf === 'Todos' ? [] : shelf === CLASSICS ? classics : all.filter((i) => i.genre === shelf);
+  const SeeAll = (
+    <Pressable onPress={() => router.push('/catalog')} accessibilityRole="button" style={[st.add, { width: posterW, height: posterW * 1.5, borderColor: c.btn }]}>
+      <Text style={{ fontSize: 30 }}>🔎</Text>
+      <Text style={[st.addText, { color: c.fg }]}>Ver o catálogo completo</Text>
+    </Pressable>
+  );
+  const gutNote = gutState === 'loading'
+    ? <Text style={[st.note, { color: c.mut }]}>Carregando clássicos do Project Gutenberg…</Text>
+    : gutState === 'error' ? <Text style={[st.note, { color: c.mut }]}>Não consegui carregar o catálogo do Project Gutenberg agora.</Text> : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.ov }}>
@@ -227,6 +274,17 @@ export default function Library() {
             <>
               <Row title="Continuar lendo" items={reading} />
               <Row title="Meus livros" items={mine} lead={AddCards} />
+              {gutNote}
+              <Row title="📜 Clássicos em português" items={classics.slice(0, 20)} lead={undefined} />
+              {GUT_CATEGORIES.filter((g) => g !== 'Outros').map((g) => {
+                const items = classics.filter((i) => i.gut && category(i.gut) === g);
+                return items.length >= 2 ? <Row key={g} title={`Clássicos · ${g}`} items={items} /> : null;
+              })}
+              {classics.length > 0 && (
+                <Pressable onPress={() => router.push('/catalog')} accessibilityRole="button" style={[st.more, { backgroundColor: c.btn }]}>
+                  <Text style={[st.chipText, { color: c.fg }]}>🔎 Buscar no catálogo do Project Gutenberg</Text>
+                </Pressable>
+              )}
               {GENRES.map((g) => <Row key={g} title={g} items={all.filter((i) => i.genre === g)} />)}
               {SOUND_ROWS.map((r) => {
                 const items = all.filter((i) => i.layers.some((L) => r.has.includes(L)));
@@ -236,8 +294,10 @@ export default function Library() {
           ) : (
             <View style={st.grid}>
               {shelf === MINE && AddCards}
+              {shelf === CLASSICS && gutNote}
               {filtered.map((it) => <Poster key={it.id} it={it} />)}
-              {!filtered.length && shelf !== MINE && <Text style={[st.empty, { color: c.mut }]}>Nenhum livro neste tema ainda.</Text>}
+              {shelf === CLASSICS && classics.length > 0 && SeeAll}
+              {!filtered.length && shelf !== MINE && shelf !== CLASSICS && <Text style={[st.empty, { color: c.mut }]}>Nenhum livro neste tema ainda.</Text>}
             </View>
           )}
         </View>
@@ -250,13 +310,16 @@ export default function Library() {
           <View style={[st.sheet, { backgroundColor: c.bg, paddingBottom: insets.bottom + 20 }]}>
             <ScrollView contentContainerStyle={{ gap: 14 }}>
               <View style={{ flexDirection: 'row', gap: 16 }}>
-                <Cover id={detail.id} title={detail.title} author={detail.author} emoji={detail.emoji} mood={detail.mood} width={124} />
+                <Cover id={detail.id} title={detail.title} author={detail.author} emoji={detail.emoji} mood={detail.mood} width={124} image={detail.image} />
                 <View style={{ flex: 1, gap: 6 }}>
                   <Text style={[st.dTitle, { color: c.fg }]}>{detail.title}</Text>
                   <Text style={[st.dMeta, { color: c.mut }]}>{detail.author}</Text>
                   <Text style={[st.dMeta, { color: c.mut }]}>
-                    {detail.genre} · {detail.pages} páginas{detail.chapters > 1 ? ` · ${detail.chapters} ${detail.chapters === 1 ? 'parte' : 'capítulos'}` : ''}
+                    {detail.gut && !detail.pages
+                      ? `${category(detail.gut)} · Project Gutenberg · domínio público`
+                      : `${detail.genre} · ${detail.pages} páginas${detail.chapters > 1 ? ` · ${detail.chapters} capítulos` : ''}`}
                   </Text>
+                  {detail.gut ? <Text style={[st.dMeta, { color: c.mut }]}>{detail.gut.download_count.toLocaleString('pt-BR')} downloads</Text> : null}
                   {pctOf(detail.meta) > 0 && <Text style={[st.dMeta, { color: c.fg }]}>{detail.meta?.done ? 'Concluído ✓' : `${pctOf(detail.meta)}% lido`}</Text>}
                 </View>
               </View>
@@ -270,9 +333,9 @@ export default function Library() {
                 </View>
               )}
               <View style={st.dBtns}>
-                <RoundButton big label={`▶ ${pctOf(detail.meta) > 0 && !detail.meta?.done ? 'Continuar' : 'Ler'}`} onPress={() => void open(detail)} />
-                <RoundButton label="📝 Glossário e capítulos" onPress={() => void openGlossary(detail)} />
-                {!detail.sample && <RoundButton label="Remover" onPress={() => remove(detail)} />}
+                <RoundButton big label={`▶ ${pctOf(detail.meta) > 0 && !detail.meta?.done ? 'Continuar' : detail.gut && !detail.meta ? 'Baixar e ler' : 'Ler'}`} onPress={() => void open(detail)} />
+                {(!detail.gut || detail.meta) && <RoundButton label="📝 Glossário e capítulos" onPress={() => void openGlossary(detail)} />}
+                {!detail.sample && (!detail.gut || detail.meta) && <RoundButton label="Remover" onPress={() => remove(detail)} />}
               </View>
             </ScrollView>
           </View>
@@ -310,6 +373,8 @@ const st = StyleSheet.create({
   chips: { gap: 8, paddingHorizontal: 16 },
   chip: { minHeight: 36, paddingHorizontal: 16, borderRadius: 99, justifyContent: 'center' },
   chipText: { fontFamily: FONTS.uiBold, fontSize: 14 },
+  note: { fontFamily: FONTS.ui, fontSize: 14, paddingHorizontal: 16 },
+  more: { marginHorizontal: 16, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   rowTitle: { fontFamily: FONTS.uiBold, fontSize: 18, paddingHorizontal: 16 },
   rowList: { gap: 10, paddingHorizontal: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16 },
