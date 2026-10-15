@@ -67,9 +67,10 @@ class LocalSoundLibrary {
     return this.loaded;
   }
 
-  private async save(): Promise<void> {
+  /** Salva o índice; avisa os ouvintes só quando entra ou sai um som (contar uso não avisa). */
+  private async save(notify = true): Promise<void> {
     try { await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(this.index ?? [])); } catch { /* sem armazenamento: segue em memória */ }
-    this.listeners.forEach((f) => f());
+    if (notify) this.listeners.forEach((f) => f());
   }
 
   /** Avisa quando o repositório muda (o laboratório atualiza a lista). */
@@ -125,7 +126,7 @@ class LocalSoundLibrary {
 
   private bumpUse(id: string): void {
     const s = this.index?.find((x) => x.id === id);
-    if (s) { s.uses++; void this.save(); }
+    if (s) { s.uses++; void this.save(false); }
   }
 
   /** Gera (uma vez por chave, mesmo com pedidos simultâneos) e guarda. */

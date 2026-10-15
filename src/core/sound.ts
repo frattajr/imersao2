@@ -10,6 +10,9 @@ export function spotDesc(sp: Spot): SoundDesc {
   const d: SoundDesc = { cat: 'spot', name: sp.s, ...sp.v };
   // a superfície dos passos que a IA já mandava vale como material
   if (!d.material && sp.surface) d.material = sp.surface;
+  // tipo do som pontual vira detalhe (porta rangendo ≠ porta batendo; apito ≠ sirene de navio)
+  const KIND: Record<string, string> = { creak: 'creaking open', close: 'closing shut', foghorn: 'ship foghorn', whistle: 'train whistle' };
+  if (!d.detail && sp.kind && KIND[sp.kind]) d.detail = KIND[sp.kind];
   if (!d.intensity) d.intensity = sp.w < 0.35 ? 'soft' : sp.w > 0.7 ? 'strong' : 'medium';
   return d;
 }

@@ -204,3 +204,77 @@ describe('normalização de volume no app', () => {
     expect(normalize(buf(new Float32Array(1000)))).toBe(false);
   });
 });
+
+/* ---------- enredo → sons ---------- */
+import { analyze } from '../src/core/analyze';
+import { bookProfile, enrichPlan, readCues } from '../src/core/scenery';
+import { SceneSmoother } from '../src/core/smooth';
+import { SAMPLE_BOOKS } from '../src/data/books';
+
+describe('leitura do enredo', () => {
+  it('reconhece lugar, distância, intensidade e materiais', () => {
+    const c = readCues('Lá dentro da caverna, ao longe, gotas pingavam na pedra. A tempestade desabou.');
+    expect(c).toMatchObject({ place: 'cave', distance: 'far', intensity: 'strong' });
+    expect(c.materials).toContain('stone');
+  });
+
+  it('o livro tem um perfil: cenário e uma descrição por camada', () => {
+    const farol = SAMPLE_BOOKS.find((b) => b.id === 'sample-farol')!;
+    const p = bookProfile(farol.pages, analyze);
+    expect(p.tags).toContain('lighthouse');
+    expect(p.looks.sea).toMatchObject({ place: 'outdoor' });
+  });
+
+  it('a mesma camada recebe a mesma descrição em páginas diferentes (o repositório reaproveita)', () => {
+    const farol = SAMPLE_BOOKS.find((b) => b.id === 'sample-farol')!;
+    const prof = bookProfile(farol.pages, analyze);
+    const looks = farol.pages.map((t) => enrichPlan(analyze(t), t, prof).looks?.sea).filter(Boolean)
+      .map((v) => { const { intensity: _i, ...rest } = v!; return JSON.stringify(rest); });
+    expect(new Set(looks).size).toBe(1);
+  });
+
+  it('escolhe detalhes de ambiente pelo lugar: rangido em escada de madeira, gotas na caverna', () => {
+    const casa = enrichPlan(analyze('Subiu a escada de madeira da casa velha, no escuro.'), 'Subiu a escada de madeira da casa velha, no escuro.');
+    expect(casa.details.map((d) => d.s)).toContain('creak');
+    const t = 'Na caverna úmida, o silêncio era quase total.';
+    expect(enrichPlan(analyze(t), t).details.map((d) => d.s)).toContain('drip');
+    casa.details.forEach((d) => expect(d.w).toBeLessThanOrEqual(0.3)); // detalhes sempre baixinhos
+  });
+
+  it('o rugido de um livro de dragão vira "rugido de dragão, longe"', () => {
+    const dragao = SAMPLE_BOOKS.find((b) => b.id === 'sample-dragao')!;
+    const prof = bookProfile(dragao.pages, analyze, dragao.title);
+    const i = dragao.pages.findIndex((t) => analyze(t).spots.some((s) => s.s === 'roar'));
+    const sp = enrichPlan(analyze(dragao.pages[i]), dragao.pages[i], prof).spots.find((s) => s.s === 'roar')!;
+    expect(sp.v?.detail).toBe('dragon');
+  });
+});
+
+describe('suavização quando a cena muda muito', () => {
+  it('cena calma: segue o pedido, transição normal', () => {
+    const s = new SceneSmoother();
+    const r = s.next({ rain: 0.5 }, 0);
+    expect(r).toMatchObject({ amb: { rain: 0.5 }, fade: 1, gain: 1 });
+  });
+
+  it('muitas trocas seguidas: transições mais longas, volume mais baixo, sem sumiço brusco', () => {
+    const s = new SceneSmoother();
+    const scenes = [{ rain: 0.6 }, { sea: 0.6 }, { fire: 0.6 }, { city: 0.6 }, { cafe: 0.6 }, { wind: 0.6 }];
+    let r = s.next(scenes[0], 0);
+    scenes.slice(1).forEach((sc, i) => { r = s.next(sc, (i + 1) * 4000); });
+    expect(r.busy).toBeGreaterThan(0.5);
+    expect(r.fade).toBeGreaterThan(1.8);
+    expect(r.gain).toBeLessThan(0.85);
+    expect(r.amb.cafe).toBeCloseTo(0.3); // a anterior desce pela metade em vez de sumir
+    expect(Object.keys(r.amb).length).toBeLessThanOrEqual(4);
+  });
+
+  it('cena agitada ignora camada fraca nova e volta ao normal depois de um tempo calmo', () => {
+    const s = new SceneSmoother();
+    for (let i = 0; i < 6; i++) s.next(i % 2 ? { rain: 0.7 } : { sea: 0.7 }, i * 3000);
+    expect(s.next({ sea: 0.7, birds: 0.2 }, 19000).amb.birds).toBeUndefined();
+    const calm = s.next({ sea: 0.7 }, 200_000);
+    expect(calm.fade).toBe(1);
+    expect(calm.amb).toEqual({ sea: 0.7 });
+  });
+});

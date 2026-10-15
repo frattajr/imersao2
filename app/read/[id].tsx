@@ -6,7 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { engine } from '../../src/audio';
-import { LAYER_LABEL, SPOT_LABEL, TINT } from '../../src/core/analyze';
+import { analyze, LAYER_LABEL, SPOT_LABEL, TINT } from '../../src/core/analyze';
+import { bookProfile, enrichPlan, type BookProfile } from '../../src/core/scenery';
+import { SceneSmoother } from '../../src/core/smooth';
+import { planDescs, spotDesc } from '../../src/core/sound';
 import { entriesOnPage } from '../../src/core/glossary';
 import { blendAmbience } from '../../src/core/plan';
 import { minutesLeft, wordsRemaining } from '../../src/core/text';
@@ -110,6 +113,10 @@ export default function Reader() {
   const prevAmb = useRef<Ambience>({});
   const played = useRef(new Set<number>());
   const director = useRef<SceneDirector | null>(null);
+  const pagesRef = useRef<string[]>([]);
+  /** como soa cada camada neste livro (lido do texto inteiro ao abrir) */
+  const profile = useRef<BookProfile>({ looks: {}, tags: [] });
+  const smoother = useRef(new SceneSmoother());
   const audioTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tintAnim = useRef(new Animated.Value(0)).current;
 
@@ -125,6 +132,8 @@ export default function Reader() {
       const [b, p, g] = await Promise.all([repo.getBook(id), repo.getPages(id), repo.getGloss(id)]);
       if (!alive || !b || !p?.length) { router.back(); return; }
       const start = b.done ? 0 : Math.min(b.idx, p.length - 1);
+      pagesRef.current = p;
+      profile.current = bookProfile(p, analyze, b.title);
       setBook(b); setPages(p); setGloss(g); setIdx(start); idxRef.current = start;
       setLayers([{ key: ++keyRef.current, idx: start, dir: 1, leaving: false }]);
       director.current = new SceneDirector(id, b.title, p, (page) => { if (page === idxRef.current) void applyAudio(page); });
@@ -143,6 +152,7 @@ export default function Reader() {
       if (audioTimer.current) clearTimeout(audioTimer.current);
       engine.clearSpots();
       engine.setScene({});
+      engine.setDetails([]);
     };
   }, []);
   useEffect(() => { engine.setVolume(VOLUMES[volI]); }, [volI]);
@@ -162,16 +172,28 @@ export default function Reader() {
     if (!d) return;
     const r = await d.planFor(i);
     if (i !== idxRef.current) return;
-    const amb = blendAmbience(prevAmb.current, r.plan.ambience, !r.fromAi);
-    prevAmb.current = amb;
-    engine.setScene(amb, r.plan.looks);
+    // lê o enredo: como cada som deve soar, perfil do livro e detalhes do lugar
+    const rich = enrichPlan(r.plan, pagesRef.current[i] ?? '', profile.current);
+    const blended = blendAmbience(prevAmb.current, rich.ambience, !r.fromAi);
+    prevAmb.current = blended;
+    // muitas trocas seguidas: transições mais longas e volume mais baixo
+    const sm = smoother.current.next(blended);
+    engine.setScene(sm.amb, rich.looks, { fade: sm.fade, gain: sm.gain });
+    engine.setDetails(rich.details);
     // cada página toca seus sons pontuais uma vez (se a IA chegar depois, só o ambiente é atualizado)
     if (!played.current.has(i)) {
       played.current.add(i);
-      engine.playSpots(r.plan.spots);
+      engine.playSpots(sm.busy > 0.6 ? rich.spots.slice(0, 1) : rich.spots);
     }
-    tintTo(r.plan.mood ?? 'calm');
-    setChip(chipText(amb, r.plan, r.pending));
+    tintTo(rich.mood ?? 'calm');
+    setChip(chipText(sm.amb, rich, r.pending));
+    // já busca (ou manda gerar) os sons da próxima página: quando o leitor chegar, estão prontos
+    const next = pagesRef.current[i + 1];
+    if (next) {
+      const nx = enrichPlan(analyze(next), next, profile.current);
+      [...planDescs(nx), ...nx.details.map((d) => spotDesc({ s: d.s, at: 0, w: d.w, v: d.v }))]
+        .forEach((d) => void activeLibrary.resolve(d).catch(() => null));
+    }
   }, [tintTo]);
 
   /* a cada página: salva progresso e agenda o som (0,7 s depois, junto com a leitura) */
@@ -194,6 +216,7 @@ export default function Reader() {
       setFinished(true);
       engine.clearSpots();
       engine.setScene({});
+      engine.setDetails([]);
       void getRepo().then((r) => r.saveProgress(id, pages.length - 1, true)).then(() => syncSoon(1000));
       return;
     }

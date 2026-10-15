@@ -131,6 +131,14 @@ npx supabase secrets set ELEVENLABS_API_KEY=... SOUND_GEN_DAILY_LIMIT=50
 
 `SOUND_GEN_DAILY_LIMIT` limita as gerações em 24 h para o app inteiro (padrão 50); `SOUND_GEN_MODEL` troca o modelo (padrão `eleven_text_to_sound_v2`). Antes de publicar na loja, confira se os termos do serviço permitem uso comercial dos sons gerados.
 
+## Sons de acordo com o enredo
+
+Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`src/core/scenery.ts`): o cenário que se repete (farol, navio, dragão…) e uma descrição fixa para cada camada — a chuva do farol é sempre a mesma chuva. Em cada página, a descrição é ajustada pelo trecho (dentro/fora, perto/longe, forte/suave) e os sons pontuais ganham contexto ("rugido de dragão, longe").
+
+- **Detalhes de ambiente:** sons pequenos que combinam com o lugar — rangido de madeira, gotas na caverna, rajadas, folhas, coruja — tocam baixinho, um de cada vez, com intervalos longos e irregulares (20–55 s), e continuam de uma página para outra.
+- **Muitas trocas, som mais leve** (`src/core/smooth.ts`): se a cena muda muito em pouco tempo, as transições ficam até 2,5× mais longas, o volume baixa até 30%, camadas recém-chegadas não somem de repente e camadas fracas novas são ignoradas. Quando a leitura acalma, volta ao normal.
+- **Reaproveitamento:** como a descrição de cada som é estável no livro, a segunda vez que ele aparece (nesta ou em outra leitura, neste ou em outro livro) vem do repositório, sem chamar a ElevenLabs. Os sons da próxima página são buscados (ou gerados) com antecedência.
+
 ## Verificações
 
 ```bash

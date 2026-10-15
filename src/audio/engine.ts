@@ -9,6 +9,7 @@
  */
 import type { SoundDesc, SoundVariant } from '../../supabase/functions/_shared/sound-library';
 import { layerDesc, spotDesc } from '../core/sound';
+import type { AmbientDetail } from '../core/scenery';
 import type { Ambience, Layer, Spot } from '../core/types';
 import { LAYERS } from '../core/types';
 import { rng } from './dsp';
@@ -63,6 +64,9 @@ export interface SoundSource {
 const RECORDED_GAIN = 0.35;
 /** Volume dos sons pontuais vindos de arquivo, multiplicado pela intensidade "w" da cena. */
 const RECORDED_SPOT_GAIN = 0.8;
+/** Detalhes de ambiente (rangidos, gotas…) ficam bem abaixo dos sons da ação. */
+const DETAIL_GAIN = 0.55;
+const s0 = (x: number) => Math.max(0, x);
 /** Tempo máximo esperando o repositório antes de tocar a reserva. */
 const LOOKUP_TIMEOUT_MS = 2500;
 const UP = 2.2;   // segundos para uma camada entrar
@@ -127,6 +131,12 @@ export class AmbientEngine {
   private volume = 0.7;
   private seed = 1;
   private enabled = true;
+  private fade = 1;
+  private sceneGain = 1;
+  private details: AmbientDetail[] = [];
+  private nextDetail = 0;
+  private lastDetail = '';
+  private detailBus!: GainLike;
   private library: SoundSource | null = null;
   private looks: Partial<Record<Layer, SoundVariant>> = {};
   private recentSpots: { id: string; until: number }[] = [];
@@ -146,6 +156,9 @@ export class AmbientEngine {
     this.master.connect(ctx.destination);
     this.spotBus = ctx.createGain();
     this.spotBus.connect(this.master);
+    this.detailBus = ctx.createGain();
+    this.detailBus.gain.value = DETAIL_GAIN;
+    this.detailBus.connect(this.master);
     this.timer = setInterval(() => this.tick(), 250);
   }
 
@@ -204,20 +217,36 @@ export class AmbientEngine {
    * `looks` diz como cada camada soa na cena; vale para a camada que ainda vai carregar
    * (uma camada que já está tocando continua com o mesmo arquivo, sem troca brusca).
    */
-  setScene(amb: Ambience, looks?: Partial<Record<Layer, SoundVariant>>): void {
+  setScene(amb: Ambience, looks?: Partial<Record<Layer, SoundVariant>>, opts?: { fade?: number; gain?: number }): void {
     if (!this.ctx) return;
     if (looks) this.looks = { ...this.looks, ...looks };
+    // cena agitada: transições mais longas e tudo um pouco mais baixo (ver core/smooth.ts)
+    this.fade = Math.max(1, Math.min(3, opts?.fade ?? 1));
+    this.sceneGain = Math.max(0.5, Math.min(1, opts?.gain ?? 1));
     if (this.enabled && this.ctx.state === 'suspended' && Object.values(amb).some((v) => (v ?? 0) > 0)) void this.ctx.resume();
     for (const L of LAYERS) {
-      const target = amb[L] ?? 0;
+      const target = (amb[L] ?? 0) * this.sceneGain;
       const st = this.layers.get(L);
       if (!st && target <= 0) continue;
       const s = st ?? this.createLayer(L);
       s.level = target;
       const gainTarget = target * (s.recorded ? RECORDED_GAIN : 1);
-      this.rampLayer(s, gainTarget, gainTarget > valueAt(s.ramp, this.ctx.currentTime) ? UP : DOWN);
+      this.rampLayer(s, gainTarget, (gainTarget > valueAt(s.ramp, this.ctx.currentTime) ? UP : DOWN) * this.fade);
       if (target > 0 && !s.src && !s.loading) void this.loadLayer(L, s);
     }
+  }
+
+  /**
+   * Detalhes de ambiente da cena (rangidos, gotas, rajadas…): um de cada vez,
+   * baixinho, com intervalos longos e irregulares (20–55 s). Continuam de uma
+   * página para outra enquanto o lugar for o mesmo; variam para não repetir.
+   */
+  setDetails(details: AmbientDetail[]): void {
+    const was = this.details.length;
+    this.details = details.slice(0, 3);
+    if (!this.ctx) return;
+    if (!this.details.length) { this.nextDetail = 0; return; }
+    if (!was || !this.nextDetail) this.nextDetail = this.ctx.currentTime + 8 + Math.random() * 10;
   }
 
   /** Interrompe (com fade curto) os sons pontuais da página anterior. */
@@ -245,6 +274,7 @@ export class AmbientEngine {
       void this.spotBuffer(sp).then((buf) => {
         if (!buf || !this.ctx || bus !== this.spotBus) return;
         const lib = this.spotLib.get(buf);
+        const level = this.sceneGain;
         if (lib) this.recentSpots = [...this.recentSpots.filter((x) => x.until > this.ctx!.currentTime), { id: lib, until: t0 + reps * gap + 6 }];
         for (let r = 0; r < reps; r++) {
           const src = this.ctx.createBufferSource();
@@ -252,7 +282,12 @@ export class AmbientEngine {
           if (this.fileBufs.has(buf)) {
             // a síntese já sai no volume pedido; arquivo normalizado precisa do "w" da cena
             const g = this.ctx.createGain();
-            g.gain.value = sp.w * RECORDED_SPOT_GAIN;
+            g.gain.value = sp.w * RECORDED_SPOT_GAIN * level;
+            src.connect(g);
+            g.connect(bus);
+          } else if (level < 1) {
+            const g = this.ctx.createGain();
+            g.gain.value = level;
             src.connect(g);
             g.connect(bus);
           } else {
@@ -292,7 +327,7 @@ export class AmbientEngine {
       if (s.level > 0 || now < s.ramp.t1 + 2) { active = true; return; }
       if (s.src) { try { s.src.stop(); s.src.disconnect(); } catch { /* já parado */ } s.src = null; }
     });
-    if (active) this.lastSound = now;
+    if (active || (this.details.length && s0(this.nextDetail - now) < 30)) this.lastSound = now;
     else if (ctx.state === 'running' && now - this.lastSound > 12) void ctx.suspend();
   }
 
@@ -462,6 +497,27 @@ export class AmbientEngine {
     return b;
   }
 
+  private tickDetails(now: number): void {
+    if (!this.details.length || !this.nextDetail || now < this.nextDetail) return;
+    // intervalo longo e irregular; mais longo ainda quando a cena está agitada
+    this.nextDetail = now + (20 + Math.random() * 35) * this.fade;
+    const pool = this.details.length > 1 ? this.details.filter((d) => d.s !== this.lastDetail) : this.details;
+    const d = pool[Math.floor(Math.random() * pool.length)];
+    this.lastDetail = d.s;
+    const sp: Spot = { s: d.s, at: 0, w: d.w, v: d.v, n: d.s === 'drip' ? 3 : d.s === 'bark' ? 2 : undefined };
+    const bus = this.detailBus;
+    void this.spotBuffer(sp).then((buf) => {
+      if (!buf || !this.ctx || !this.enabled) return;
+      const g = this.ctx.createGain();
+      g.gain.value = (this.fileBufs.has(buf) ? d.w * RECORDED_SPOT_GAIN : 1) * this.sceneGain;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(g);
+      g.connect(bus);
+      src.start(this.ctx.currentTime + 0.05);
+    });
+  }
+
   /** Eventos esporádicos (pássaros, trovão, ondas grandes, xícaras, carros). */
   private tick(): void {
     const ctx = this.ctx;
@@ -469,6 +525,7 @@ export class AmbientEngine {
     this.reap();
     if (!this.enabled || ctx.state !== 'running') return;
     const now = ctx.currentTime;
+    this.tickDetails(now);
     this.layers.forEach((s, L) => {
       const sp = SPORADIC[L];
       if (!sp || s.recorded || s.level < 0.12) { s.nextSporadic = 0; return; }
