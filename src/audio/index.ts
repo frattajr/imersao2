@@ -1,5 +1,7 @@
 import { configureAudioSession, createAudioContext } from './context';
-import { soundLibrary } from '../services/sounds';
+import { localSounds } from '../services/localSounds';
+import { activeLibrary } from '../services/sounds';
+import { supabase } from '../services/supabase';
 import { AmbientEngine } from './engine';
 
 /** Um único motor de som para o app inteiro. */
@@ -10,6 +12,8 @@ export function bootAudio(packUrl?: string): void {
   if (ready) return;
   ready = true;
   configureAudioSession();
-  engine.setLibrary(soundLibrary);
+  engine.setLibrary(activeLibrary);
+  // sem servidor, o repositório é o do aparelho: quando um som novo fica pronto, já entra na cena
+  if (!supabase) localSounds.subscribe(() => engine.upgradeLayers());
   void engine.loadPack(packUrl);
 }

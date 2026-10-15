@@ -3,35 +3,34 @@
  * síntese e veja o repositório funcionando — "Buscar ou gerar" reaproveita
  * um som parecido já criado nesta sessão ou gera um novo pela ElevenLabs.
  *
- * O repositório aqui é local (memória do aparelho), para testar sem servidor.
+ * O repositório é o do aparelho (src/services/localSounds.ts), o mesmo que
+ * o leitor usa quando não há servidor: o que for gerado aqui toca na leitura.
  * A chave da ElevenLabs é digitada na tela e fica só neste aparelho.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  bestMatch, descKey, DISTANCES, generationRequest, INTENSITIES, LIB_LAYERS, LIB_SPOTS, MATERIALS, PLACES,
-  sanitizeDetail, type LibrarySound, type SoundDesc,
+  descKey, DISTANCES, generationRequest, INTENSITIES, LIB_LAYERS, LIB_SPOTS, MATERIALS, PLACES,
+  sanitizeDetail, type SoundDesc,
 } from '../supabase/functions/_shared/sound-library';
 import { createAudioContext } from '../src/audio/context';
 import { normalize, type BufferLike, type CtxLike, type SourceLike } from '../src/audio/engine';
 import { renderLayer, renderSpot } from '../src/audio/recipes';
 import { LAYER_LABEL, SPOT_LABEL } from '../src/core/analyze';
 import type { Layer, SpotName } from '../src/core/types';
+import { localSounds, type LocalSound } from '../src/services/localSounds';
+import { supabase } from '../src/services/supabase';
 import { RoundButton, SectionTitle } from '../src/ui/components';
 import { FONTS, usePrefs } from '../src/ui/prefs';
 
-const KEY_STORE = 'imersao.lab.elevenlabs';
 const LABEL_PT: Record<string, string> = {
   wood: 'madeira', gravel: 'cascalho', stone: 'pedra', grass: 'grama', snow: 'neve', metal: 'metal', water: 'água',
   glass: 'vidro', fabric: 'tecido', paper: 'papel', leaves: 'folhas', mud: 'lama', sand: 'areia', tile: 'piso',
   indoor: 'interior', outdoor: 'ao ar livre', cave: 'caverna', hall: 'salão', vehicle: 'veículo', underwater: 'debaixo d’água',
   near: 'perto', mid: 'média', far: 'longe', soft: 'suave', medium: 'média', strong: 'forte',
 };
-
-interface LabSound extends LibrarySound { buf: BufferLike; uses: number }
 
 type Status = { kind: 'info' | 'hit' | 'gen' | 'error'; text: string } | null;
 
@@ -62,15 +61,19 @@ export default function Lab() {
   const [desc, setDesc] = useState<SoundDesc>({ cat: 'layer', name: 'rain' });
   const [detail, setDetail] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [repo, setRepo] = useState<LabSound[]>([]);
+  const [repo, setRepo] = useState<LocalSound[]>([]);
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const ctx = useRef<CtxLike | null>(null);
   const playing = useRef<SourceLike | null>(null);
 
   useEffect(() => {
-    void AsyncStorage.getItem(KEY_STORE).then((k) => k && setApiKey(k)).catch(() => undefined);
-    return () => { try { playing.current?.stop(); } catch { /* */ } void (ctx.current as unknown as { close?: () => Promise<void> })?.close?.(); };
+    void localSounds.getKey().then(setApiKey);
+    const refresh = () => void localSounds.list().then(setRepo);
+    refresh();
+    const off = localSounds.subscribe(refresh);
+    return () => {
+      off(); try { playing.current?.stop(); } catch { /* */ } void (ctx.current as unknown as { close?: () => Promise<void> })?.close?.(); };
   }, []);
 
   const full: SoundDesc = useMemo(() => {
@@ -105,6 +108,25 @@ export default function Lab() {
     playing.current = src;
   }, [audio]);
 
+  /** Baixa (do aparelho), iguala o volume e toca um som do repositório. */
+  const bufs = useRef(new Map<string, BufferLike>());
+  const playUrl = useCallback(async (id: string, url: string, layer: boolean) => {
+    let b = bufs.current.get(id);
+    if (!b) {
+      const a = audio();
+      if (!a.decodeAudioData) throw new Error('Este aparelho não decodifica o áudio.');
+      b = await a.decodeAudioData(await (await fetch(url)).arrayBuffer());
+      if (!normalize(b)) throw new Error('O som veio mudo.');
+      bufs.current.set(id, b);
+    }
+    play(b, layer ? 0.6 : 0.8);
+  }, [audio, play]);
+
+  const playSaved = async (s: LocalSound) => {
+    const url = await localSounds.urlOf(s.id);
+    if (url) await playUrl(s.id, url, s.cat === 'layer').catch((e) => setStatus({ kind: 'error', text: String(e?.message ?? e) }));
+  };
+
   const stop = () => { try { playing.current?.stop(); } catch { /* */ } };
 
   const playSynth = () => {
@@ -123,52 +145,27 @@ export default function Lab() {
 
   const saveKey = (k: string) => {
     setApiKey(k);
-    void AsyncStorage.setItem(KEY_STORE, k).catch(() => undefined);
-  };
-
-  const generate = async (): Promise<BufferLike> => {
-    const r = await fetch('https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128', {
-      method: 'POST',
-      headers: { 'xi-api-key': apiKey.trim(), 'content-type': 'application/json' },
-      body: JSON.stringify({ text: req.text, duration_seconds: req.seconds, prompt_influence: 0.4, loop: req.loop, model_id: 'eleven_text_to_sound_v2' }),
-    });
-    if (!r.ok) {
-      const body = (await r.text()).slice(0, 200);
-      throw new Error(r.status === 401 ? 'Chave da ElevenLabs recusada (401). Confira a chave.' : `ElevenLabs respondeu ${r.status}: ${body}`);
-    }
-    const a = audio();
-    if (!a.decodeAudioData) throw new Error('Este aparelho não decodifica o áudio recebido.');
-    const buf = await a.decodeAudioData(await r.arrayBuffer());
-    if (!normalize(buf)) throw new Error('O som gerado veio mudo.');
-    return buf;
+    void localSounds.setKey(k);
   };
 
   const findOrGenerate = async () => {
-    const m = bestMatch(full, repo);
-    if (m) {
-      const s = m.sound as LabSound;
-      setRepo((list) => list.map((x) => (x.id === s.id ? { ...x, uses: x.uses + 1 } : x)));
-      play(s.buf, desc.cat === 'layer' ? 0.6 : 0.8);
-      setStatus({ kind: 'hit', text: `♻️ Reaproveitado do repositório (semelhança ${m.score.toFixed(2).replace('.', ',')}). Nenhuma geração, custo zero.` });
-      return;
-    }
-    if (!apiKey.trim()) {
-      setStatus({ kind: 'info', text: 'Nada parecido no repositório. Para gerar um som novo, cole a chave da ElevenLabs abaixo.' });
-      return;
-    }
     setBusy(true);
-    setStatus({ kind: 'info', text: 'Som novo: gerando com a ElevenLabs… (alguns segundos)' });
     try {
-      const buf = await generate();
-      const s: LabSound = { ...full, id: String(Date.now()), key: descKey(full), path: '', buf, uses: 1 };
-      setRepo((list) => [s, ...list]);
-      play(buf, desc.cat === 'layer' ? 0.6 : 0.8);
-      setStatus({ kind: 'gen', text: '✨ Gerado e guardado no repositório. Peça de novo (ou algo parecido) para ver o reaproveitamento.' });
+      if (!apiKey.trim()) {
+        const all = await localSounds.list();
+        if (!all.length) {
+          setStatus({ kind: 'info', text: 'Repositório vazio. Para gerar um som novo, cole a chave da ElevenLabs abaixo.' });
+          return;
+        }
+      }
+      setStatus({ kind: 'info', text: 'Procurando no repositório… (se for um som novo, a ElevenLabs leva alguns segundos)' });
+      const r = await localSounds.findOrGenerate(full);
+      await playUrl(r.sound.id, r.url, desc.cat === 'layer');
+      setStatus(r.reused
+        ? { kind: 'hit', text: `♻️ Reaproveitado do repositório (semelhança ${r.score.toFixed(2).replace('.', ',')}). Nenhuma geração, custo zero.` }
+        : { kind: 'gen', text: '✨ Gerado e guardado no repositório. Ele já toca na leitura; peça algo parecido para ver o reaproveitamento.' });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setStatus({ kind: 'error', text: /Failed to fetch|NetworkError|Load failed/i.test(msg)
-        ? 'Não consegui falar com a ElevenLabs (rede ou bloqueio do navegador).'
-        : msg });
+      setStatus({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -228,8 +225,8 @@ export default function Lab() {
         </View>
         {status && <Text style={[st.status, { color: statusColor }]}>{status.text}</Text>}
 
-        <SectionTitle>{`Repositório desta sessão (${repo.length})`}</SectionTitle>
-        {repo.length === 0 && <Text style={[st.small, { color: c.mut }]}>Vazio. O primeiro som gerado aparece aqui.</Text>}
+        <SectionTitle>{`Repositório deste aparelho (${repo.length})`}</SectionTitle>
+        {repo.length === 0 && <Text style={[st.small, { color: c.mut }]}>Vazio. Os sons gerados aqui ou durante a leitura aparecem nesta lista.</Text>}
         {repo.map((s) => (
           <View key={s.id} style={[st.item, { backgroundColor: c.card }]}>
             <View style={{ flex: 1, gap: 2 }}>
@@ -239,7 +236,8 @@ export default function Lab() {
               </Text>
               <Text style={[st.small, { color: c.mut }]}>{s.detail ? `“${s.detail}” · ` : ''}usado {s.uses}×</Text>
             </View>
-            <RoundButton label="▶" accessibilityLabel="Tocar" onPress={() => play(s.buf, s.cat === 'layer' ? 0.6 : 0.8)} />
+            <RoundButton label="▶" accessibilityLabel="Tocar" onPress={() => void playSaved(s)} />
+            <RoundButton label="✕" accessibilityLabel="Apagar som" onPress={() => void localSounds.report(s.id)} />
           </View>
         ))}
 
@@ -247,7 +245,9 @@ export default function Lab() {
         <TextInput value={apiKey} onChangeText={saveKey} placeholder="sk_…" placeholderTextColor={c.mut} secureTextEntry
           autoCapitalize="none" autoCorrect={false} style={[st.input, { color: c.fg, backgroundColor: c.card }]} />
         <Text style={[st.small, { color: c.mut }]}>
-          Fica salva só neste aparelho/navegador. No app publicado a chave fica no servidor (Supabase), nunca no aparelho.
+          {supabase
+            ? 'Fica salva só neste aparelho e vale para este laboratório. Na leitura, o app usa o repositório do servidor.'
+            : 'Fica salva só neste aparelho/navegador e também vale para a leitura: sons novos são gerados enquanto você lê. No app publicado, a chave deve ficar no servidor (Supabase).'}
         </Text>
       </ScrollView>
     </View>

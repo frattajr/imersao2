@@ -343,6 +343,37 @@ export class AmbientEngine {
     }
   }
 
+  /**
+   * Troca camadas que estão tocando a síntese por um arquivo do repositório,
+   * se agora houver um (ex.: um som acabou de ser gerado). A camada desce,
+   * troca e sobe de novo, devagar, para a troca não chamar atenção.
+   */
+  upgradeLayers(): void {
+    if (!this.ctx || !this.library) return;
+    this.layers.forEach((s, L) => {
+      if (s.recorded || s.loading || !s.src || s.level <= 0) return;
+      s.loading = true;
+      void this.lookup(layerDesc(L, this.looks[L])).then(async (hit) => {
+        const buf = hit ? await this.fetchUrl(hit.url) : null;
+        if (!hit || !buf || !this.ctx || this.layers.get(L) !== s || !s.src) { s.loading = false; return; }
+        this.rampLayer(s, 0, 1.5);
+        await sleep(1600);
+        if (!this.ctx || this.layers.get(L) !== s) { s.loading = false; return; }
+        try { s.src?.stop(); s.src?.disconnect(); } catch { /* já parado */ }
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(s.gain);
+        src.start(this.ctx.currentTime + 0.02, Math.random() * Math.max(0, buf.duration - 1));
+        s.src = src;
+        s.recorded = true;
+        s.libId = hit.id;
+        s.loading = false;
+        this.rampLayer(s, s.level * RECORDED_GAIN, UP);
+      });
+    });
+  }
+
   /** Gera o loop sintetizado (um por vez, cedendo a vez para a interface). */
   private synthLayer(L: Layer): Promise<BufferLike | null> {
     const key = 'layer:' + L;

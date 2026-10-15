@@ -7,6 +7,7 @@
 import { descKey, type SoundDesc } from '../../supabase/functions/_shared/sound-library';
 import { planDescs } from '../core/sound';
 import type { ScenePlan } from '../core/types';
+import { localSounds } from './localSounds';
 import { ensureSession, supabase } from './supabase';
 
 export interface LibraryHit { id: string; url: string }
@@ -96,3 +97,10 @@ class SoundLibrary {
 }
 
 export const soundLibrary = new SoundLibrary();
+
+/**
+ * Repositório em uso: o do servidor quando o Supabase está configurado;
+ * senão o do próprio aparelho (gera com a chave da ElevenLabs guardada nele).
+ */
+export const activeLibrary: { resolve: SoundLibrary['resolve']; report(id: string): Promise<void>; prefetch?(plans: (ScenePlan | null)[]): void } =
+  supabase ? soundLibrary : localSounds;

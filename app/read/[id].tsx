@@ -11,7 +11,7 @@ import { entriesOnPage } from '../../src/core/glossary';
 import { blendAmbience } from '../../src/core/plan';
 import { minutesLeft, wordsRemaining } from '../../src/core/text';
 import type { Ambience, BookMeta, GlossaryEntry, Layer, Mood, ScenePlan } from '../../src/core/types';
-import { soundLibrary } from '../../src/services/sounds';
+import { activeLibrary } from '../../src/services/sounds';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
 import { SceneDirector } from '../../src/state/scene';
@@ -91,7 +91,7 @@ export default function Reader() {
   const [report, setReport] = useState<'idle' | 'ask' | 'thanks'>('idle');
   const onChipPress = useCallback(() => {
     if (report === 'ask') {
-      engine.libraryIdsPlaying().forEach((sid) => void soundLibrary.report(sid).catch(() => undefined));
+      engine.libraryIdsPlaying().forEach((sid) => void activeLibrary.report(sid).catch(() => undefined));
       setReport('thanks');
       setTimeout(() => setReport('idle'), 3000);
     } else if (report === 'idle' && engine.libraryIdsPlaying().length) {
