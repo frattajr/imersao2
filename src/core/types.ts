@@ -1,3 +1,5 @@
+import type { SoundVariant } from '../../supabase/functions/_shared/sound-library';
+
 /** Camadas contínuas de ambiente. */
 export const LAYERS = [
   'wind', 'leaves', 'birds', 'rain', 'thunder', 'sea', 'water', 'fire',
@@ -29,6 +31,8 @@ export interface Spot {
   pace?: number;
   rep?: number;
   gap?: number;
+  /** como o som é (lugar, distância, intensidade...): escolhe a gravação no repositório */
+  v?: SoundVariant;
 }
 
 export type Ambience = Partial<Record<Layer, number>>;
@@ -37,6 +41,8 @@ export interface ScenePlan {
   mood: Mood | null;
   ambience: Ambience;
   spots: Spot[];
+  /** como soa cada camada nesta cena (ex.: chuva em telhado de metal) */
+  looks?: Partial<Record<Layer, SoundVariant>>;
 }
 
 export interface GlossaryEntry {

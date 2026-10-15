@@ -6,6 +6,7 @@
 import { analyze } from '../core/analyze';
 import type { Ambience, ScenePlan } from '../core/types';
 import { aiAvailable, AiError, fetchScenePlans } from '../services/ai';
+import { soundLibrary } from '../services/sounds';
 import { getRepo } from './db';
 
 const BATCH = 8;
@@ -57,6 +58,8 @@ export class SceneDirector {
         const plans = await fetchScenePlans(this.title, slice, prev);
         await repo.savePlans(this.bookId, from, plans);
         plans.forEach((p, k) => { if (p) { this.plans.set(from + k, p); this.onPlan(from + k); } });
+        // busca (ou manda gerar) os sons das próximas páginas antes de o leitor chegar nelas
+        soundLibrary.prefetch(plans);
       } catch (e) {
         if (e instanceof AiError && e.code !== 'failed') this.disabled = true;
         this.inflight.delete(b); // permite tentar de novo mais tarde

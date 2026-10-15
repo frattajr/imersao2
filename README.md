@@ -48,7 +48,7 @@ npx supabase login
 npx supabase link --project-ref SEU_PROJETO
 npx supabase db push                          # cria tabelas, regras de acesso e buckets
 npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-... AI_DAILY_LIMIT=300
-npx supabase functions deploy sound-plan glossary extract-pdf
+npx supabase functions deploy sound-plan glossary extract-pdf sound-resolve
 ```
 
 No painel do Supabase: **Authentication → Sign In / Providers → Allow anonymous sign-ins** (ligado). O leitor começa sem cadastro.
@@ -97,6 +97,40 @@ O app usa a gravação quando ela existe e a síntese para o resto, camada por c
 Camadas: `wind leaves birds rain thunder sea water fire cafe crowd city train night cricket clock`.
 Sons pontuais: `steps door knock doorbell keys roar howl bark owl bell horn hooves creak drip gust rustle purr musicbox`.
 
+## Repositório de sons (reaproveitar ou gerar)
+
+Cada som que toca é descrito com campos fixos — nome (`rain`, `steps`...), `material`, `place`, `distance`, `intensity` e um `detail` curto em inglês. A IA preenche esses campos no plano de cada página (`looks` nas camadas, `v` nos sons pontuais), e a função `sound-resolve` procura no repositório (`sound_library`) o som mais parecido:
+
+```
+descrição da cena ──► sound-resolve ──► achou parecido (≥ 0,7)? ──► reaproveita (custo zero)
+                                         │ não
+                                         ▼
+                         geração ligada? ──► gera em segundo plano, salva em sounds/lib/…
+                                         │ não                    (próximo pedido já reaproveita)
+                                         ▼
+                              app usa o pacote fixo ou a síntese
+```
+
+- **Nunca troca um som por outro de nome diferente** (chuva nunca vira mar). Pedido sem um campo aceita qualquer valor; por isso os planos por palavras-chave (sem IA) também reaproveitam as gravações.
+- **Uma geração por som novo:** dois leitores pedindo o mesmo som ao mesmo tempo geram uma vez só. Se a geração falhar, a mesma descrição só é tentada de novo depois de 6 horas.
+- **No app:** o volume dos arquivos é igualado automaticamente (arquivos mudos são descartados), e se o servidor demorar mais de 2,5 s toca a reserva.
+- **"Som ruim":** no leitor, toque no rótulo do som (topo da tela) e confirme. Com votos de 3 leitores, o som sai do repositório.
+
+Para registrar as gravações do pacote fixo no repositório:
+
+```bash
+bun scripts/import-sound-pack.ts https://SEU-PROJETO.supabase.co/storage/v1/object/public/sounds/manifest.json > pack.sql
+# rode pack.sql no SQL Editor do Supabase
+```
+
+Para ligar a **geração** de sons novos (opcional; sem isso o repositório só reaproveita):
+
+```bash
+npx supabase secrets set ELEVENLABS_API_KEY=... SOUND_GEN_DAILY_LIMIT=50
+```
+
+`SOUND_GEN_DAILY_LIMIT` limita as gerações em 24 h para o app inteiro (padrão 50); `SOUND_GEN_MODEL` troca o modelo (padrão `eleven_text_to_sound_v2`). Antes de publicar na loja, confira se os termos do serviço permitem uso comercial dos sons gerados.
+
 ## Verificações
 
 ```bash
@@ -114,6 +148,7 @@ O que já foi verificado fora do celular:
 | Biblioteca local (SQLite) | 15 checagens com SQLite real |
 | Síntese de áudio | todas as camadas e sons: sem NaN, sem estouro, emenda do loop, nível e caráter espectral |
 | Motor de som | no Web Audio do Chromium, medindo a saída: entrada/saída suaves, sons pontuais, mudo, liberar camadas e suspender |
+| Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |
 | Funções do servidor | 21 checagens: login, cache compartilhado, limite diário, entradas inválidas, PDF de outro leitor, PDF apagado após leitura |
 | Migração do banco | aplicada num PostgreSQL 16 com ambiente Supabase simulado; regras de acesso testadas (cada leitor só vê o que é seu) |
 | Tipos | `tsc` estrito em todo o código do app |
@@ -124,7 +159,8 @@ O que já foi verificado fora do celular:
 - `react-native-audio-api`: nomes das opções do plugin no `app.json` e de `AudioManager.setAudioSessionOptions` (em `src/audio/context.ts`) podem variar por versão — se o `prebuild` reclamar do plugin, remova a entrada dele; o modo de áudio em segundo plano do iOS já está no `infoPlist`;
 - tempo para gerar os sons sintetizados no aparelho (no computador, todas as camadas levam ~1,7 s; o app gera só as que a cena usa, uma por vez);
 - tocar com a tela bloqueada (iOS e Android);
-- leitura de arquivos pelo `expo-file-system` (há um plano B com `fetch`).
+- leitura de arquivos pelo `expo-file-system` (há um plano B com `fetch`);
+- geração de sons pela API da ElevenLabs com uma chave real (o formato do pedido segue a documentação, mas só foi testado com a API simulada).
 
 ## Estrutura
 

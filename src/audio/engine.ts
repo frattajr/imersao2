@@ -3,9 +3,12 @@
  *
  * Usa só o essencial de qualquer API de áudio estilo Web Audio: buffers em
  * loop, nós de ganho e rampas de volume. Funciona com react-native-audio-api
- * (celular) e com o AudioContext do navegador. Cada camada toca uma gravação
- * real do pacote de sons quando existe; se não, um loop sintetizado.
+ * (celular) e com o AudioContext do navegador. Para cada camada e som
+ * pontual a ordem é: arquivo do repositório de sons (o mais parecido com a
+ * descrição da cena), gravação do pacote fixo, e por fim a síntese.
  */
+import type { SoundDesc, SoundVariant } from '../../supabase/functions/_shared/sound-library';
+import { layerDesc, spotDesc } from '../core/sound';
 import type { Ambience, Layer, Spot } from '../core/types';
 import { LAYERS } from '../core/types';
 import { rng } from './dsp';
@@ -51,8 +54,17 @@ export interface PackManifest {
   spots?: Partial<Record<Spot['s'], string[] | Record<string, string[]>>>;
 }
 
+/** Repositório de sons (ver src/services/sounds.ts). */
+export interface SoundSource {
+  resolve(d: SoundDesc): Promise<{ id: string; url: string } | null>;
+}
+
 /** Volume relativo de cada camada quando tocada a partir de gravação. */
 const RECORDED_GAIN = 0.35;
+/** Volume dos sons pontuais vindos de arquivo, multiplicado pela intensidade "w" da cena. */
+const RECORDED_SPOT_GAIN = 0.8;
+/** Tempo máximo esperando o repositório antes de tocar a reserva. */
+const LOOKUP_TIMEOUT_MS = 2500;
 const UP = 2.2;   // segundos para uma camada entrar
 const DOWN = 3.6; // segundos para uma camada sair
 
@@ -63,12 +75,42 @@ interface LayerState {
   ramp: Ramp;
   level: number;
   recorded: boolean;
+  /** id do som do repositório que está tocando (para "som ruim") */
+  libId: string | null;
   loading: boolean;
   nextSporadic: number;
 }
 
 const valueAt = (r: Ramp, t: number) =>
   t >= r.t1 ? r.to : t <= r.t0 ? r.from : r.from + ((r.to - r.from) * (t - r.t0)) / (r.t1 - r.t0);
+
+/**
+ * Iguala o volume dos arquivos (gravados ou gerados vêm com níveis muito
+ * diferentes): leva a média (RMS) a um alvo fixo sem deixar o pico passar de
+ * 0,9. Devolve false se o arquivo está praticamente mudo.
+ */
+export const TARGET_RMS = 0.12;
+export function normalize(b: BufferLike): boolean {
+  const chans: Float32Array[] = [];
+  const n = (b as unknown as { numberOfChannels?: number }).numberOfChannels ?? 1;
+  for (let c = 0; c < n; c++) chans.push(b.getChannelData(c));
+  let sum = 0, count = 0, peak = 0;
+  for (const d of chans) {
+    for (let i = 0; i < d.length; i++) { const v = d[i]; sum += v * v; const a = Math.abs(v); if (a > peak) peak = a; }
+    count += d.length;
+  }
+  const rms = Math.sqrt(sum / Math.max(1, count));
+  if (!Number.isFinite(rms) || rms < 1e-4) return false;
+  const k = Math.min(TARGET_RMS / rms, 0.9 / peak);
+  if (Math.abs(k - 1) < 0.05) return true;
+  chans.forEach((d, c) => {
+    const out = new Float32Array(d.length);
+    for (let i = 0; i < d.length; i++) out[i] = d[i] * k;
+    if (b.copyToChannel) b.copyToChannel(out, c);
+    else d.set(out);
+  });
+  return true;
+}
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -85,6 +127,9 @@ export class AmbientEngine {
   private volume = 0.7;
   private seed = 1;
   private enabled = true;
+  private library: SoundSource | null = null;
+  private looks: Partial<Record<Layer, SoundVariant>> = {};
+  private recentSpots: { id: string; until: number }[] = [];
 
   constructor(private makeCtx: () => CtxLike) {}
 
@@ -140,9 +185,28 @@ export class AmbientEngine {
     if (this.ctx && this.enabled && this.ctx.state === 'suspended') await this.ctx.resume();
   }
 
-  /** Define o ambiente: camadas novas sobem devagar, as que saem descem mais devagar ainda. */
-  setScene(amb: Ambience): void {
+  /** Liga o repositório de sons (arquivos reais/gerados escolhidos pela descrição). */
+  setLibrary(lib: SoundSource | null): void {
+    this.library = lib;
+  }
+
+  /** Sons do repositório tocando agora (ou há pouco), para o botão "som ruim". */
+  libraryIdsPlaying(): string[] {
+    const ids = new Set<string>();
+    this.layers.forEach((s) => { if (s.libId && s.level > 0) ids.add(s.libId); });
+    const now = this.ctx?.currentTime ?? 0;
+    this.recentSpots.forEach((r) => { if (r.until > now) ids.add(r.id); });
+    return [...ids];
+  }
+
+  /**
+   * Define o ambiente: camadas novas sobem devagar, as que saem descem mais devagar ainda.
+   * `looks` diz como cada camada soa na cena; vale para a camada que ainda vai carregar
+   * (uma camada que já está tocando continua com o mesmo arquivo, sem troca brusca).
+   */
+  setScene(amb: Ambience, looks?: Partial<Record<Layer, SoundVariant>>): void {
     if (!this.ctx) return;
+    if (looks) this.looks = { ...this.looks, ...looks };
     if (this.enabled && this.ctx.state === 'suspended' && Object.values(amb).some((v) => (v ?? 0) > 0)) void this.ctx.resume();
     for (const L of LAYERS) {
       const target = amb[L] ?? 0;
@@ -180,10 +244,20 @@ export class AmbientEngine {
       const t0 = this.ctx.currentTime + (sp.at ?? 2);
       void this.spotBuffer(sp).then((buf) => {
         if (!buf || !this.ctx || bus !== this.spotBus) return;
+        const lib = this.spotLib.get(buf);
+        if (lib) this.recentSpots = [...this.recentSpots.filter((x) => x.until > this.ctx!.currentTime), { id: lib, until: t0 + reps * gap + 6 }];
         for (let r = 0; r < reps; r++) {
           const src = this.ctx.createBufferSource();
           src.buffer = buf;
-          src.connect(bus);
+          if (this.fileBufs.has(buf)) {
+            // a síntese já sai no volume pedido; arquivo normalizado precisa do "w" da cena
+            const g = this.ctx.createGain();
+            g.gain.value = sp.w * RECORDED_SPOT_GAIN;
+            src.connect(g);
+            g.connect(bus);
+          } else {
+            src.connect(bus);
+          }
           src.start(Math.max(this.ctx.currentTime + 0.05, t0 + r * gap));
         }
       });
@@ -226,7 +300,7 @@ export class AmbientEngine {
     const g = this.ctx!.createGain();
     g.gain.value = 0;
     g.connect(this.master);
-    const s: LayerState = { gain: g, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, recorded: false, loading: false, nextSporadic: 0 };
+    const s: LayerState = { gain: g, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, recorded: false, libId: null, loading: false, nextSporadic: 0 };
     this.layers.set(L, s);
     return s;
   }
@@ -245,8 +319,13 @@ export class AmbientEngine {
     s.loading = true;
     try {
       let buf: BufferLike | null = null;
+      const hit = await this.lookup(layerDesc(L, this.looks[L]));
+      if (hit) {
+        buf = await this.fetchUrl(hit.url);
+        if (buf) { s.recorded = true; s.libId = hit.id; }
+      }
       const files = this.manifest?.layers?.[L];
-      if (files?.length) {
+      if (!buf && files?.length) {
         buf = await this.fetchBuffer(files[Math.floor(Math.random() * files.length)]);
         if (buf) s.recorded = true;
       }
@@ -282,7 +361,17 @@ export class AmbientEngine {
     return job;
   }
 
+  /** Qual som do repositório cada buffer de som pontual veio (para "som ruim"). */
+  private spotLib = new WeakMap<BufferLike, string>();
+  /** Buffers que vieram de arquivo (já normalizados): o volume do som pontual é aplicado à parte. */
+  private fileBufs = new WeakSet<BufferLike>();
+
   private async spotBuffer(sp: Spot): Promise<BufferLike | null> {
+    const found = await this.lookup(spotDesc(sp));
+    if (found) {
+      const b = await this.fetchUrl(found.url);
+      if (b) { this.spotLib.set(b, found.id); return b; }
+    }
     const entry = this.manifest?.spots?.[sp.s];
     if (entry) {
       const list = Array.isArray(entry) ? entry : entry[sp.surface ?? sp.kind ?? '*'] ?? entry['*'];
@@ -301,15 +390,30 @@ export class AmbientEngine {
     return b;
   }
 
-  private async fetchBuffer(file: string): Promise<BufferLike | null> {
-    const key = 'file:' + file;
+  /** Consulta o repositório sem segurar o som: se demorar, segue com a reserva. */
+  private lookup(d: SoundDesc): Promise<{ id: string; url: string } | null> {
+    if (!this.library) return Promise.resolve(null);
+    return Promise.race([
+      this.library.resolve(d).catch(() => null),
+      sleep(LOOKUP_TIMEOUT_MS).then(() => null),
+    ]);
+  }
+
+  private fetchBuffer(file: string): Promise<BufferLike | null> {
+    return this.fetchUrl(`${this.packUrl}/${file}`);
+  }
+
+  private async fetchUrl(url: string): Promise<BufferLike | null> {
+    const key = 'url:' + url;
     const hit = this.bufCache.get(key);
     if (hit) return hit;
     if (!this.ctx?.decodeAudioData) return null;
     try {
-      const r = await fetch(`${this.packUrl}/${file}`);
+      const r = await fetch(url);
       if (!r.ok) return null;
       const b = await this.ctx.decodeAudioData(await r.arrayBuffer());
+      if (!normalize(b)) return null; // silencioso ou corrompido: usa a reserva
+      this.fileBufs.add(b);
       this.bufCache.set(key, b);
       return b;
     } catch {

@@ -11,6 +11,7 @@ import { entriesOnPage } from '../../src/core/glossary';
 import { blendAmbience } from '../../src/core/plan';
 import { minutesLeft, wordsRemaining } from '../../src/core/text';
 import type { Ambience, BookMeta, GlossaryEntry, Layer, Mood, ScenePlan } from '../../src/core/types';
+import { soundLibrary } from '../../src/services/sounds';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
 import { SceneDirector } from '../../src/state/scene';
@@ -86,6 +87,18 @@ export default function Reader() {
   const [idx, setIdx] = useState(0);
   const [layers, setLayers] = useState<{ key: number; idx: number; dir: number; leaving: boolean }[]>([]);
   const [chip, setChip] = useState('');
+  /** toque no rótulo do som: oferece marcar como ruim os sons do repositório que estão tocando */
+  const [report, setReport] = useState<'idle' | 'ask' | 'thanks'>('idle');
+  const onChipPress = useCallback(() => {
+    if (report === 'ask') {
+      engine.libraryIdsPlaying().forEach((sid) => void soundLibrary.report(sid).catch(() => undefined));
+      setReport('thanks');
+      setTimeout(() => setReport('idle'), 3000);
+    } else if (report === 'idle' && engine.libraryIdsPlaying().length) {
+      setReport('ask');
+      setTimeout(() => setReport((r) => (r === 'ask' ? 'idle' : r)), 5000);
+    }
+  }, [report]);
   const [moods, setMoods] = useState<{ a: Mood; b: Mood; showB: boolean }>({ a: 'calm', b: 'calm', showB: false });
   const [finished, setFinished] = useState(false);
   const [stageH, setStageH] = useState(0);
@@ -151,7 +164,7 @@ export default function Reader() {
     if (i !== idxRef.current) return;
     const amb = blendAmbience(prevAmb.current, r.plan.ambience, !r.fromAi);
     prevAmb.current = amb;
-    engine.setScene(amb);
+    engine.setScene(amb, r.plan.looks);
     // cada página toca seus sons pontuais uma vez (se a IA chegar depois, só o ambiente é atualizado)
     if (!played.current.has(i)) {
       played.current.add(i);
@@ -224,7 +237,12 @@ export default function Reader() {
       <View style={[st.top, { paddingTop: insets.top + 12 }]} pointerEvents="none">
         <ProgressBar pct={pct} />
         <View style={st.row}>
-          <Text style={[st.small, { color: c.mut, flex: 1 }]} numberOfLines={1}>{chip}</Text>
+          <Pressable style={{ flex: 1 }} onPress={onChipPress} accessibilityRole="button"
+            accessibilityLabel={report === 'ask' ? 'Confirmar: este som está ruim' : `Som da cena: ${chip}`}>
+            <Text style={[st.small, { color: c.mut }]} numberOfLines={1}>
+              {report === 'ask' ? '👎 Som ruim? Toque para avisar' : report === 'thanks' ? 'Obrigado! Vamos trocar esse som.' : chip}
+            </Text>
+          </Pressable>
           <Text style={[st.small, { color: c.mut }]}>{pct}% · {mins <= 1 ? '< 1' : `~${mins}`} min</Text>
         </View>
       </View>

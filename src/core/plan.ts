@@ -3,7 +3,8 @@
  * como não confiável: nomes desconhecidos são descartados e números são
  * limitados a faixas seguras.
  */
-import { LAYERS, MOODS, SPOTS, type Ambience, type Mood, type ScenePlan, type Spot, type Surface } from './types';
+import { sanitizeVariant, type SoundVariant } from '../../supabase/functions/_shared/sound-library';
+import { LAYERS, MOODS, SPOTS, type Ambience, type Layer, type Mood, type ScenePlan, type Spot, type Surface } from './types';
 
 const SURFACES: Surface[] = ['wood', 'gravel', 'stone', 'grass', 'snow', 'metal'];
 
@@ -23,6 +24,8 @@ export function sanitizeSpot(o: unknown): Spot | null {
   if (x.pace !== undefined) sp.pace = clamp(x.pace, 0.25, 1.2, 0.6);
   if (x.rep !== undefined) sp.rep = Math.round(clamp(x.rep, 1, 5, 1));
   if (x.gap !== undefined) sp.gap = clamp(x.gap, 1.5, 14, 5);
+  const v = sanitizeVariant(x.v);
+  if (v) sp.v = v;
   return sp;
 }
 
@@ -39,7 +42,15 @@ export function sanitizePlan(o: unknown): ScenePlan | null {
     Object.entries(amb).sort((a, b) => (b[1] as number) - (a[1] as number)).slice(0, 3),
   ) as Ambience;
   const spots = (Array.isArray(x.spots) ? x.spots : []).map(sanitizeSpot).filter((s): s is Spot => !!s).slice(0, 2);
-  return { mood: MOODS.includes(x.mood as Mood) ? (x.mood as Mood) : null, ambience, spots };
+  const plan: ScenePlan = { mood: MOODS.includes(x.mood as Mood) ? (x.mood as Mood) : null, ambience, spots };
+  const L = (x.looks && typeof x.looks === 'object' ? x.looks : {}) as Record<string, unknown>;
+  const looks: Partial<Record<Layer, SoundVariant>> = {};
+  (Object.keys(ambience) as Layer[]).forEach((k) => {
+    const v = sanitizeVariant(L[k]);
+    if (v) looks[k] = v;
+  });
+  if (Object.keys(looks).length) plan.looks = looks;
+  return plan;
 }
 
 /**
