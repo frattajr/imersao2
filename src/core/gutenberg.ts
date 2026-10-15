@@ -4,6 +4,7 @@
  * catálogo oficial em CSV e busca local. Usado pelo app e pelo script que
  * monta a cópia do catálogo no deploy (scripts/build-gutenberg.ts).
  */
+import { modernize } from './orthography';
 import { norm } from './text';
 import type { Mood } from './types';
 
@@ -40,6 +41,9 @@ export function authorName(b: Pick<GutBook, 'authors'>): string {
 
 /** "Dom Casmurro: romance" → "Dom Casmurro"; tira espaços e quebras estranhas. */
 export const cleanTitle = (t: string) => t.replace(/\s+/g, ' ').replace(/\s*[:;]\s.*$/, '').trim().slice(0, 90);
+
+/** Título para mostrar: limpo e na grafia atual ("O Guarany" → "O Guarani"). */
+export const displayTitle = (t: string) => modernize(cleanTitle(t), true);
 
 export function category(b: Pick<GutBook, 'subjects' | 'bookshelves'>): GutCategory {
   const s = [...b.subjects, ...b.bookshelves].join(' | ').toLowerCase();
@@ -165,7 +169,20 @@ export function searchBooks(books: GutBook[], query: string): GutBook[] {
   const words = norm(query).split(/\s+/).filter(Boolean);
   if (!words.length) return books;
   return books.filter((b) => {
-    const hay = norm(`${b.title} ${b.authors.map((a) => a.name).join(' ')} ${authorName(b)}`);
+    const hay = norm(`${b.title} ${modernize(b.title, true)} ${b.authors.map((a) => a.name).join(' ')} ${authorName(b)}`);
     return words.every((w) => hay.includes(w));
   });
+}
+
+/**
+ * Acha uma obra no catálogo pelo título e pelo sobrenome do autor (sem
+ * acento; aceita a grafia antiga do catálogo, como "Guarany" ou "Bazilio").
+ * Prefere o título exato; entre parecidos, o mais curto (sem "volume 2",
+ * coletâneas etc.).
+ */
+export function findInCatalog(books: GutBook[], title: string, author: string): GutBook | undefined {
+  const key = (s: string) => norm(modernize(s, true)).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const t = key(title), a = key(author);
+  const cands = books.filter((b) => b.authors.some((x) => key(x.name).includes(a)) && key(b.title).startsWith(t));
+  return cands.sort((x, y) => Number(key(cleanTitle(y.title)) === t) - Number(key(cleanTitle(x.title)) === t) || x.title.length - y.title.length)[0];
 }

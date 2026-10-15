@@ -14,6 +14,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { modernize } from '../src/core/orthography';
 import { booksFromCatalogCsv, cleanGutenbergText, readable, type GutBook, type GutPage } from '../src/core/gutenberg';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -105,7 +106,8 @@ export async function buildMirror(
       for (const u of [...new Set(urls)]) {
         const r = await get(f, u, 30_000, 2);
         if (!r) continue;
-        const text = cleanGutenbergText(new TextDecoder('utf-8').decode(await r.arrayBuffer()));
+        // grafia antiga ("elle", "pharmacia") passa para a atual; texto moderno fica igual
+        const text = modernize(cleanGutenbergText(new TextDecoder('utf-8').decode(await r.arrayBuffer())));
         if (text.length > 500) {
           await writeFile(join(out, 'books', `${b.id}.txt`), text);
           texts.push(b.id);

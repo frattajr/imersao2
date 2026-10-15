@@ -8,9 +8,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { parseEpubBytes } from '../core/epub';
+import { modernize } from '../core/orthography';
 import { chunk } from '../core/text';
 import type { BookMeta } from '../core/types';
-import { authorName, bookId, cleanGutenbergText, cleanTitle, readable, searchBooks, type GutBook, type GutPage } from '../core/gutenberg';
+import { authorName, bookId, cleanGutenbergText, cleanTitle, displayTitle, readable, searchBooks, type GutBook, type GutPage } from '../core/gutenberg';
 
 export * from '../core/gutenberg';
 import { getRepo } from '../state/db';
@@ -183,10 +184,10 @@ export async function openGutenbergBook(b: GutBook, step: ImportStep): Promise<B
   const id = bookId(b);
   const have = await repo.getBook(id);
   if (have && (await repo.hasText(id))) return have;
-  const text = await fetchBookText(b, step);
+  const text = modernize(await fetchBookText(b, step));
   step('Preparando as páginas…', null);
   const pages = chunk(text);
-  const meta = await repo.addBook({ id, title: cleanTitle(b.title), kind: 'file', sub: authorName(b), emoji: '📜' }, pages);
+  const meta = await repo.addBook({ id, title: displayTitle(b.title), kind: 'file', sub: authorName(b), emoji: '📜' }, pages);
   // guarda os dados do catálogo para a ficha e a capa, mesmo sem internet
   await repo.kvSet('gut:' + id, JSON.stringify({ ...b, formats: { 'image/jpeg': b.formats['image/jpeg'] } })).catch(() => undefined);
   syncSoon();

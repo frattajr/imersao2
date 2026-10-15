@@ -65,5 +65,5 @@ export async function cachePut(key: string, kind: string, value: unknown, model:
 /** Identificador de livro público aceito no pedido (só formatos conhecidos). */
 export function bookKeyOf(body: { bookKey?: unknown }): string | null {
   const k = typeof body.bookKey === 'string' ? body.bookKey : '';
-  return /^(gut-\d{1,7}|sample-[a-z0-9-]{1,40})$/.test(k) ? k : null;
+  return /^(gut-\d{1,7}|sample-[a-z0-9-]{1,40}|pt-[a-z0-9-]{1,40})$/.test(k) ? k : null;
 }

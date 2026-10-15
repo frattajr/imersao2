@@ -13,9 +13,10 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { cleanTitle } from '../src/core/gutenberg';
+import { displayTitle as cleanTitle } from '../src/core/gutenberg';
 import { chunk } from '../src/core/text';
 import { SAMPLE_BOOKS } from '../src/data/books';
+import { ACERVO, acervoId } from '../src/data/acervo';
 
 const URL_ = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const ANON = process.env.SUPABASE_ANON_KEY;
@@ -55,7 +56,18 @@ for (const b of SAMPLE_BOOKS.filter((x) => !x.plans?.length)) {
   await soundPlans(b.id, b.title, b.pages);
 }
 
-// 2) clássicos da cópia do Gutenberg (os que têm texto copiado), os mais lidos primeiro
+// 2) acervo curado em português (prioridade: é o que aparece primeiro na biblioteca)
+if (mirror) {
+  const dir = mirror.replace(/gutenberg\/?$/, 'acervo');
+  const cat = await read(join(dir, 'catalog.json')).then((t) => JSON.parse(t) as { books: { slug: string }[] }).catch(() => null);
+  for (const r of cat?.books ?? []) {
+    const a = ACERVO.find((x) => x.slug === r.slug);
+    if (!a) continue;
+    await soundPlans(acervoId(a.slug), a.title, chunk(await read(join(dir, 'books', `${a.slug}.txt`))));
+  }
+}
+
+// 3) clássicos da cópia do Gutenberg (os que têm texto copiado), os mais lidos primeiro
 if (mirror) {
   const cat = JSON.parse(await read(join(mirror, 'catalog.json'))) as { books: { id: number; title: string }[]; texts: number[] };
   const ready = new Set(cat.texts);

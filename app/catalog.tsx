@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  authorName, bookId, category, CATEGORY_MOOD, cleanTitle, coverUrl, fetchCatalog, openGutenbergBook, synopsisOf, type GutBook,
+  authorName, bookId, category, CATEGORY_MOOD, displayTitle as cleanTitle, coverUrl, fetchCatalog, openGutenbergBook, synopsisOf, type GutBook,
 } from '../src/services/gutenberg';
 import { Cover } from '../src/ui/Cover';
 import { ProgressBar, RoundButton } from '../src/ui/components';

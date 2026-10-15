@@ -10,10 +10,13 @@ import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Style
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { analyze, LAYER_LABEL } from '../src/core/analyze';
 import { detectChapters } from '../src/core/chapters';
+import { norm } from '../src/core/text';
 import type { BookMeta, Layer, Mood } from '../src/core/types';
+import { ACERVO, ACERVO_KINDS, acervoId, isAcervoId, type AcervoEntry } from '../src/data/acervo';
 import { GENRES, SAMPLE_BOOKS, type Genre } from '../src/data/books';
+import { acervoCover, loadAcervo, openAcervoBook, type AcervoReady } from '../src/services/acervo';
 import {
-  authorName, bookId, category, CATEGORY_MOOD, cleanTitle, coverUrl, GUT_CATEGORIES, isGutId, openGutenbergBook, popularPortuguese,
+  authorName, bookId, category, CATEGORY_MOOD, coverUrl, displayTitle, GUT_CATEGORIES, isGutId, openGutenbergBook, popularPortuguese,
   savedGutInfo, synopsisOf, type GutBook,
 } from '../src/services/gutenberg';
 import { pickAndImport } from '../src/services/importer';
@@ -46,12 +49,25 @@ interface Item {
   gut?: GutBook;
   /** crédito (obras em domínio público traduzidas) */
   credit?: string;
+  /** obra do acervo curado em português */
+  acervo?: AcervoEntry;
 }
+
+function acervoItem(a: AcervoEntry, ready?: AcervoReady, meta?: BookMeta): Item {
+  return {
+    id: acervoId(a.slug), title: a.title, author: a.author, emoji: a.emoji, mood: a.mood, genre: CLASSICS, synopsis: a.synopsis,
+    pages: meta?.n ?? 0, chapters: 0, layers: [], meta, sample: false, image: acervoCover(ready), acervo: a,
+    credit: `${a.origin === 'BR' ? '🇧🇷 Brasil' : '🇵🇹 Portugal'} · ${a.year} · domínio público${ready?.modernized ? ' · grafia atualizada' : ''}`,
+  };
+}
+
+const titleKey = (t: string) => norm(displayTitle(t)).replace(/[^a-z0-9]/g, '');
+const ACERVO_TITLES = new Set(ACERVO.map((a) => titleKey(a.title)));
 
 function gutItem(b: GutBook, meta?: BookMeta): Item {
   const cat = category(b);
   return {
-    id: bookId(b), title: cleanTitle(b.title), author: authorName(b), emoji: '📜', mood: CATEGORY_MOOD[cat], genre: CLASSICS,
+    id: bookId(b), title: displayTitle(b.title), author: authorName(b), emoji: '📜', mood: CATEGORY_MOOD[cat], genre: CLASSICS,
     synopsis: synopsisOf(b), pages: meta?.n ?? 0, chapters: 0, layers: [], meta, sample: false, image: coverUrl(b), gut: b,
   };
 }
@@ -98,6 +114,9 @@ export default function Library() {
     popularPortuguese().then((b) => { setGut(b); setGutState(b.length ? 'ok' : 'error'); }).catch(() => setGutState('error'));
   }, []);
   useEffect(() => { loadClassics(); }, [loadClassics]);
+  /** acervo curado: o que o deploy já deixou pronto (texto e capa) */
+  const [ready, setReady] = useState<Map<string, AcervoReady>>(new Map());
+  useEffect(() => { void loadAcervo().then(setReady); }, []);
 
   const load = useCallback(async () => {
     const repo = await getRepo();
@@ -110,6 +129,8 @@ export default function Library() {
       const sample = pages.slice(0, 40);
       const layers = topLayers(sample);
       const g = isGutId(b.id) ? await savedGutInfo(b.id) : null;
+      const a = isAcervoId(b.id) ? ACERVO.find((x) => acervoId(x.slug) === b.id) : undefined;
+      if (a) return { ...acervoItem(a, undefined, b), genre: MINE, pages: b.n || pages.length, chapters: pages.length ? detectChapters(pages).length : 0, layers };
       return {
         id: b.id, title: b.title, author: b.sub || 'Meu livro', emoji: b.emoji, genre: MINE, meta: b, sample: false,
         image: isGutId(b.id) ? coverUrl(Number(b.id.slice(4))) : undefined, gut: g ?? undefined,
@@ -124,8 +145,14 @@ export default function Library() {
   useEffect(() => onSynced(() => void load()), [load]);
 
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
-  const classics = useMemo(() => gut.map((b) => gutItem(b, byId.get(bookId(b)))), [gut, byId]);
-  const all = useMemo(() => [...mine, ...SAMPLE_ITEMS.map((s) => ({ ...s, meta: byId.get(s.id) }))], [mine, byId]);
+  // Gutenberg sem repetir o que já está no acervo curado
+  const classics = useMemo(() => gut.filter((b) => !ACERVO_TITLES.has(titleKey(b.title))).map((b) => gutItem(b, byId.get(bookId(b)))), [gut, byId]);
+  const acervo = useMemo(() => ACERVO.map((a) => acervoItem(a, ready.get(a.slug), byId.get(acervoId(a.slug))))
+    // prontos no deploy primeiro (abrem na hora)
+    .sort((x, y) => Number(ready.has(y.acervo!.slug)) - Number(ready.has(x.acervo!.slug))), [ready, byId]);
+  // a capa vem do acervo também para quem já baixou
+  const mineView = useMemo(() => mine.map((m) => (m.acervo ? { ...m, image: acervoCover(ready.get(m.acervo.slug)) } : m)), [mine, ready]);
+  const all = useMemo(() => [...mineView, ...SAMPLE_ITEMS.map((s) => ({ ...s, meta: byId.get(s.id) }))], [mineView, byId]);
   const reading = useMemo(() => all.filter((i) => i.meta && !i.meta.done && pctOf(i.meta) > 0)
     .sort((a, b) => (b.meta!.updatedAt ?? 0) - (a.meta!.updatedAt ?? 0)), [all]);
   // primeira vez: abre com um clássico já sonorizado (não precisa de chave nem upload)
@@ -137,6 +164,17 @@ export default function Library() {
     if (it.sample) {
       const s = SAMPLE_BOOKS.find((x) => x.id === it.id)!;
       await repo.addBook({ id: s.id, title: s.title, kind: 'builtin', sub: s.sub, emoji: s.emoji });
+    } else if (it.acervo && !(await repo.hasText(it.id))) {
+      // acervo curado: texto da cópia do deploy (ou do Wikisource), na grafia atual
+      try {
+        setBusy({ msg: `Baixando “${it.title}”…`, pct: null });
+        await openAcervoBook(it.acervo, (msg, pct) => setBusy({ msg, pct }));
+        setBusy(null);
+        void load();
+      } catch (e) {
+        setBusy({ msg: e instanceof Error ? e.message : 'Não consegui baixar este livro.', pct: null, error: true });
+        return;
+      }
     } else if (it.gut && !(await repo.hasText(it.id))) {
       // clássico do Project Gutenberg: baixa uma vez e guarda na biblioteca
       try {
@@ -158,7 +196,7 @@ export default function Library() {
   };
 
   const openGlossary = async (it: Item) => {
-    if (it.gut && !it.meta) return void open(it); // ainda não baixado: baixa e abre a leitura
+    if ((it.gut || it.acervo) && !it.meta) return void open(it); // ainda não baixado: baixa e abre a leitura
     setDetail(null);
     if (it.sample) {
       const s = SAMPLE_BOOKS.find((x) => x.id === it.id)!;
@@ -222,7 +260,7 @@ export default function Library() {
   );
 
   const shelves: (Shelf | 'Todos')[] = ['Todos', CLASSICS, ...GENRES, MINE];
-  const filtered = shelf === 'Todos' ? [] : shelf === CLASSICS ? classics : all.filter((i) => i.genre === shelf);
+  const filtered = shelf === 'Todos' ? [] : shelf === CLASSICS ? [...acervo, ...classics] : shelf === MINE ? mineView : all.filter((i) => i.genre === shelf);
   const SeeAll = (
     <Pressable onPress={() => router.push('/catalog')} accessibilityRole="button" style={[st.add, { width: posterW, height: posterW * 1.5, borderColor: c.btn }]}>
       <Text style={{ fontSize: 30 }}>🔎</Text>
@@ -283,9 +321,15 @@ export default function Library() {
           {shelf === 'Todos' ? (
             <>
               <Row title="Continuar lendo" items={reading} />
-              <Row title="Meus livros" items={mine} lead={AddCards} />
+              <Row title="Meus livros" items={mineView} lead={AddCards} />
+              <Row title="🇧🇷 Clássicos brasileiros" items={acervo.filter((i) => i.acervo!.origin === 'BR')} />
+              <Row title="🇵🇹 Clássicos portugueses" items={acervo.filter((i) => i.acervo!.origin === 'PT')} />
+              {ACERVO_KINDS.filter((k) => k !== 'Romance').map((k) => {
+                const items = acervo.filter((i) => i.acervo!.kind === k);
+                return items.length >= 2 ? <Row key={k} title={`Em português · ${k}`} items={items} /> : null;
+              })}
               {gutNote}
-              <Row title="📜 Clássicos em português" items={classics.slice(0, 20)} lead={undefined} />
+              <Row title="📜 Mais clássicos (Project Gutenberg)" items={classics.slice(0, 20)} lead={undefined} />
               {GUT_CATEGORIES.filter((g) => g !== 'Outros').map((g) => {
                 const items = classics.filter((i) => i.gut && category(i.gut) === g);
                 return items.length >= 2 ? <Row key={g} title={`Clássicos · ${g}`} items={items} /> : null;
@@ -325,7 +369,9 @@ export default function Library() {
                   <Text style={[st.dTitle, { color: c.fg }]}>{detail.title}</Text>
                   <Text style={[st.dMeta, { color: c.mut }]}>{detail.author}</Text>
                   <Text style={[st.dMeta, { color: c.mut }]}>
-                    {detail.gut && !detail.pages
+                    {detail.acervo && !detail.pages
+                      ? `${detail.acervo.kind} · ${detail.acervo.year}`
+                      : detail.gut && !detail.pages
                       ? `${category(detail.gut)} · Project Gutenberg · domínio público`
                       : `${detail.genre} · ${detail.pages} páginas${detail.chapters > 1 ? ` · ${detail.chapters} capítulos` : ''}`}
                   </Text>
@@ -335,6 +381,13 @@ export default function Library() {
               </View>
               <Text style={[st.dSyn, { color: c.fg }]}>{detail.synopsis}</Text>
               {detail.credit ? <Text style={[st.dMeta, { color: c.mut }]}>{detail.credit}{SAMPLE_BOOKS.find((b) => b.id === detail.id)?.plans ? ' · 🎧 sonorização calibrada' : ''}</Text> : null}
+              {detail.acervo ? (
+                <View style={st.tags}>
+                  {detail.acervo.tags.map((t) => (
+                    <View key={t} style={[st.tag, { backgroundColor: c.btn }]}><Text style={[st.tagText, { color: c.fg }]}>{t}</Text></View>
+                  ))}
+                </View>
+              ) : null}
               {detail.layers.length > 0 && (
                 <View style={st.tags}>
                   <Text style={[st.dMeta, { color: c.mut }]}>Ambiente sonoro:</Text>
@@ -344,9 +397,9 @@ export default function Library() {
                 </View>
               )}
               <View style={st.dBtns}>
-                <RoundButton big label={`▶ ${pctOf(detail.meta) > 0 && !detail.meta?.done ? 'Continuar' : detail.gut && !detail.meta ? 'Baixar e ler' : 'Ler'}`} onPress={() => void open(detail)} />
-                {(!detail.gut || detail.meta) && <RoundButton label="📝 Glossário e capítulos" onPress={() => void openGlossary(detail)} />}
-                {!detail.sample && (!detail.gut || detail.meta) && <RoundButton label="Remover" onPress={() => remove(detail)} />}
+                <RoundButton big label={`▶ ${pctOf(detail.meta) > 0 && !detail.meta?.done ? 'Continuar' : (detail.gut || detail.acervo) && !detail.meta ? 'Baixar e ler' : 'Ler'}`} onPress={() => void open(detail)} />
+                {((!detail.gut && !detail.acervo) || detail.meta) && <RoundButton label="📝 Glossário e capítulos" onPress={() => void openGlossary(detail)} />}
+                {!detail.sample && ((!detail.gut && !detail.acervo) || detail.meta) && <RoundButton label="Remover" onPress={() => remove(detail)} />}
               </View>
             </ScrollView>
           </View>

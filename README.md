@@ -174,6 +174,21 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
 - **Capítulos** (`src/core/chapters.ts`): o glossário identifica "Capítulo 1", "CAPÍTULO III", "Parte 2", "Chapter 4"… ou, sem títulos, divide o livro em partes. Escolha um capítulo para ver os termos dele, sugestões de personagens e lugares (só do que já foi lido) e ir direto para ele.
 - **Configurações** (`app/settings.tsx`, botão ⚙ na biblioteca e no leitor): volume do ambiente, suavidade das transições, volume dos sons da história, frequência dos detalhes de ambiente, suavização automática, tema, letra, chave da ElevenLabs e o repositório de sons.
 
+## Acervo curado em português
+
+O Gutenberg tem pouco em português e quase tudo na grafia antiga. Por isso o app tem um **acervo curado** (`src/data/acervo.ts`): 28 clássicos do Brasil e de Portugal, todos em domínio público. Entre os autores estão Machado, Alencar, Aluísio Azevedo, Lima Barreto, Álvares de Azevedo, Castro Alves, Eça, Camilo, Júlio Dinis e Gil Vicente. Cada obra tem sinopse escrita para o app (sem spoiler), temas, clima da capa e ano.
+
+- **Texto:** no deploy, `scripts/build-acervo.ts` procura a obra no catálogo oficial do Gutenberg por título e autor. Se não achar, baixa do **Wikisource em português** (API do MediaWiki, capítulo por capítulo). O texto é limpo e publicado em `/acervo/books/<obra>.txt`.
+- **Grafia atual:** `src/core/orthography.ts` converte a grafia anterior a 1943 e a de 1943–1971 ("elle" → "ele", "pharmacia" → "farmácia", "hontem" → "ontem", "n'um" → "num", "á noite" → "à noite", "sôbre" → "sobre").
+  - É conservador: só converte padrões que não existem mais e uma lista de palavras comuns.
+  - Só age se o texto parecer antigo.
+  - Também vale para os livros do Gutenberg e para os títulos ("O Guarany" → "O Guarani").
+- **Capas:** vêm da Open Library, preferindo a edição em português. Sem capa, o app desenha uma.
+- **No app:** fileiras "🇧🇷 Clássicos brasileiros", "🇵🇹 Clássicos portugueses", "Contos" e "Poesia". O Gutenberg vira "Mais clássicos", sem repetir as obras do acervo.
+  - Se a obra ainda não estiver na cópia do deploy, o app baixa direto do Wikisource (que aceita pedidos do navegador) e atualiza a grafia no aparelho.
+- **Livros públicos:** os ids `pt-…` contam como livros públicos (cache global, sem gastar IA). `scripts/precompute-public.ts` pré-calcula os sons do acervo antes do Gutenberg.
+- **Domínio Público (MEC):** não tem API e quase tudo lá é PDF digitalizado. As mesmas obras vêm do Wikisource com texto revisado.
+
 ## Clássicos do Project Gutenberg
 
 A biblioteca mostra os livros em português do [Project Gutenberg](https://www.gutenberg.org), em domínio público, pelo catálogo [Gutendex](https://gutendex.com/books/?languages=pt) (`src/services/gutenberg.ts`):
@@ -203,6 +218,7 @@ O que já foi verificado fora do celular:
 | Motor de áudio | testes com contexto de áudio simulado: máx. 4 stems por prioridade, low-pass, curva de potência constante, transições de 2,5–4 s, ducking, modo foco, loops e volumes separados |
 | Leitor | testes de ritmo de leitura (WPM), X-Ray sem spoiler, recapitulação e matriz pós-suavização; no Chromium: Modo Zen, toques, rolagem, tipografia, X-Ray, pacote inicial de stems tocando, página cheia, deslize, teclado, marcador, grifo com nota, sumário, busca |
 | Anotações | grifos sobrepostos cortam o texto certo, frases com posições exatas, exportação Markdown, busca sem acento, página cheia não passa da altura e títulos de capítulo abrem tela nova |
+| Acervo | todas as obras em domínio público e com sinopse; busca no Gutenberg pela grafia antiga; Wikisource capítulo por capítulo, sem navegação nem notas; grafia antiga → atual sem mexer em texto moderno; no Chromium: fileiras, ficha e leitura de um clássico com grafia atualizada |
 | Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
 | Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |

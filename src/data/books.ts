@@ -221,7 +221,7 @@ export const SAMPLE_BOOKS: SampleBook[] = [
 ];
 
 /** Livros públicos (exemplos e Project Gutenberg): nunca disparam a IA, só usam cache pré-calculado. */
-export const isPublicBook = (id: string) => id.startsWith('sample-') || /^gut-\d+$/.test(id);
+export const isPublicBook = (id: string) => id.startsWith('sample-') || /^gut-\d+$/.test(id) || /^pt-[a-z0-9-]+$/.test(id);
 
 /** Planos calibrados do livro de exemplo (validados como qualquer plano vindo de fora). */
 export function bundledPlans(id: string): (ScenePlan | null)[] | undefined {

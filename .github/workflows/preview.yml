@@ -57,6 +57,10 @@ jobs:
         run: |
           bun scripts/verify-gutenberg.ts
           GUT_TEXTS=60 bun scripts/build-gutenberg.ts dist/gutenberg
+      - name: Acervo curado de clássicos em português
+        timeout-minutes: 15
+        continue-on-error: true
+        run: bun scripts/build-acervo.ts dist/acervo
       - uses: actions/configure-pages@v5
         with:
           enablement: true
