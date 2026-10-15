@@ -147,7 +147,8 @@ export default function Library() {
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   // Gutenberg sem repetir o que já está no acervo curado
   const classics = useMemo(() => gut.filter((b) => !ACERVO_TITLES.has(titleKey(b.title))).map((b) => gutItem(b, byId.get(bookId(b)))), [gut, byId]);
-  const acervo = useMemo(() => ACERVO.map((a) => acervoItem(a, ready.get(a.slug), byId.get(acervoId(a.slug))))
+  // com a cópia do deploy carregada, mostra só o que abre na hora (as outras obras ficam para quando a fonte estiver disponível)
+  const acervo = useMemo(() => ACERVO.filter((a) => !ready.size || ready.has(a.slug)).map((a) => acervoItem(a, ready.get(a.slug), byId.get(acervoId(a.slug))))
     // prontos no deploy primeiro (abrem na hora)
     .sort((x, y) => Number(ready.has(y.acervo!.slug)) - Number(ready.has(x.acervo!.slug))), [ready, byId]);
   // a capa vem do acervo também para quem já baixou
