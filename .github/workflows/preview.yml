@@ -4,6 +4,9 @@ on:
   push:
     branches: [main, claude/github-project-preview-o2jd93]
   workflow_dispatch:
+  # toda segunda-feira: atualiza a cópia do catálogo do Project Gutenberg
+  schedule:
+    - cron: '17 6 * * 1'
 
 permissions:
   contents: read
@@ -24,6 +27,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: oven-sh/setup-bun@v2
       - run: npx tsc --noEmit
       - run: npx jest
       - name: Exportar para a web em /<repo>/
@@ -32,6 +36,12 @@ jobs:
           npx expo export --platform web
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
+      - name: Copiar catálogo e livros do Project Gutenberg
+        timeout-minutes: 20
+        continue-on-error: true
+        run: |
+          bun scripts/verify-gutenberg.ts
+          GUT_TEXTS=60 bun scripts/build-gutenberg.ts dist/gutenberg
       - uses: actions/configure-pages@v5
         with:
           enablement: true

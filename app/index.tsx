@@ -91,9 +91,11 @@ export default function Library() {
   const [gut, setGut] = useState<GutBook[]>([]);
   const [gutState, setGutState] = useState<'loading' | 'ok' | 'error'>('loading');
 
-  useEffect(() => {
-    popularPortuguese().then((b) => { setGut(b); setGutState('ok'); }).catch(() => setGutState('error'));
+  const loadClassics = useCallback(() => {
+    setGutState('loading');
+    popularPortuguese().then((b) => { setGut(b); setGutState(b.length ? 'ok' : 'error'); }).catch(() => setGutState('error'));
   }, []);
+  useEffect(() => { loadClassics(); }, [loadClassics]);
 
   const load = useCallback(async () => {
     const repo = await getRepo();
@@ -226,7 +228,12 @@ export default function Library() {
   );
   const gutNote = gutState === 'loading'
     ? <Text style={[st.note, { color: c.mut }]}>Carregando clássicos do Project Gutenberg…</Text>
-    : gutState === 'error' ? <Text style={[st.note, { color: c.mut }]}>Não consegui carregar o catálogo do Project Gutenberg agora.</Text> : null;
+    : gutState === 'error' ? (
+      <View style={{ paddingHorizontal: 16, gap: 8, alignItems: 'flex-start' }}>
+        <Text style={[st.empty, { color: c.mut }]}>Não consegui carregar os clássicos do Project Gutenberg agora.</Text>
+        <RoundButton label="↻ Tentar de novo" onPress={loadClassics} />
+      </View>
+    ) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.ov }}>

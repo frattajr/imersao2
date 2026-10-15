@@ -116,7 +116,8 @@ A biblioteca mostra os livros em português do [Project Gutenberg](https://www.g
 - **Na tela inicial:** fileira "Clássicos em português" (os mais baixados) e fileiras por categoria (Romances, Contos, Poesia, Teatro, História e viagens), com as capas reais. A lista fica guardada por 24 h.
 - **Catálogo completo** (`app/catalog.tsx`): busca por título ou autor e "carregar mais".
 - **Ao abrir:** o app baixa o texto uma vez (prefere o `.txt`; se não houver, o EPUB), tira o cabeçalho e o rodapé do Gutenberg, remonta os parágrafos e guarda na biblioteca. Os capítulos ("CAPÍTULO I", "CAPITULO PRIMEIRO"…) aparecem no glossário.
-- **Na versão web**, o navegador pode bloquear o download direto do gutenberg.org (CORS). Nesse caso o app usa a função `gutenberg` do servidor, que só aceita endereços do Gutenberg e só para leitores logados. No celular, o download é direto.
+- **Cópia no deploy** (`scripts/build-gutenberg.ts`): a cada deploy (e toda segunda-feira) o GitHub Actions baixa o catálogo em português do Gutendex — com o catálogo oficial do Gutenberg em CSV como reserva — e o texto já limpo dos 60 livros mais lidos, e publica tudo junto com o app em `/gutenberg/`. A lista e a busca carregam na hora, sem depender do Gutendex (que costuma ser lento) nem do bloqueio do navegador (CORS). Se a montagem falhar, o deploy segue e o app volta a consultar o Gutendex ao vivo.
+- **Livros fora da cópia:** o app baixa do gutenberg.org. No celular é direto; na web, se o navegador bloquear, usa a função `gutenberg` do servidor (só endereços do Gutenberg, só leitores logados).
 
 ## Verificações
 

@@ -1,13 +1,18 @@
 /**
- * Livros em domínio público do Project Gutenberg, pelo catálogo Gutendex
- * (https://gutendex.com). Lista os livros em português, com capa, autor e
- * assuntos; ao abrir, baixa o texto, limpa o cabeçalho/rodapé do Gutenberg,
- * remonta os parágrafos e guarda na biblioteca do aparelho.
+ * Livros em domínio público do Project Gutenberg. A fonte principal é a
+ * cópia do catálogo e dos livros mais lidos montada no deploy e publicada
+ * junto com o app (rápida e sem bloqueio do navegador); se ela não existir,
+ * consulta o Gutendex (https://gutendex.com) e o gutenberg.org ao vivo.
+ * Ao abrir, o texto é limpo, dividido em páginas e guardado no aparelho.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { parseEpubBytes } from '../core/epub';
 import { chunk } from '../core/text';
-import type { BookMeta, Mood } from '../core/types';
+import type { BookMeta } from '../core/types';
+import { authorName, bookId, cleanGutenbergText, cleanTitle, readable, searchBooks, type GutBook, type GutPage } from '../core/gutenberg';
+
+export * from '../core/gutenberg';
 import { getRepo } from '../state/db';
 import type { ImportStep } from './importer';
 import { supabase } from './supabase';
@@ -16,98 +21,90 @@ import { syncSoon } from './sync';
 const API = 'https://gutendex.com/books/';
 const CACHE_KEY = 'imersao.gutenberg.v1';
 const CACHE_MS = 24 * 3600_000;
+const PAGE = 32;
+/** Cópia publicada junto com a preview (usada pelo app do celular). */
+const DEFAULT_MIRROR = 'https://frattajr.github.io/imersao2/gutenberg';
 
-export interface GutAuthor { name: string; birth_year: number | null; death_year: number | null }
-export interface GutBook {
-  id: number;
-  title: string;
-  authors: GutAuthor[];
-  summaries?: string[];
-  subjects: string[];
-  bookshelves: string[];
-  languages: string[];
-  copyright: boolean | null;
-  media_type: string;
-  formats: Record<string, string>;
-  download_count: number;
-}
-export interface GutPage { count: number; next: string | null; previous: string | null; results: GutBook[] }
-
-/** Categorias da biblioteca para os livros do Gutenberg. */
-export const GUT_CATEGORIES = ['Romances', 'Contos', 'Poesia', 'Teatro', 'História e viagens', 'Outros'] as const;
-export type GutCategory = (typeof GUT_CATEGORIES)[number];
-
-export const bookId = (b: GutBook | number) => `gut-${typeof b === 'number' ? b : b.id}`;
-export const isGutId = (id: string) => /^gut-\d+$/.test(id);
-
-/** "Assis, Machado de" → "Machado de Assis". */
-export function authorName(b: Pick<GutBook, 'authors'>): string {
-  const a = b.authors[0]?.name ?? '';
-  if (!a) return 'Autor desconhecido';
-  const [last, first] = a.split(/,\s*/);
-  return (first ? `${first} ${last}` : last).replace(/\s*\(.*?\)\s*/g, ' ').trim();
+/**
+ * Onde está a cópia do catálogo e dos livros montada no deploy
+ * (scripts/build-gutenberg.ts). Na web é o próprio site — mesmo endereço,
+ * então o navegador não bloqueia (sem CORS) e carrega na hora.
+ */
+export function mirrorBase(): string {
+  const env = process.env.EXPO_PUBLIC_GUTENBERG_MIRROR;
+  if (env) return env.replace(/\/$/, '');
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${process.env.EXPO_BASE_URL ?? ''}/gutenberg`;
+  }
+  return DEFAULT_MIRROR;
 }
 
-/** "Dom Casmurro: romance" → "Dom Casmurro"; tira espaços e quebras estranhas. */
-export const cleanTitle = (t: string) => t.replace(/\s+/g, ' ').replace(/\s*[:;]\s.*$/, '').trim().slice(0, 90);
-
-export function category(b: Pick<GutBook, 'subjects' | 'bookshelves'>): GutCategory {
-  const s = [...b.subjects, ...b.bookshelves].join(' | ').toLowerCase();
-  if (/poetry|poesia|poems|sonnets/.test(s)) return 'Poesia';
-  if (/drama|theater|theatre|teatro|comedies|tragedies|plays/.test(s)) return 'Teatro';
-  if (/short stories|contos|tales/.test(s)) return 'Contos';
-  if (/history|histor|travel|voyages|biography|description and travel/.test(s)) return 'História e viagens';
-  if (/fiction|novel|romance|romances/.test(s)) return 'Romances';
-  return 'Outros';
+/** fetch com tempo máximo (o Gutendex às vezes demora muito ou não responde). */
+async function fetchT(url: string, ms: number, init?: RequestInit): Promise<Response> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctl.signal });
+  } finally {
+    clearTimeout(t);
+  }
 }
 
-/** Clima da capa desenhada (quando o livro não tem imagem de capa). */
-export const CATEGORY_MOOD: Record<GutCategory, Mood> = {
-  Romances: 'warm', Contos: 'forest', Poesia: 'night', Teatro: 'tension', 'História e viagens': 'sea', Outros: 'calm',
+interface Snapshot { generatedAt: string; source: string; books: GutBook[]; texts: number[] }
+let snapshot: Promise<Snapshot | null> | null = null;
+
+/** Catálogo copiado no deploy (ou null se não houver). Carrega uma vez por sessão. */
+export function loadSnapshot(): Promise<Snapshot | null> {
+  if (!snapshot) {
+    snapshot = (async () => {
+      try {
+        const r = await fetchT(`${mirrorBase()}/catalog.json`, 15_000);
+        if (!r.ok) return null;
+        const s = (await r.json()) as Snapshot;
+        return Array.isArray(s.books) && s.books.length ? { ...s, texts: s.texts ?? [] } : null;
+      } catch {
+        return null;
+      }
+    })();
+    void snapshot.then((s) => { if (!s) snapshot = null; }); // falhou: tenta de novo na próxima vez
+  }
+  return snapshot;
+}
+
+/** Livros prontos para ler na hora (texto já copiado no deploy) vêm primeiro; depois os mais baixados. */
+const byPopularity = (s: Snapshot) => {
+  const ready = new Set(s.texts);
+  return [...s.books].sort((a, b) => Number(ready.has(b.id)) - Number(ready.has(a.id)) || b.download_count - a.download_count);
 };
 
-export function coverUrl(b: GutBook | number): string | undefined {
-  if (typeof b === 'number') return `https://www.gutenberg.org/cache/epub/${b}/pg${b}.cover.medium.jpg`;
-  return b.formats['image/jpeg'];
-}
-
-const SUBJECT_PT: [RegExp, string][] = [
-  [/^Brazilian fiction$/i, 'Ficção brasileira'], [/^Portuguese fiction$/i, 'Ficção portuguesa'],
-  [/^Brazilian poetry$/i, 'Poesia brasileira'], [/^Portuguese poetry$/i, 'Poesia portuguesa'],
-  [/^Brazilian drama$/i, 'Teatro brasileiro'], [/^Portuguese drama$/i, 'Teatro português'],
-  [/^Short stories, Brazilian$/i, 'Contos brasileiros'], [/^Short stories, Portuguese$/i, 'Contos portugueses'],
-  [/^Love stories$/i, 'Histórias de amor'], [/^Historical fiction$/i, 'Romance histórico'], [/^Epic poetry/i, 'Poesia épica'],
-  [/^Portugal -- History/i, 'História de Portugal'], [/^Brazil -- History/i, 'História do Brasil'], [/^Sonnets/i, 'Sonetos'],
-];
-const subjectPt = (x: string) => SUBJECT_PT.find(([r]) => r.test(x))?.[1] ?? x;
-
-/** Resumo para a ficha: o do catálogo, se houver; senão os assuntos. */
-export function synopsisOf(b: GutBook): string {
-  const s = b.summaries?.find(Boolean);
-  if (s) return s.replace(/\s*\(This is an automatically generated summary\.\)\s*$/i, '').trim();
-  const subj = b.subjects.map((x) => subjectPt(x.replace(/ -- \d.*$/, '').replace(/ -- .*$/, (m) => (/history/i.test(m) ? m : ''))))
-    .map((x) => x.replace(/ -- .*$/, '')).filter((x, i, a) => a.indexOf(x) === i).slice(0, 3);
-  return `Clássico em domínio público${b.authors[0]?.death_year ? ` (autor falecido em ${b.authors[0].death_year})` : ''}.` +
-    (subj.length ? ` Assuntos: ${subj.join('; ')}.` : '');
-}
-
-/** Só livros de texto que dá para ler no app. */
-const readable = (b: GutBook) =>
-  b.media_type === 'Text' && Object.keys(b.formats).some((k) => k.startsWith('text/plain') || k === 'application/epub+zip');
-
-export async function fetchCatalog(opts: { page?: number; search?: string; topic?: string } = {}): Promise<GutPage> {
+async function liveCatalog(opts: { page?: number; search?: string }): Promise<GutPage> {
   const q = new URLSearchParams({ languages: 'pt' });
   if (opts.page && opts.page > 1) q.set('page', String(opts.page));
   if (opts.search) q.set('search', opts.search);
-  if (opts.topic) q.set('topic', opts.topic);
-  const r = await fetch(`${API}?${q.toString()}`);
+  const r = await fetchT(`${API}?${q.toString()}`, 20_000);
   if (!r.ok) throw new Error(`Catálogo indisponível (${r.status}).`);
   const page = (await r.json()) as GutPage;
   return { ...page, results: (page.results ?? []).filter(readable) };
 }
 
-/** Livros mais baixados em português (2 páginas do catálogo), guardados por 24 h. */
+/**
+ * Uma página do catálogo. Usa a cópia do deploy (busca local, instantânea);
+ * se não houver cópia, consulta o Gutendex ao vivo.
+ */
+export async function fetchCatalog(opts: { page?: number; search?: string } = {}): Promise<GutPage> {
+  const snap = await loadSnapshot();
+  if (snap) {
+    const all = searchBooks(byPopularity(snap), opts.search ?? '');
+    const p = Math.max(1, opts.page ?? 1);
+    return { count: all.length, next: p * PAGE < all.length ? String(p + 1) : null, previous: p > 1 ? String(p - 1) : null, results: all.slice((p - 1) * PAGE, p * PAGE) };
+  }
+  return liveCatalog(opts);
+}
+
+/** Livros mais baixados em português (para as fileiras da tela inicial). */
 export async function popularPortuguese(): Promise<GutBook[]> {
+  const snap = await loadSnapshot();
+  if (snap) return byPopularity(snap).slice(0, 80);
   try {
     const raw = await AsyncStorage.getItem(CACHE_KEY);
     if (raw) {
@@ -115,30 +112,11 @@ export async function popularPortuguese(): Promise<GutBook[]> {
       if (Date.now() - c.at < CACHE_MS && c.books.length) return c.books;
     }
   } catch { /* cache corrompido: busca de novo */ }
-  const p1 = await fetchCatalog();
-  const p2 = p1.next ? await fetchCatalog({ page: 2 }).catch(() => null) : null;
+  const p1 = await liveCatalog({});
+  const p2 = p1.next ? await liveCatalog({ page: 2 }).catch(() => null) : null;
   const books = [...p1.results, ...(p2?.results ?? [])];
   try { await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), books })); } catch { /* sem espaço: segue sem cache */ }
   return books;
-}
-
-/* ---------- texto ---------- */
-
-/**
- * Tira o cabeçalho e o rodapé do Project Gutenberg (licença, créditos) e
- * remonta os parágrafos: no .txt as linhas são quebradas a cada ~70
- * caracteres e os parágrafos são separados por linha em branco.
- */
-export function cleanGutenbergText(raw: string): string {
-  let t = raw.replace(/\r\n?/g, '\n').replace(/^﻿/, '');
-  const start = t.search(/\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\*\*\*/i);
-  if (start >= 0) t = t.slice(t.indexOf('\n', start) + 1);
-  const end = t.search(/\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG/i);
-  if (end >= 0) t = t.slice(0, end);
-  const paras = t.split(/\n\s*\n/)
-    .map((p) => p.split('\n').map((l) => l.trim()).join(' ').replace(/\s+/g, ' ').replace(/_([^_]+)_/g, '$1').trim())
-    .filter((p) => p && !/^(produced by|e-text prepared by|transcriber'?s note|nota do transcritor)/i.test(p) && !/^[*\s.]+$/.test(p));
-  return paras.join('\n');
 }
 
 const decode = (buf: ArrayBuffer, contentType: string) => {
@@ -152,7 +130,7 @@ const decode = (buf: ArrayBuffer, contentType: string) => {
  */
 async function download(url: string): Promise<{ buf: ArrayBuffer; type: string } | null> {
   try {
-    const r = await fetch(url);
+    const r = await fetchT(url, 30_000);
     if (r.ok) return { buf: await r.arrayBuffer(), type: r.headers.get('content-type') ?? '' };
   } catch { /* bloqueado ou sem rede: tenta pelo servidor */ }
   if (supabase) {
@@ -167,6 +145,15 @@ async function download(url: string): Promise<{ buf: ArrayBuffer; type: string }
 
 /** Texto do livro em parágrafos (prefere o .txt; se não houver, o EPUB). */
 export async function fetchBookText(b: GutBook, step: ImportStep): Promise<string> {
+  // 1º: cópia do deploy (já limpa, mesmo endereço do site, sem bloqueio do navegador)
+  step(`Baixando “${cleanTitle(b.title)}”…`, null);
+  try {
+    const r = await fetchT(`${mirrorBase()}/books/${b.id}.txt`, 30_000);
+    if (r.ok) {
+      const text = await r.text();
+      if (text.length > 500 && !/^\s*</.test(text)) return text; // "<" = página de erro HTML
+    }
+  } catch { /* sem cópia deste livro: baixa do Gutenberg */ }
   const plainKey = Object.keys(b.formats).filter((k) => k.startsWith('text/plain'))
     .sort((x, y) => Number(/utf-8/i.test(y)) - Number(/utf-8/i.test(x)))[0];
   const tries: { url: string; kind: 'txt' | 'epub'; type?: string }[] = [];
