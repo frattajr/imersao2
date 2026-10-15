@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Imersão",
+    "slug": "imersao",
+    "scheme": "imersao",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "backgroundColor": "#15151a",
+    "ios": {
+      "bundleIdentifier": "com.imersao.leitura",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "UISupportsDocumentBrowser": false,
+        "LSSupportsOpeningDocumentsInPlace": false,
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.imersao.leitura",
+      "edgeToEdgeEnabled": true,
+      "permissions": ["android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK", "android.permission.WAKE_LOCK"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-font",
+      [
+        "react-native-audio-api",
+        {
+          "iosBackgroundMode": true,
+          "androidForegroundService": true,
+          "androidFSTypes": ["mediaPlayback"],
+          "androidPermissions": ["android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"]
+        }
+      ],
+      [
+        "expo-splash-screen",
+        { "backgroundColor": "#15151a", "resizeMode": "contain" }
+      ]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

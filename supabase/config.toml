@@ -1,0 +1,15 @@
+# Configuração mínima; `supabase init` completa o resto se precisar.
+project_id = "imersao"
+
+[auth]
+# contas anônimas: o leitor começa a usar sem cadastro
+enable_anonymous_sign_ins = true
+
+[functions.sound-plan]
+verify_jwt = true
+
+[functions.glossary]
+verify_jwt = true
+
+[functions.extract-pdf]
+verify_jwt = true
