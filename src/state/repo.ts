@@ -14,6 +14,8 @@ export interface SqlDb {
   runAsync(sql: string, params?: (string | number | null)[]): Promise<unknown>;
   getFirstAsync<T>(sql: string, params?: (string | number | null)[]): Promise<T | null>;
   getAllAsync<T>(sql: string, params?: (string | number | null)[]): Promise<T[]>;
+  /** opcional: agrupa várias escritas numa transação (expo-sqlite nativo e a versão web têm) */
+  withTransactionAsync?(task: () => Promise<void>): Promise<void>;
 }
 
 const SCHEMA = `
@@ -128,10 +130,15 @@ export class Repo {
   }
 
   async savePlans(bookId: string, from: number, plans: (ScenePlan | null)[]): Promise<void> {
-    for (let i = 0; i < plans.length; i++) {
-      const p = plans[i];
-      if (p) await this.db.runAsync('INSERT OR REPLACE INTO plans (book_id, page, plan) VALUES (?, ?, ?)', [bookId, from + i, JSON.stringify(p)]);
-    }
+    const write = async () => {
+      for (let i = 0; i < plans.length; i++) {
+        const p = plans[i];
+        if (p) await this.db.runAsync('INSERT OR REPLACE INTO plans (book_id, page, plan) VALUES (?, ?, ?)', [bookId, from + i, JSON.stringify(p)]);
+      }
+    };
+    // um lote inteiro numa transação: uma escrita no disco em vez de oito
+    if (this.db.withTransactionAsync) await this.db.withTransactionAsync(write);
+    else await write();
   }
 
   /** Livros alterados desde a última sincronização. */

@@ -100,7 +100,9 @@ export function cleanGutenbergText(raw: string): string {
   if (end >= 0) t = t.slice(0, end);
   const paras = t.split(/\n\s*\n/)
     .map((p) => p.split('\n').map((l) => l.trim()).join(' ').replace(/\s+/g, ' ').replace(/_([^_]+)_/g, '$1').trim())
-    .filter((p) => p && !/^(produced by|e-text prepared by|transcriber'?s note|nota do transcritor)/i.test(p) && !/^[*\s.]+$/.test(p));
+    // marcadores de página e ilustração das transcrições ("[Pg 12]", "{12}", "[Illustration]")
+    .map((p) => p.replace(/\[(?:pg|pag|p[áa]gina)\.?\s*\d+\]|\{\d+\}/gi, '').replace(/\s+/g, ' ').trim())
+    .filter((p) => p && !/^(produced by|e-text prepared by|transcriber'?s note|nota do transcritor)/i.test(p) && !/^[*\s.]+$/.test(p) && !/^\[(illustration|ilustra[çc][ãa]o)[^\]]*\]$/i.test(p));
   return paras.join('\n');
 }
 

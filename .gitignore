@@ -7,3 +7,4 @@ android/
 *.log
 .DS_Store
 supabase/.temp/
+.stems-cache/

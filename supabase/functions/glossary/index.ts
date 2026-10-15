@@ -9,7 +9,7 @@
  * públicos mandam `cacheOnly` e nunca disparam a IA.
  */
 import { askClaudeJson, ClaudeError, sha256 } from '../_shared/claude.ts';
-import { cacheGet, cachePut, cors, isPrecompute, json, requireUser, withinDailyLimit } from '../_shared/http.ts';
+import { bookKeyOf, cacheGet, cachePut, cors, isPrecompute, json, requireUser, withinDailyLimit } from '../_shared/http.ts';
 
 const PROMPT_VERSION = 'v1';
 const MODEL = Deno.env.get('GLOSSARY_MODEL') ?? 'claude-sonnet-5-5';
@@ -30,10 +30,11 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'método não permitido' }, 405);
 
+  // pré-cálculo de livros públicos (segredo no cabeçalho) não precisa de leitor logado
   const user = await requireUser(req);
-  if (!user) return json({ error: 'não autenticado' }, 401);
+  if (!user && !isPrecompute(req)) return json({ error: 'não autenticado' }, 401);
 
-  let body: { title?: unknown; text?: unknown; known?: unknown; focus?: unknown; cacheOnly?: unknown };
+  let body: { title?: unknown; text?: unknown; known?: unknown; focus?: unknown; cacheOnly?: unknown; bookKey?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
   const title = String(body.title ?? '').slice(0, 200);
   const text = String(body.text ?? '').slice(-16000);
@@ -47,7 +48,7 @@ Deno.serve(async (req) => {
 
   const precompute = isPrecompute(req);
   if (body.cacheOnly === true && !precompute) return json({ entries: [], cached: false, skipped: true });
-  if (!precompute && !(await withinDailyLimit(user.id))) return json({ error: 'limite diário atingido' }, 429);
+  if (!precompute && !(await withinDailyLimit(user!.id))) return json({ error: 'limite diário atingido' }, 429);
 
   try {
     const r = await askClaudeJson<{ entries?: { term?: unknown; desc?: unknown }[] }>(
@@ -56,7 +57,7 @@ Deno.serve(async (req) => {
       .filter((e) => e && typeof e.term === 'string' && e.term.trim())
       .slice(0, 12)
       .map((e) => ({ term: String(e.term).trim().slice(0, 60), desc: String(e.desc ?? '').trim().slice(0, 200) }));
-    await cachePut(key, 'gloss', { entries }, MODEL);
+    await cachePut(key, 'gloss', { entries }, MODEL, bookKeyOf(body));
     return json({ entries, cached: false });
   } catch (e) {
     const status = e instanceof ClaudeError && e.status === 429 ? 429 : 502;

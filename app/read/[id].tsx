@@ -23,7 +23,7 @@ import {
   type LayoutChangeEvent, type ViewToken,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { engine } from '../../src/audio';
+import { engine, soundSource } from '../../src/audio';
 import { analyze, LAYER_LABEL, SPOT_LABEL, TINT } from '../../src/core/analyze';
 import { chapterAt, detectChapters } from '../../src/core/chapters';
 import { readSoFar, upsertEntry } from '../../src/core/glossary';
@@ -41,6 +41,7 @@ import { PageText, type TypeStyle } from '../../src/reader/PageText';
 import { TypeSheet } from '../../src/reader/TypeSheet';
 import { XraySheet } from '../../src/reader/XraySheet';
 import { aiAvailable, explainTerm, fetchRecap } from '../../src/services/ai';
+import { downloadChapter } from '../../src/services/offline';
 import { activeLibrary } from '../../src/services/sounds';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
@@ -112,6 +113,8 @@ export default function Reader() {
   const [reported, setReported] = useState(false);
   const [recap, setRecap] = useState<{ text: string; ai: boolean } | null>(null);
   const [pace, setPace] = useState<PaceState>({ wpm: DEFAULT_WPM, samples: 0 });
+  /** download do capítulo para ler offline */
+  const [dl, setDl] = useState<{ p: number; msg: string } | null>(null);
 
   const idxRef = useRef(0);
   const keyRef = useRef(0);
@@ -145,9 +148,10 @@ export default function Reader() {
   const poke = useCallback(() => { showChrome(true); armZen(); }, [showChrome, armZen]);
   useEffect(() => {
     // painel aberto: mantém as barras; fechou: volta a contar
-    if (sheet || xray || recap) { if (zenTimer.current) clearTimeout(zenTimer.current); showChrome(true); } else armZen();
+    const downloading = !!dl && dl.p < 1;
+    if (sheet || xray || recap || downloading) { if (zenTimer.current) clearTimeout(zenTimer.current); showChrome(true); } else armZen();
     return () => { if (zenTimer.current) clearTimeout(zenTimer.current); };
-  }, [sheet, xray, recap, armZen, showChrome]);
+  }, [sheet, xray, recap, dl, armZen, showChrome]);
 
   /* ---------- carrega o livro ---------- */
   useEffect(() => {
@@ -437,8 +441,16 @@ export default function Reader() {
           <RoundButton label="Aa" accessibilityLabel="Tipografia e tema" onPress={() => setSheet('type')} />
           <RoundButton label={sound.focus ? '🎯' : '🎧'} accessibilityLabel="Som" onPress={() => setSheet('audio')} />
           <RoundButton label="📝" accessibilityLabel="Glossário e capítulos" onPress={() => router.push({ pathname: '/glossary/[id]', params: { id, from: 'reader', at: String(idx) } })} />
+          <RoundButton label="⬇" accessibilityLabel="Baixar este capítulo para ler sem internet" disabled={!!dl && dl.p < 1} onPress={() => {
+            if (!ch) return;
+            setDl({ p: 0, msg: 'Preparando…' });
+            downloadChapter(id, book.title, pages, ch, soundSource, (p, msg) => setDl({ p, msg }))
+              .then(() => setTimeout(() => setDl(null), 4000))
+              .catch(() => { setDl({ p: 1, msg: 'Não consegui baixar agora.' }); setTimeout(() => setDl(null), 4000); });
+          }} />
           <RoundButton label="⚙" accessibilityLabel="Configurações" onPress={() => router.push('/settings')} />
         </View>
+        {dl ? <Text style={[st.foot, { color: c.fg }]} accessibilityLiveRegion="polite">⬇ {dl.msg}</Text> : null}
         <Text style={[st.foot, { color: c.mut }]}>Toque no centro para esconder · laterais viram a página · nomes sublinhados mostram quem é</Text>
       </Animated.View>
 

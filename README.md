@@ -27,6 +27,28 @@ App de leitura para iOS e Android: o texto aparece página por página, em letra
 
 **Por que o app funciona sem servidor:** biblioteca, leitura, progresso, EPUB e sons por palavras-chave rodam no aparelho. O servidor acrescenta IA, PDF e sincronização entre aparelhos.
 
+## Experiência de leitura (produto)
+
+**Motor de áudio adaptativo** (`src/audio/engine.ts`)
+- A cena é uma **matriz de mixagem declarativa**: cada stem (loop contínuo: chuva, vento, lareira, taberna, drone de tensão…) com ganho, **low-pass** (abafa o que está "do outro lado da parede" ou longe) e **prioridade**. A IA (`sound-plan`, prompt v5) atua como mixadora: devolve a matriz, nunca áudio.
+- No máximo 4 stems ao mesmo tempo (os de maior prioridade); transições com curva de **potência constante de 2,5 s (entrada) a 4 s (saída)**; **ducking** de ~4 dB no ambiente enquanto um efeito toca.
+- **Conforto acústico**: volume de ambiente e de efeitos separados, loops liga/desliga e **modo foco** (só stems essenciais, agudos cortados, sem efeitos) — no painel 🎧 do leitor e nas Configurações.
+- **Bateria e latência**: stems silenciosos são parados (o buffer fica em cache), o contexto de áudio é suspenso quando nada toca, relógio interno de 0,5 s, consulta ao repositório com limite de 2,5 s e arquivos normalizados uma única vez.
+
+**Leitura** (`app/read/[id].tsx`, `src/reader/`)
+- **Páginas** (toque nas laterais ou deslize) ou **rolagem contínua** — na rolagem, o som acompanha o parágrafo visível (FlatList + `onViewableItemsChanged`, com 0,7 s de permanência antes de trocar, para não mudar a cada rolada).
+- **Modo Zen**: barras, botões e barra de status somem após 3 s sem toque; um toque no centro traz de volta. Fica um indicador mínimo do capítulo com o tempo restante calculado no **ritmo de leitura da pessoa** (palavras por minuto aprendidas página a página, `src/core/pace.ts`).
+- **Tipografia**: Literata, Merriweather e Atkinson Hyperlegible (Bookerly é exclusiva da Amazon e não pode ser distribuída), tamanho, entrelinha, espaço entre parágrafos, margens e alinhamento; temas Claro, Sépia, Cinza foco, Escuro e Preto OLED (contraste do texto acima de 7:1).
+- **X-Ray** (`src/core/xray.ts`): nomes e termos do texto são tocáveis e abrem uma ficha — primeira e última menção, número de menções e explicação da IA sob demanda — **só com o que já foi lido** (sem spoiler).
+- **"O que aconteceu até aqui?"** (`src/core/recap.ts` + função `recap`): ao voltar depois de 48 h, um resumo de 2 frases das páginas logo antes do ponto de parada (IA; sem internet, as 2 frases mais relevantes do trecho).
+- **Offline** (`src/services/offline.ts`): ⬇ no leitor baixa o capítulo — texto (já fica no SQLite), planos de som e arquivos de áudio — para ler sem conexão.
+
+**Importação** (`src/core/reflow.ts`): PDFs sem cabeçalhos/rodapés repetidos nem paginação impressa, com hifenização e quebras de linha desfeitas; EPUBs sem marcadores de página, chamadas e blocos de notas; textos do Gutenberg sem `[Pg 12]` e ilustrações.
+
+**Custos de IA**: as respostas ficam no **cache global** (`ai_cache`, por hash do trecho — o mesmo trecho dá a mesma resposta para todos). **Livros públicos** (obras de exemplo e Gutenberg) **nunca disparam a IA** no app: pedem só o que já está no cache (`cacheOnly`). O cache deles é preenchido uma vez por quem mantém o app (`npm run precompute`). A IA roda sob demanda apenas para textos colados ou importados pela pessoa.
+
+**Primeira experiência**: três obras de domínio público já sonorizadas à mão, em tradução e adaptação próprias — *O Coração Delator* e *O Barril de Amontillado* (Edgar Allan Poe) e *O Sinaleiro* (Charles Dickens) — com planos calibrados por página (`src/data/classics.ts`) e um **pacote inicial de stems** gerado uma vez pela ElevenLabs e publicado junto com o app (`scripts/build-stems.ts`). Funciona sem chave de API, servidor ou upload.
+
 ## Colocar para rodar
 
 Pré-requisitos: Node 20+, uma conta no [Supabase](https://supabase.com), uma chave da API da Anthropic, e Xcode (iPhone) ou Android Studio — ou o EAS da Expo para compilar na nuvem.
@@ -48,7 +70,7 @@ npx supabase login
 npx supabase link --project-ref SEU_PROJETO
 npx supabase db push                          # cria tabelas, regras de acesso e buckets
 npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-... AI_DAILY_LIMIT=300
-npx supabase functions deploy sound-plan glossary extract-pdf sound-resolve gutenberg
+npx supabase functions deploy sound-plan glossary extract-pdf sound-resolve gutenberg recap
 ```
 
 No painel do Supabase: **Authentication → Sign In / Providers → Allow anonymous sign-ins** (ligado). O leitor começa sem cadastro.
@@ -66,6 +88,43 @@ npx expo run:ios        # ou: npx expo run:android
 # ou na nuvem, sem Xcode/Android Studio:
 npx eas build --profile development --platform ios
 ```
+
+### 4. Compilar com EAS (lojas)
+
+Compatibilidade: **Expo SDK 54**, React Native 0.81, **nova arquitetura ligada** (`newArchEnabled`), `react-native-audio-api` (Web Audio nativo, toca com a tela bloqueada — modo de áudio em segundo plano no `app.json`) e `expo-sqlite` 16 (SQLite nativo). O Expo Go **não** serve por causa do módulo de áudio nativo.
+
+```bash
+npm i -g eas-cli && eas login
+eas init                          # liga o projeto à sua conta Expo
+npm run build:dev:ios             # development build (ou build:dev:android)
+npm run build:preview             # APK/IPA para testes internos
+npm run build:prod                # versão das lojas (autoIncrement da versão)
+npm run submit                    # envia para App Store Connect e Google Play
+```
+
+Antes da loja: ícone e splash definitivos em `assets/`, política de privacidade (trechos vão para a IA; PDFs são lidos no servidor e apagados), e as variáveis `EXPO_PUBLIC_*` do `.env` configuradas no EAS (`eas env:create`).
+
+### 5. Obras iniciais com som (pacote de stems)
+
+No GitHub do projeto: **Settings → Secrets and variables → Actions → New repository secret** `ELEVENLABS_API_KEY`. O próximo deploy gera os ~80 sons do pacote inicial (uma única vez; ficam em cache e não são pagos de novo) e publica em `/stems/`. Localmente: `ELEVENLABS_API_KEY=... npm run stems`.
+
+### 6. Pré-calcular livros públicos (opcional)
+
+```bash
+npx supabase secrets set PRECOMPUTE_SECRET=um-segredo-longo-de-16+-caracteres
+SUPABASE_URL=... SUPABASE_ANON_KEY=... PRECOMPUTE_SECRET=... npm run precompute -- dist/gutenberg --limit 20
+```
+
+### Scripts
+
+| Script | O que faz |
+|---|---|
+| `npm start` / `npm run web` | servidor de desenvolvimento (celular / navegador) |
+| `npm run verify` | tipos, testes (Jest) e verificações das funções, do banco e do Gutenberg |
+| `npm run build:web` | exporta a versão web (a preview do GitHub Pages) |
+| `npm run build:dev:ios` · `build:dev:android` · `build:preview` · `build:prod` · `submit` | EAS |
+| `npm run stems` | gera o pacote inicial de stems (precisa de `ELEVENLABS_API_KEY`) |
+| `npm run precompute` | preenche o cache global de IA dos livros públicos |
 
 ## Repositório de sons (reaproveitar ou gerar)
 
@@ -122,9 +181,11 @@ A biblioteca mostra os livros em português do [Project Gutenberg](https://www.g
 ## Verificações
 
 ```bash
-npm test                          # testes do núcleo (Jest)
+npm run verify                    # tudo abaixo de uma vez
+npm test                          # testes (Jest): núcleo, motor de áudio, leitor, reflow, repositório de sons
 bun scripts/verify-repo.ts        # SQL da biblioteca local (precisa do Bun)
 bun scripts/verify-functions.ts   # funções do servidor com Supabase/Claude simulados
+bun scripts/verify-gutenberg.ts   # montagem da cópia do Gutenberg com serviços simulados
 ```
 
 O que já foi verificado fora do celular:
@@ -133,9 +194,12 @@ O que já foi verificado fora do celular:
 |---|---|
 | Texto, EPUB, glossário, plano de som | 15 testes automáticos (EPUB real gerado com JSZip) |
 | Biblioteca local (SQLite) | 15 checagens com SQLite real |
-| Motor de som | no Web Audio do Chromium, medindo a saída: entrada/saída suaves, sons pontuais, mudo, liberar camadas e suspender |
+| Motor de áudio | testes com contexto de áudio simulado: máx. 4 stems por prioridade, low-pass, curva de potência constante, transições de 2,5–4 s, ducking, modo foco, loops e volumes separados |
+| Leitor | testes de ritmo de leitura (WPM), X-Ray sem spoiler, recapitulação e matriz pós-suavização; no Chromium: Modo Zen, toques, rolagem, tipografia, X-Ray, pacote inicial de stems tocando |
+| Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
+| Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |
-| Funções do servidor | 21 checagens: login, cache compartilhado, limite diário, entradas inválidas, PDF de outro leitor, PDF apagado após leitura |
+| Funções do servidor | 40 checagens: login, cache compartilhado, limite diário, só-cache para livros públicos, pré-cálculo com segredo, entradas inválidas, PDF de outro leitor, PDF apagado após leitura |
 | Migração do banco | aplicada num PostgreSQL 16 com ambiente Supabase simulado; regras de acesso testadas (cada leitor só vê o que é seu) |
 | Tipos | `tsc` estrito em todo o código do app |
 
@@ -143,7 +207,7 @@ O que já foi verificado fora do celular:
 
 - primeira compilação: possíveis ajustes de versão das bibliotecas (`npx expo-doctor` ajuda);
 - `react-native-audio-api`: nomes das opções do plugin no `app.json` e de `AudioManager.setAudioSessionOptions` (em `src/audio/context.ts`) podem variar por versão — se o `prebuild` reclamar do plugin, remova a entrada dele; o modo de áudio em segundo plano do iOS já está no `infoPlist`;
-- tempo para gerar os sons sintetizados no aparelho (no computador, todas as camadas levam ~1,7 s; o app gera só as que a cena usa, uma por vez);
+- `createBiquadFilter` (low-pass) no `react-native-audio-api`: se a versão instalada não tiver, o motor segue sem o filtro;
 - tocar com a tela bloqueada (iOS e Android);
 - leitura de arquivos pelo `expo-file-system` (há um plano B com `fetch`);
 - geração de sons pela API da ElevenLabs com uma chave real (o formato do pedido segue a documentação, mas só foi testado com a API simulada).
@@ -156,20 +220,22 @@ app/                 telas (expo-router)
   read/[id].tsx      leitor
   glossary/[id].tsx  glossário
   paste.tsx          colar texto
-src/core/            lógica pura, testável: texto, EPUB, palavras-chave, planos, glossário
-src/audio/           motor de som (engine); context.ts = celular, context.web.ts = navegador
+src/core/            lógica pura, testável: texto, reflow, EPUB, palavras-chave, planos/matriz de mixagem,
+                     suavização, enredo (scenery), capítulos, glossário, X-Ray, ritmo, recapitulação
+src/reader/          componentes do leitor: texto com X-Ray, painéis de som, tipografia e X-Ray
+src/audio/           motor de áudio (engine); context.ts = celular, context.web.ts = navegador
 src/state/           SQLite local (repo) e diretor de cena (planos da IA em lotes)
-src/services/        Supabase, IA, importação, sincronização
-src/data/books.ts    histórias de exemplo
+src/services/        Supabase, IA, importação, sincronização, repositório de sons, offline, Gutenberg, pacote inicial
+src/data/            histórias de exemplo (books.ts) e obras de domínio público sonorizadas (classics.ts)
 supabase/            migração SQL e funções (Deno)
-scripts/             verificações (Bun)
+scripts/             verificações, cópia do Gutenberg, pacote de stems e pré-cálculo (Bun)
 __tests__/           testes (Jest)
 ```
 
 ## Próximos passos até a loja
 
 1. **Testar num aparelho** e ajustar o que a lista acima apontar.
-2. **Gravações reais** para as camadas mais usadas (chuva, café, lareira, floresta, mar, noite).
+2. **Pacote inicial de stems**: adicionar o segredo `ELEVENLABS_API_KEY` no GitHub e conferir os sons gerados.
 3. **Conta com e-mail**: vincular a conta anônima (`supabase.auth.updateUser({ email })`) para levar a biblioteca a outro aparelho sem perder nada.
 4. **Assinatura** (compras dentro do app — obrigatório nas lojas para conteúdo digital), por exemplo com RevenueCat; o `AI_DAILY_LIMIT` pode variar por plano.
 5. **Ícone, splash, política de privacidade** (explicar que PDFs são lidos no servidor e apagados, e que trechos vão para a IA) e notas para a revisão da Apple.

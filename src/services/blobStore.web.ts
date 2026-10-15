@@ -52,3 +52,8 @@ export async function deleteBlob(id: string): Promise<void> {
   urls.delete(id);
   await tx('readwrite', (s) => s.delete(id));
 }
+
+/** Bytes do arquivo, ou null se não existe. */
+export async function getBlob(id: string): Promise<Uint8Array | null> {
+  return memory.get(id) ?? (await tx<Uint8Array>('readonly', (s) => s.get(id))) ?? null;
+}

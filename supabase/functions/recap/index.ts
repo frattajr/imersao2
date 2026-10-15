@@ -8,7 +8,7 @@
  * Cache global por trecho; livros públicos mandam `cacheOnly`.
  */
 import { askClaudeJson, ClaudeError, sha256 } from '../_shared/claude.ts';
-import { cacheGet, cachePut, cors, isPrecompute, json, requireUser, withinDailyLimit } from '../_shared/http.ts';
+import { bookKeyOf, cacheGet, cachePut, cors, isPrecompute, json, requireUser, withinDailyLimit } from '../_shared/http.ts';
 
 const PROMPT_VERSION = 'v1';
 const MODEL = Deno.env.get('RECAP_MODEL') ?? Deno.env.get('SOUND_MODEL') ?? 'claude-haiku-5-5';
@@ -22,10 +22,11 @@ ${text}`;
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'método não permitido' }, 405);
+  // pré-cálculo de livros públicos (segredo no cabeçalho) não precisa de leitor logado
   const user = await requireUser(req);
-  if (!user) return json({ error: 'não autenticado' }, 401);
+  if (!user && !isPrecompute(req)) return json({ error: 'não autenticado' }, 401);
 
-  let body: { title?: unknown; text?: unknown; cacheOnly?: unknown };
+  let body: { title?: unknown; text?: unknown; cacheOnly?: unknown; bookKey?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
   const title = String(body.title ?? '').slice(0, 200);
   const text = String(body.text ?? '').slice(-6000);
@@ -37,12 +38,12 @@ Deno.serve(async (req) => {
 
   const precompute = isPrecompute(req);
   if (body.cacheOnly === true && !precompute) return json({ summary: '', skipped: true });
-  if (!precompute && !(await withinDailyLimit(user.id))) return json({ error: 'limite diário atingido' }, 429);
+  if (!precompute && !(await withinDailyLimit(user!.id))) return json({ error: 'limite diário atingido' }, 429);
 
   try {
     const r = await askClaudeJson<{ summary?: unknown }>(prompt(title, text), { model: MODEL, maxTokens: 300 });
     const summary = String(r.summary ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
-    if (summary) await cachePut(key, 'recap', { summary }, MODEL);
+    if (summary) await cachePut(key, 'recap', { summary }, MODEL, bookKeyOf(body));
     return json({ summary, cached: false });
   } catch (e) {
     const status = e instanceof ClaudeError && e.status === 429 ? 429 : 502;

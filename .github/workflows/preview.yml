@@ -36,6 +36,21 @@ jobs:
           npx expo export --platform web
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
+      # pacote inicial de stems (ElevenLabs): gerado uma vez e guardado em cache;
+      # precisa do segredo ELEVENLABS_API_KEY no repositório (Settings → Secrets → Actions)
+      - uses: actions/cache@v4
+        with:
+          path: .stems-cache
+          key: stems-${{ hashFiles('scripts/build-stems.ts', 'src/data/classics.ts', 'src/core/scenery.ts', 'src/core/sound.ts') }}
+          restore-keys: stems-
+      - name: Pacote inicial de stems
+        timeout-minutes: 25
+        continue-on-error: true
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          bun scripts/build-stems.ts .stems-cache --max 80
+          mkdir -p dist/stems && cp -r .stems-cache/. dist/stems/
       - name: Copiar catálogo e livros do Project Gutenberg
         timeout-minutes: 20
         continue-on-error: true

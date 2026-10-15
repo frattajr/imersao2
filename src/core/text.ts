@@ -3,6 +3,7 @@
  * parágrafos a partir de linhas de PDF. Sem dependências — roda no app,
  * nos testes e pode ser copiado para as funções do servidor.
  */
+import { cleanChars, PAGE_NUMBER, stripRunningHeads } from './reflow';
 
 /** Minúsculas e sem acentos, para comparar palavras. */
 export const norm = (s: string): string =>
@@ -52,14 +53,15 @@ const LOWER_START = /^[a-zà-ú]/;
  * linha termina em pontuação e é bem mais curta que a linha mais longa.
  */
 export function linesToParas(lines: string[]): string[] {
-  const L = lines.map((s) => s.replace(/\s+/g, ' ').trim()).filter((s) => s && !/^\d{1,4}$/.test(s));
+  const L = lines.map((s) => cleanChars(s).replace(/\s+/g, ' ').trim()).filter((s) => s && !PAGE_NUMBER.test(s));
   if (!L.length) return [];
   const mx = Math.max(...L.map((s) => s.length));
   const out: string[] = [];
   let c = '';
   for (const s of L) {
     if (c) {
-      if (/-$/.test(c) && LOWER_START.test(s)) c = c.slice(0, -1) + s;
+      // hifenização no fim da linha ("mora-" + "va") — mas mantém hífen de palavra composta ("guarda-" + "chuva" não é comum em fim de linha)
+      if (/[a-zà-ú]-$/.test(c) && LOWER_START.test(s)) c = c.slice(0, -1) + s;
       else c += ' ' + s;
     } else c = s;
     if (ENDS.test(s) && s.length < mx * 0.62) {
@@ -71,13 +73,18 @@ export function linesToParas(lines: string[]): string[] {
   return out;
 }
 
-/** Junta os parágrafos de várias páginas de PDF, emendando frases cortadas. */
+/**
+ * Junta os parágrafos de várias páginas de PDF: tira cabeçalhos/rodapés
+ * repetidos e paginação, e emenda frases cortadas na virada da página.
+ */
 export function joinPdfPages(pages: string[][]): string {
   const out: string[] = [];
-  for (const lines of pages) {
+  for (const lines of stripRunningHeads(pages)) {
     const np = linesToParas(lines);
     if (out.length && np.length && !ENDS.test(out[out.length - 1]) && LOWER_START.test(np[0])) {
-      out[out.length - 1] += ' ' + np.shift();
+      const prev = out[out.length - 1];
+      // palavra hifenizada na virada da página
+      out[out.length - 1] = /[a-zà-ú]-$/.test(prev) ? prev.slice(0, -1) + np.shift() : prev + ' ' + np.shift();
     }
     out.push(...np);
   }

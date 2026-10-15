@@ -9,7 +9,17 @@
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor",
+    "web": "expo start --web",
+    "verify": "tsc --noEmit && jest && bun scripts/verify-functions.ts && bun scripts/verify-repo.ts && bun scripts/verify-gutenberg.ts",
+    "build:web": "expo export --platform web",
+    "build:dev:ios": "eas build --profile development --platform ios",
+    "build:dev:android": "eas build --profile development --platform android",
+    "build:preview": "eas build --profile preview --platform all",
+    "build:prod": "eas build --profile production --platform all",
+    "submit": "eas submit --profile production --platform all",
+    "stems": "bun scripts/build-stems.ts .stems-cache",
+    "precompute": "bun scripts/precompute-public.ts"
   },
   "dependencies": {
     "@expo-google-fonts/atkinson-hyperlegible": "^0.4.1",
@@ -35,7 +45,7 @@
     "jszip": "^3.10.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-native": "0.81.4",
+    "react-native": "0.81.5",
     "react-native-audio-api": "^0.8.0",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",

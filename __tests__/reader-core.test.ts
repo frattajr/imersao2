@@ -93,3 +93,28 @@ describe('recapitulação', () => {
     expect(r).toBe('Marina abriu a porta do farol e encontrou o velho mapa escondido na parede. Então Marina descobriu que o mapa mostrava uma ilha que não existia mais.');
   });
 });
+
+import { bundledPlans, isPublicBook, SAMPLE_BOOKS } from '../src/data/books';
+import { CLASSICS } from '../src/data/classics';
+import { detectChapters } from '../src/core/chapters';
+
+describe('obras iniciais pré-sonorizadas', () => {
+  it('3 clássicos de domínio público, com um plano calibrado válido por página', () => {
+    expect(CLASSICS).toHaveLength(3);
+    for (const b of CLASSICS) {
+      expect(SAMPLE_BOOKS[0].id.startsWith('sample-poe')).toBe(true);
+      expect(isPublicBook(b.id)).toBe(true);
+      expect(b.plans).toHaveLength(b.pages.length);
+      const plans = bundledPlans(b.id)!;
+      plans.forEach((p, i) => {
+        expect(p).not.toBeNull();
+        expect(p!.mix!.length).toBeGreaterThan(0); // toda página tem ambiente
+        expect(p!.mix!.length).toBeLessThanOrEqual(4);
+        // nenhum efeito foi descartado pela validação (nomes e campos corretos)
+        expect(p!.spots.length).toBe((b.plans![i] as { spots: unknown[] }).spots.length);
+      });
+      expect(detectChapters(b.pages).length).toBeGreaterThanOrEqual(3); // capítulos para o glossário
+      expect(b.credit).toMatch(/domínio público/);
+    }
+  });
+});

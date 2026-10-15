@@ -65,18 +65,23 @@ export function detectChapters(pages: string[]): Chapter[] {
 export const chapterAt = (chs: Chapter[], page: number) => Math.max(0, chs.findIndex((c) => page >= c.start && page < c.end));
 
 const STOP = new Set(('a o as os um uma uns umas e ou mas se de do da dos das em no na nos nas por para com sem sob sobre ' +
-  'ele ela eles elas eu tu voce nos vos lhe lhes me te se meu minha seu sua nosso nossa este esta esse essa aquele aquela isto isso aquilo ' +
-  'que quem qual quando onde como porque pois entao depois antes ainda ja nao sim so muito pouco mais menos tudo nada todo toda todos todas ' +
-  'la ali aqui ai foi era sao estava havia tinha ha deus senhor senhora capitulo parte chapter ate desde pela pelo lá então quando ' +
-  'ao aos um dia noite manha tarde horas juntos dentro fora alguns algumas cada outro outra outros outras foi era')
-  .split(/\s+/));
+  'ele ela eles elas eu tu voce voces nos vos lhe lhes me te meu minha meus minhas seu sua seus suas nosso nossa ' +
+  'este esta estes estas esse essa esses essas aquele aquela aqueles aquelas isto isso aquilo ' +
+  'que quem qual quais quando onde como porque pois porem contudo entao depois antes ainda ja nao sim so somente apenas ' +
+  'muito muita muitos muitas pouco pouca mais menos tudo nada nenhum nenhuma ninguem alguem algo todo toda todos todas ' +
+  'nunca sempre agora hoje ontem amanha aqui ali la cá ca assim tambem talvez quase logo enfim afinal porém entretanto ' +
+  'foi era sao estava estavam havia tinha tinham ha houve sera seria fosse fui sou estou tenho temos ' +
+  'deus senhor senhora senhores capitulo parte chapter ate desde pela pelo pelas pelos ao aos ' +
+  'dia noite manha tarde horas juntos dentro fora alguns algumas cada outro outra outros outras mesmo mesma ' +
+  'num numa nuns numas naquele naquela nesse nessa neste nesta disso daquilo ola adeus sim nao ah oh ai eis vamos venha veja olhe escutem ouçam ouca basta sem bem mal entao primeiro primeira ultimo ultima ' +
+  'durante enquanto embora porque contra entre apos perante segundo conforme como mas ora quer seja').split(/\s+/));
 
 /**
  * Nomes próprios do trecho (palavras com maiúscula que não começam frase),
  * do mais citado para o menos. Sugestões para o glossário.
  */
 export function properNouns(text: string, max = 8): string[] {
-  const count = new Map<string, { name: string; n: number }>();
+  const count = new Map<string, { name: string; n: number; mid: number }>();
   const sentences = text.split(/(?<=[.!?…—:;])\s+|\n+/);
   for (const sent of sentences) {
     const words = sent.replace(/[“”"«»()]/g, ' ').split(/\s+/).filter(Boolean);
@@ -86,12 +91,17 @@ export function properNouns(text: string, max = 8): string[] {
       if (STOP.has(norm(clean))) return;
       const start = i === 0 || /^[—–-]$/.test(words[i - 1] ?? '');
       const k = norm(clean);
-      const cur = count.get(k) ?? { name: clean, n: 0 };
+      const cur = count.get(k) ?? { name: clean, n: 0, mid: 0 };
       // começo de frase conta pouco (pode ser só a primeira palavra); no meio, é nome com certeza.
       // Precisa de uma citação no meio de frase ou duas no começo.
       cur.n += start ? 0.4 : 1;
+      if (!start) cur.mid++;
       count.set(k, cur);
     });
   }
-  return [...count.values()].filter((x) => x.n >= 0.8).sort((a, b) => b.n - a.n).slice(0, max).map((x) => x.name);
+  // palavra que também aparece em minúscula no texto é palavra comum ("Ficava", "Cuidado"), não nome
+  const lower = new Set((text.match(/(?<![\p{L}])\p{Ll}[\p{L}]+/gu) ?? []).map((w) => norm(w)));
+  // só no começo de frase (nunca no meio): precisa aparecer pelo menos 3 vezes
+  return [...count.entries()].filter(([k, x]) => (x.mid > 0 ? x.n >= 0.8 : x.n >= 1.15) && !lower.has(k)).map(([, x]) => x)
+    .sort((a, b) => b.n - a.n).slice(0, max).map((x) => x.name);
 }

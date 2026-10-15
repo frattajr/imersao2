@@ -27,3 +27,9 @@ export async function deleteBlob(id: string): Promise<void> {
   const f = new File(dir(), id + '.bin');
   if (f.exists) f.delete();
 }
+
+/** Bytes do arquivo, ou null se não existe. */
+export async function getBlob(id: string): Promise<Uint8Array | null> {
+  const f = new File(dir(), id + '.bin');
+  return f.exists ? f.bytes() : null;
+}

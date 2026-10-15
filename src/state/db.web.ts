@@ -10,6 +10,14 @@ import { Repo, type SqlDb } from './repo';
 const KEY = 'imersao.db';
 type Params = (string | number | null)[] | undefined;
 
+let pending: ReturnType<typeof setTimeout> | null = null;
+let inTx = false;
+/** Agrupa as gravações: no máximo uma a cada 400 ms (cada gravação copia o banco inteiro). */
+function saveSoon(db: Database) {
+  if (inTx || pending) return;
+  pending = setTimeout(() => { pending = null; save(db); }, 400);
+}
+
 function save(db: Database) {
   try {
     const bytes = db.export();
@@ -49,12 +57,26 @@ function wrap(db: Database): SqlDb {
   return {
     async execAsync(sql) {
       db.exec(sql.replace(/PRAGMA journal_mode\s*=\s*WAL;/i, ''));
-      save(db);
+      saveSoon(db);
     },
     async runAsync(sql, params) {
       db.run(sql, params as SqlValue[] | undefined);
-      save(db);
+      saveSoon(db);
       return undefined;
+    },
+    async withTransactionAsync(task) {
+      db.exec('BEGIN');
+      inTx = true;
+      try {
+        await task();
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      } finally {
+        inTx = false;
+        saveSoon(db);
+      }
     },
     async getFirstAsync<T>(sql: string, params?: Params) {
       return all<T>(sql, params)[0] ?? null;
@@ -72,7 +94,14 @@ export function getRepo(): Promise<Repo> {
   if (!repoPromise) {
     repoPromise = (async () => {
       const SQL = await initSqlJs({ locateFile: (f) => `${process.env.EXPO_BASE_URL ?? ''}/${f}` });
-      const repo = new Repo(wrap(new SQL.Database(load())));
+      const db = new SQL.Database(load());
+      // grava o que estiver pendente ao fechar/ocultar a aba
+      const flush = () => { if (pending) { clearTimeout(pending); pending = null; save(db); } };
+      try {
+        window.addEventListener('pagehide', flush);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+      } catch { /* fora do navegador */ }
+      const repo = new Repo(wrap(db));
       await repo.init();
       return repo;
     })();

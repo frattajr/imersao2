@@ -3,6 +3,7 @@
  * Recebe uma função `read(caminho)` que devolve o texto de um arquivo do ZIP,
  * assim o mesmo código roda com JSZip no app e nos testes.
  */
+import { cleanChars, PAGE_NUMBER } from './reflow';
 import JSZip from 'jszip';
 
 export interface ParsedBook {
@@ -54,12 +55,17 @@ export function xhtmlToParagraphs(html: string): string[] {
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<head\b[\s\S]*?<\/head>/i, ' ')
     .replace(/<(script|style|svg|math)\b[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<(sup|rt)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+    .replace(/<(sup|rt)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+    // marcadores de página impressa e chamadas de nota de rodapé
+    .replace(/<(\w+)\b[^>]*(?:epub:type|role)\s*=\s*["'][^"']*(?:pagebreak|doc-pagebreak)[^"']*["'][^>]*\/>/gi, '')
+    .replace(/<(\w+)\b[^>]*(?:epub:type|role)\s*=\s*["'][^"']*(?:pagebreak|doc-pagebreak|noteref|doc-noteref)[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi, '')
+    // blocos de notas de rodapé no fim do capítulo
+    .replace(/<(aside|section|div|ol)\b[^>]*(?:epub:type|role)\s*=\s*["'][^"']*(?:footnote|endnote|doc-footnote|doc-endnotes|rearnote)[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi, '');
   s = s.replace(BLOCK, '\n').replace(/<[^>]+>/g, '');
-  return decodeEntities(s)
+  return cleanChars(decodeEntities(s))
     .split('\n')
     .map((t) => t.replace(/[\s ]+/g, ' ').trim())
-    .filter((t) => t.length > 1);
+    .filter((t) => t.length > 1 && !PAGE_NUMBER.test(t));
 }
 
 export async function parseEpub(read: Reader, onProgress?: (p: number) => void): Promise<ParsedBook> {

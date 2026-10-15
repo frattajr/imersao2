@@ -53,6 +53,17 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
   return (data?.value as T) ?? null;
 }
 
-export async function cachePut(key: string, kind: string, value: unknown, model: string): Promise<void> {
-  await admin().from('ai_cache').upsert({ key, kind, value, model });
+/**
+ * Guarda uma resposta da IA no cache global. `bookKey` (ex.: "gut-55752",
+ * "sample-poe-coracao") marca de que livro público ela veio, para saber o
+ * que já foi pré-calculado.
+ */
+export async function cachePut(key: string, kind: string, value: unknown, model: string, bookKey?: string | null): Promise<void> {
+  await admin().from('ai_cache').upsert({ key, kind, value, model, book_key: bookKey ?? null });
+}
+
+/** Identificador de livro público aceito no pedido (só formatos conhecidos). */
+export function bookKeyOf(body: { bookKey?: unknown }): string | null {
+  const k = typeof body.bookKey === 'string' ? body.bookKey : '';
+  return /^(gut-\d{1,7}|sample-[a-z0-9-]{1,40})$/.test(k) ? k : null;
 }

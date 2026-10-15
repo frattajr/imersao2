@@ -44,6 +44,8 @@ interface Item {
   image?: string;
   /** livro do catálogo do Project Gutenberg */
   gut?: GutBook;
+  /** crédito (obras em domínio público traduzidas) */
+  credit?: string;
 }
 
 function gutItem(b: GutBook, meta?: BookMeta): Item {
@@ -67,7 +69,7 @@ const LAYER_MOOD: Partial<Record<Layer, Mood>> = { sea: 'sea', rain: 'rain', fir
 
 const SAMPLE_ITEMS: Item[] = SAMPLE_BOOKS.map((s) => ({
   id: s.id, title: s.title, author: s.author, emoji: s.emoji, mood: s.mood, genre: s.genre, synopsis: s.synopsis,
-  pages: s.pages.length, chapters: detectChapters(s.pages).length, layers: topLayers(s.pages), sample: true,
+  pages: s.pages.length, chapters: detectChapters(s.pages).length, layers: topLayers(s.pages), sample: true, credit: s.credit,
 }));
 
 /** Fileiras por ambiente sonoro: só aparecem se tiverem pelo menos 2 livros. */
@@ -126,7 +128,8 @@ export default function Library() {
   const all = useMemo(() => [...mine, ...SAMPLE_ITEMS.map((s) => ({ ...s, meta: byId.get(s.id) }))], [mine, byId]);
   const reading = useMemo(() => all.filter((i) => i.meta && !i.meta.done && pctOf(i.meta) > 0)
     .sort((a, b) => (b.meta!.updatedAt ?? 0) - (a.meta!.updatedAt ?? 0)), [all]);
-  const hero = reading[0] ?? all.find((i) => i.id === 'sample-farol') ?? all[0];
+  // primeira vez: abre com um clássico já sonorizado (não precisa de chave nem upload)
+  const hero = reading[0] ?? all.find((i) => i.id === 'sample-poe-coracao') ?? all[0];
 
   const open = async (it: Item) => {
     setDetail(null);
@@ -331,6 +334,7 @@ export default function Library() {
                 </View>
               </View>
               <Text style={[st.dSyn, { color: c.fg }]}>{detail.synopsis}</Text>
+              {detail.credit ? <Text style={[st.dMeta, { color: c.mut }]}>{detail.credit}{SAMPLE_BOOKS.find((b) => b.id === detail.id)?.plans ? ' · 🎧 sonorização calibrada' : ''}</Text> : null}
               {detail.layers.length > 0 && (
                 <View style={st.tags}>
                   <Text style={[st.dMeta, { color: c.mut }]}>Ambiente sonoro:</Text>

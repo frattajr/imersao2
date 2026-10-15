@@ -5,7 +5,8 @@
  * gutenberg.org (CORS). Aceita apenas endereços do Gutenberg — não é um
  * proxy aberto — e só para leitores logados.
  */
-import { cors, json, requireUser } from '../_shared/http.ts';
+import { sha256 } from '../_shared/claude.ts';
+import { admin, cors, json, requireUser } from '../_shared/http.ts';
 
 const ALLOWED = /^(www\.)?gutenberg\.org$|^gutenberg\.pglaf\.org$|^aleph\.gutenberg\.org$/;
 const MAX_BYTES = 15_000_000;
@@ -30,6 +31,15 @@ Deno.serve(async (req) => {
   const url = allowedUrl(body.url);
   if (!url) return json({ error: 'só endereços do Project Gutenberg' }, 400);
 
+  // cache global: o mesmo arquivo baixado uma vez serve a todos os leitores
+  const path = 'gutenberg/' + (await sha256(url.href));
+  const cached = await admin().storage.from('public-books').download(path);
+  if (!cached.error && cached.data) {
+    return new Response(new Uint8Array(await cached.data.arrayBuffer()), {
+      headers: { ...cors, 'Content-Type': 'application/octet-stream', 'X-Cache': 'hit' },
+    });
+  }
+
   const r = await fetch(url, { redirect: 'follow' });
   // o redirecionamento também precisa terminar no Gutenberg
   if (!allowedUrl(r.url) || !r.ok) return json({ error: 'não encontrado' }, 404);
@@ -37,7 +47,8 @@ Deno.serve(async (req) => {
   if (len > MAX_BYTES) return json({ error: 'arquivo grande demais' }, 413);
   const buf = new Uint8Array(await r.arrayBuffer());
   if (buf.length > MAX_BYTES) return json({ error: 'arquivo grande demais' }, 413);
+  await admin().storage.from('public-books').upload(path, buf, { contentType: 'application/octet-stream', upsert: true }).catch(() => undefined);
   return new Response(buf, {
-    headers: { ...cors, 'Content-Type': 'application/octet-stream', 'X-Source-Type': r.headers.get('content-type') ?? '' },
+    headers: { ...cors, 'Content-Type': 'application/octet-stream', 'X-Source-Type': r.headers.get('content-type') ?? '', 'X-Cache': 'miss' },
   });
 });

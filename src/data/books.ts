@@ -1,5 +1,6 @@
 import { sanitizePlan } from '../core/plan';
 import type { Mood, ScenePlan } from '../core/types';
+import { CLASSICS } from './classics';
 
 /** Temas da biblioteca (filtros e fileiras da tela inicial). */
 export const GENRES = ['Mistério', 'Fantasia', 'Aconchego', 'Suspense', 'Aventura'] as const;
@@ -27,6 +28,8 @@ export interface SampleBook {
 
 /** Histórias curtas incluídas no app para demonstrar o ambiente sonoro. */
 export const SAMPLE_BOOKS: SampleBook[] = [
+  // primeiro: clássicos de domínio público já sonorizados (primeira experiência, sem configurar nada)
+  ...CLASSICS,
   {
     id: "sample-farol",
     title: "A Guardiã do Farol",

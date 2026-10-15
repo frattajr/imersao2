@@ -116,8 +116,8 @@ globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
 /* ---------- auxiliares ---------- */
 let fails = 0;
 const ok = (c: unknown, m: string) => { console.log((c ? 'ok   ' : 'FALHOU ') + '- ' + m); if (!c) fails++; };
-const post = (body: unknown, auth = 'Bearer bom', type = 'application/json') =>
-  handler(new Request('http://f', { method: 'POST', headers: { Authorization: auth, 'Content-Type': type }, body: body instanceof Uint8Array ? body : JSON.stringify(body) }));
+const post = (body: unknown, auth = 'Bearer bom', type = 'application/json', extra: Record<string, string> = {}) =>
+  handler(new Request('http://f', { method: 'POST', headers: { Authorization: auth, 'Content-Type': type, ...extra }, body: body instanceof Uint8Array ? body : JSON.stringify(body) }));
 
 /* ---------- sound-plan ---------- */
 await import('../supabase/functions/sound-plan/index.ts');
@@ -133,6 +133,17 @@ r = await post({ title: 'Outro título', pages: ['A', 'B'], prev: { rain: 0.5 } 
 j = await r.json();
 ok(j.cached === true && claudeCalls === 1, 'segundo leitor do mesmo trecho vem do cache, sem custo');
 ok(db.usage.get('u1') === 1, 'chamada do cache não conta no limite diário');
+r = await post({ title: 'Farol', pages: ['Z1'], cacheOnly: true });
+j = await r.json();
+ok(j.skipped === true && claudeCalls === 1, 'livro público (cacheOnly): sem cache, não chama a IA');
+r = await post({ title: 'Farol', pages: ['A', 'B'], cacheOnly: true });
+ok((await r.json()).cached === true, 'livro público (cacheOnly): devolve o que já está no cache');
+env.PRECOMPUTE_SECRET = 'segredo-de-teste-1234';
+r = await post({ title: 'Farol', pages: ['Z2'], cacheOnly: true, bookKey: 'gut-55752' }, 'Bearer ninguem', 'application/json', { 'x-precompute-secret': 'segredo-de-teste-1234' });
+ok(r.status === 200 && claudeCalls === 2 && db.usage.get('u1') === 1, 'pré-cálculo com segredo: chama a IA sem leitor logado e sem gastar limite');
+r = await post({ title: 'Farol', pages: ['Z3'] }, 'Bearer ninguem', 'application/json', { 'x-precompute-secret': 'errado' });
+ok(r.status === 401, 'segredo errado: recusado');
+delete env.PRECOMPUTE_SECRET;
 r = await post({ title: 'Farol', pages: ['C'] });
 ok(r.status === 200, 'segunda chamada nova dentro do limite');
 r = await post({ title: 'Farol', pages: ['D'] });
