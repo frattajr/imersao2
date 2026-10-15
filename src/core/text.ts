@@ -21,6 +21,15 @@ export function sentences(par: string): string[] {
  * Transforma um texto longo em páginas de leitura: cada parágrafo vira uma
  * página; parágrafos longos são quebrados em grupos de frases.
  */
+/**
+ * Marca invisível (U+2060) no fim de um pedaço que continua no próximo: o
+ * parágrafo original foi dividido em páginas, mas o leitor o desenha inteiro.
+ */
+export const CONT = '\u2060';
+export const continues = (page: string | undefined) => !!page && page.endsWith(CONT);
+/** Texto para mostrar/comparar (sem a marca de continuação). */
+export const plain = (page: string) => (page.endsWith(CONT) ? page.slice(0, -1) : page);
+
 export function chunk(text: string, maxLen = 330, target = 300): string[] {
   const out: string[] = [];
   text
@@ -35,11 +44,12 @@ export function chunk(text: string, maxLen = 330, target = 300): string[] {
       let cur = '';
       for (const s of sentences(par)) {
         if ((cur + s).length > target && cur) {
-          out.push(cur.trim());
+          out.push(cur.trim() + CONT); // continua no próximo pedaço
           cur = s;
         } else cur += s;
       }
       if (cur.trim()) out.push(cur.trim());
+      else if (out.length) out[out.length - 1] = plain(out[out.length - 1]);
     });
   return out;
 }

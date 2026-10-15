@@ -31,38 +31,57 @@ const LAYER_MOOD: Record<Layer, Mood> = {
   crowd: 'warm', wind: 'cold', clock: 'calm', tavern: 'warm', drone: 'tension',
 };
 
+/**
+ * Frases que não descrevem a cena presente: comparação ("como um lobo"),
+ * lembrança, sonho, hipótese, negação. Não disparam efeito sonoro.
+ */
+const NOT_HERE = /\bcomo (um|uma|se)\b|\bfeito (um|uma)\b|parec|lembr|record|sonh|imagin|\bse (fosse|houvesse)|\bnunca\b|\bnenhum|\bnao (se )?(ouvi|escut|havia|houve)/;
+
+/**
+ * Efeito pontual só quando o texto narra o SOM acontecendo (verbo de ação),
+ * não quando só menciona a coisa: "o cachorro latiu" toca; "o cachorro do
+ * vizinho" não. No máximo um efeito por trecho.
+ */
 function keywordSpots(n: string): Spot[] {
+  const sentences = n.split(/(?<=[.!?…;])\s+/).filter((x) => !NOT_HERE.test(x));
+  const t = sentences.join(' ');
+  const has = (r: RegExp) => r.test(t);
+  /** alguma frase tem o som, sem o que o desmente na mesma frase */
+  const hasBut = (r: RegExp, not: RegExp) => sentences.some((x) => r.test(x) && !not.test(x));
   const o: Spot[] = [];
-  const has = (r: RegExp) => r.test(n);
-  if (has(/passos|caminhou|andou|subiu|degrau|escada/)) {
+  if (has(/\b(bateram|bateu|batia|batiam|batendo) (a|à|na|com forca na) porta|batidas na porta|toc[- ]toc/)) o.push({ s: 'knock', n: 3, at: 2, w: 0.45 });
+  if (has(/porta[^.]{0,30}\b(rangeu|rangia|range|rangendo|se abriu|abriu-se|abriu devagar|bateu|fechou-se com)|(abriu|abriram|empurrou|empurrei) a porta/)) o.push({ s: 'door', kind: 'creak', at: 1.5, w: 0.45 });
+  if (hasBut(/\b(rugiu|rugido|rugia|urrou|urro|bramiu|bramido)/, /trov|\bmar\b|vento|tempestade|fogo|chama|motor|ondas/)) o.push({ s: 'roar', at: 2, w: 0.45 });
+  if (has(/\b(uivo|uivos|uivou|uivava|uivavam|uivando)\b/)) o.push({ s: 'howl', at: 2, w: 0.35 });
+  if (has(/\b(latido|latidos|latiu|latia|latiam|latindo|ladrou|ladrava)\b/)) o.push({ s: 'bark', n: 2, at: 2, w: 0.35 });
+  if (has(/coruja (piou|piava|piando)|pio da coruja|piado de coruja/)) o.push({ s: 'owl', at: 2, w: 0.35 });
+  if (has(/\b(sineta|campainha) (tocou|tilintou|soou)|tilintar da sineta/)) o.push({ s: 'doorbell', at: 1.5, w: 0.4 });
+  else if (has(/\bsinos? (tocou|tocavam|tocava|badal|soou|soavam|dobrav)|badalada/)) o.push({ s: 'bell', at: 1.5, w: 0.4 });
+  if (has(/\b(apito|apitou|apitava)\b/)) o.push({ s: 'horn', kind: 'whistle', at: 1.5, w: 0.4 });
+  if (has(/galope|galopav|galopando|tropel|trote dos cavalos|cascos (batiam|soavam)/)) o.push({ s: 'hooves', n: 6, pace: 0.35, at: 2, w: 0.4 });
+  if (has(/gotas (caiam|pingavam)|goteira|pingava|pingavam|gotejav/)) o.push({ s: 'drip', n: 3, at: 2, w: 0.4 });
+  if (has(/caixa de musica (tocava|tocou|comecou)/)) o.push({ s: 'musicbox', at: 2, w: 0.4 });
+  if (has(/ronronav|ronronou|ronronando/)) o.push({ s: 'purr', at: 2, w: 0.35 });
+  if (has(/(girou|virou|rodou) a chave|chave (na|rangeu na) fechadura|molho de chaves|chaves tilint/)) o.push({ s: 'keys', at: 2, w: 0.35 });
+  if (has(/\brajada|ventania (sacudiu|uivou|batia)/)) o.push({ s: 'gust', at: 1.5, w: 0.4 });
+  if (has(/coracao (batia|batendo|disparou|martelava)|batidas do (meu )?coracao|ouvia o (proprio )?coracao/)) o.push({ s: 'heartbeat', n: 6, at: 1.5, w: 0.35 });
+  if (has(/correntes (arrast|tilint|rangiam)|arrastando correntes|grilhoes|algemas (tilint|batiam)/)) o.push({ s: 'chains', at: 2, w: 0.4 });
+  if (has(/\b(rangido|rangeu|rangia|rangiam)\b/) && !o.some((x) => x.s === 'door')) o.push({ s: 'creak', at: 1.5, w: 0.4 });
+  if (has(/\bpassos (no|na|pelo|pela|sobre|ecoav|se aproxim|subindo|descendo)|(subiu|desceu|subia|descia) (a|as) escada|degraus rang/)) {
     const surface: Surface = has(/ferro|metal/) ? 'metal'
       : has(/cascalho|pedra|calcada|plataforma/) ? 'stone'
       : has(/neve/) ? 'snow'
       : has(/folhas|trilha|terra|grama/) ? 'grass' : 'wood';
-    o.push({ s: 'steps', surface, n: 5, pace: 0.6, at: 2, w: 0.5 });
+    o.push({ s: 'steps', surface, n: 4, pace: 0.6, at: 2, w: 0.4 });
   }
-  if (has(/bateu|batidas|bateram/)) o.push({ s: 'knock', n: 3, at: 2, w: 0.5 });
-  if (has(/porta/) && has(/rang|abr/)) o.push({ s: 'door', kind: 'creak', at: 1.5, w: 0.5 });
-  if (has(/rugi|monstro|fera|dragao|urso|leao/)) o.push({ s: 'roar', at: 2, w: 0.5 });
-  if (has(/uivo|uivou|lobo/)) o.push({ s: 'howl', at: 2, w: 0.4 });
-  if (has(/latido|latiu|cachorro/)) o.push({ s: 'bark', n: 3, at: 2, w: 0.4 });
-  if (has(/coruja/)) o.push({ s: 'owl', at: 2, w: 0.4 });
-  if (has(/\bsino/)) o.push({ s: has(/cafe|entrou|porta/) ? 'doorbell' : 'bell', at: 1.5, w: 0.5 });
-  if (has(/apito/)) o.push({ s: 'horn', kind: 'whistle', at: 1.5, w: 0.5 });
-  if (has(/cavalo|galope|carroca/)) o.push({ s: 'hooves', n: 8, pace: 0.35, at: 2, w: 0.5 });
-  if (has(/gotas|goteira|pingav/)) o.push({ s: 'drip', n: 4, at: 2, w: 0.5 });
-  if (has(/caixa de musica/)) o.push({ s: 'musicbox', at: 2, w: 0.5 });
-  if (has(/ronron/)) o.push({ s: 'purr', at: 2, w: 0.4 });
-  if (has(/chave/)) o.push({ s: 'keys', at: 2, w: 0.4 });
-  if (has(/rajada|ventania/)) o.push({ s: 'gust', at: 1.5, w: 0.5 });
-  if (has(/coracao (batia|bate|pulsa|batendo)|batidas do coracao|pulsacao|batimento/)) o.push({ s: 'heartbeat', n: 8, at: 1.5, w: 0.45 });
-  if (has(/corrente|grilh|algema/)) o.push({ s: 'chains', at: 2, w: 0.45 });
-  if (has(/rangido|rangeu|rangia/) && !o.some((x) => x.s === 'door')) o.push({ s: 'creak', at: 1.5, w: 0.5 });
-  return o.slice(0, 2);
+  return o.slice(0, 1);
 }
 
 export function analyze(text: string): ScenePlan {
-  const n = norm(text);
+  const full = norm(text);
+  // lembrança, sonho e comparação não mudam o lugar onde a cena acontece
+  const kept = full.split(/(?<=[.!?…;])\s+/).filter((x) => !NOT_HERE.test(x)).join(' ');
+  const n = kept.length > 20 ? kept : full;
   const count: Partial<Record<Layer, number>> = {};
   (Object.keys(M) as Layer[]).forEach((k) => {
     const m = n.match(new RegExp(M[k].source, 'g'));
@@ -71,7 +90,7 @@ export function analyze(text: string): ScenePlan {
   const top = (Object.keys(count) as Layer[]).sort((a, b) => count[b]! - count[a]!).slice(0, 3);
   const ambience: Ambience = {};
   top.forEach((k) => (ambience[k] = Math.min(0.8, 0.4 + 0.15 * count[k]!)));
-  return { mood: top.length ? LAYER_MOOD[top[0]] : 'calm', ambience, spots: keywordSpots(n) };
+  return { mood: top.length ? LAYER_MOOD[top[0]] : 'calm', ambience, spots: keywordSpots(full) };
 }
 
 /** Cor de fundo (muito leve) para cada clima. */

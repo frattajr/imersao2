@@ -31,19 +31,37 @@ App de leitura para iOS e Android: o texto aparece página por página, em letra
 
 **Motor de áudio adaptativo** (`src/audio/engine.ts`)
 - A cena é uma **matriz de mixagem declarativa**: cada stem (loop contínuo: chuva, vento, lareira, taberna, drone de tensão…) com ganho, **low-pass** (abafa o que está "do outro lado da parede" ou longe) e **prioridade**. A IA (`sound-plan`, prompt v5) atua como mixadora: devolve a matriz, nunca áudio.
-- No máximo 4 stems ao mesmo tempo (os de maior prioridade); transições com curva de **potência constante de 2,5 s (entrada) a 4 s (saída)**; **ducking** de ~4 dB no ambiente enquanto um efeito toca.
+- No máximo 4 stems ao mesmo tempo (os de maior prioridade); transições com curva de **potência constante de 2,5 s (entrada) a 4 s (saída)**; **ducking** leve (~1,4 dB, sem "bombear") enquanto um efeito toca.
+- **Loops sem emenda**: o fim de cada arquivo é misturado com o começo (potência constante, 2 s) antes de tocar em loop — sem clique a cada repetição (`seamlessChannels`).
+- **Detalhes de ambiente** (rangidos, gotas…) a cada 35–85 s, cada vez com volume e tom um pouco diferentes.
+- **Respiro**: depois de 6 min no mesmo lugar o ambiente desce devagar (40 s) até ~45%; volta quando a cena muda. Se a pessoa parar de ler (sem virar a página por 90 s ou 2,5× o tempo esperado), o som desce quase ao silêncio e volta no próximo toque.
+- **Saída**: perfil **alto-falante** (corta abaixo de 140 Hz e acima de 8 kHz, que o alto-falante do celular transforma em chiado) ou **fone**.
 - **Conforto acústico**: volume de ambiente e de efeitos separados, loops liga/desliga e **modo foco** (só stems essenciais, agudos cortados, sem efeitos) — no painel 🎧 do leitor e nas Configurações.
 - **Bateria e latência**: stems silenciosos são parados (o buffer fica em cache), o contexto de áudio é suspenso quando nada toca, relógio interno de 0,5 s, consulta ao repositório com limite de 2,5 s e arquivos normalizados uma única vez.
 
+**Som que não atrapalha a leitura** (`src/core/analyze.ts`, `plan.ts`, `smooth.ts`)
+
+Sons contínuos (chuva, lareira) ajudam a concentrar; sons que mudam (passos, latidos, batidas) disputam atenção com a leitura. Por isso o som é **cenário, não efeito especial**:
+- **Um som por tela** (`mergeScreen`): na página cheia, a cena que domina a página toca a partir da virada — nada é agendado por estimativa dentro da página, então o som nunca "adianta" o que a pessoa ainda vai ler.
+- **Permanência mínima** (`SceneHold`): a cena base fica pelo menos ~90 s ou 3 telas; muda antes só com mudança forte (a tempestade chega) e depois de 30 s; trecho sem cena mantém o ambiente.
+- **Efeitos só quando o som acontece**: "o cachorro latiu" toca; "o cachorro do vizinho", "coração bateu", "como um lobo", lembranças e sonhos não. No máximo **um efeito por tela** e **um a cada 40 s**, mais baixo e abafado.
+- Medido nos livros de exemplo, sem IA: efeitos caíram de 1–8 para 0–3 por minuto; trocas de cena, de 3–12 para 0,4–2,6 por minuto.
+- **Estilos de som** na primeira leitura (e no 🎧): 🌙 Sutil (padrão), 🎬 Cinematográfico, 🌧 Só ambiente e 🔇 Silêncio. O som entra devagar (9 s) ao abrir o livro.
+- Correção: o "Volume geral" das Configurações agora chega ao motor de áudio (antes só era salvo).
+
 **Leitura** (`app/read/[id].tsx`, `src/reader/`)
-- **Três modos de leitura**: 📖 **página cheia** (vários parágrafos por tela, como um livro; `src/core/paginate.ts` estima o que cabe e nunca corta parágrafo), 🎬 **um parágrafo por tela** e 📜 **rolagem contínua**. Na página cheia, o som de cada parágrafo da tela entra no tempo em que a pessoa deve chegar nele, pelo ritmo dela. Na rolagem, o som acompanha o parágrafo visível (`onViewableItemsChanged`, 0,7 s de permanência).
-- **Virar a página**: toque nas laterais, deslize para o lado (ou para cima), ou use setas / PageUp / PageDown / espaço no teclado (web). *Botões de volume* não foram incluídos: precisam de um módulo nativo (ex.: `react-native-volume-manager`) e de um build EAS próprio.
+- **Três modos de leitura**: 📖 **página cheia** (padrão), 🎬 **um parágrafo por tela** e 📜 **rolagem contínua**.
+- **Página cheia feita para celular**: o texto ocupa a tela inteira — só um cabeçalho fino (capítulo) e um rodapé fino (progresso) ficam no Modo Zen; as barras aparecem **por cima** do texto. `src/core/paginate.ts` estima o que cabe e o leitor **calibra a estimativa com a medida real** do texto na tela (`calibrateCharW`), então as páginas ficam cheias.
+- **Estilo livro** (padrão): recuo na primeira linha, sem espaço entre parágrafos, **parágrafo inteiro** mesmo quando foi dividido em páginas (os pedaços levam uma marca invisível de continuação, `CONT` em `src/core/text.ts`, e são desenhados no mesmo bloco de texto), **abertura de capítulo** com título e as primeiras palavras em versalete. Opção "Tela" com espaço entre parágrafos.
+- **Tipografia para celular**: 19 pt, entrelinha 1,6, margem 18 pt (~40 caracteres por linha), **alinhado à esquerda** por padrão; justificado usa hifenização (Android e web).
+- **Virar a página**: a página **acompanha o dedo** e vira ao soltar (ou com um peteleco); toque nas laterais; setas / PageUp / PageDown / espaço (web). Opção "Instantâneo" (sem animação). *Botões de volume* não foram incluídos: precisam de um módulo nativo (ex.: `react-native-volume-manager`) e de um build EAS próprio.
+- **Tema automático**: sépia de dia, escuro das 19h às 7h. A névoa de cor do clima ficou mais sutil e pode ser desligada.
 - **Grifos e notas**: toque longo num parágrafo abre a seleção (escolha as frases); grife em 4 cores, anote, copie, compartilhe, abra uma palavra no dicionário (Dicio) ou traduza o trecho. Toque num grifo para editar. Ficam ancorados no parágrafo + posição do caractere, então sobrevivem a mudanças de fonte e de modo. Tabela `annotations` no SQLite.
 - **Marcadores**: 🏷/🔖 na barra de cima; no Modo Zen aparece uma fita no canto.
 - **☰ Navegar**: barra de progresso arrastável (mostra capítulo e % enquanto arrasta), sumário, lista de marcadores e de grifos/notas com **exportação em Markdown** (compartilhar no celular; copiar na web), e o download do capítulo para ler offline.
 - **🔍 Busca no livro** (sem acento e sem diferenciar maiúsculas): toque num resultado para ir até ele; o trecho pisca em destaque.
 - **"🔇 Toque para ativar o som"**: se o navegador bloquear o áudio (autoplay), aparece um aviso; um toque libera.
-- **Modo Zen**: barras, botões e barra de status somem após 3 s sem toque; um toque no centro traz de volta. Fica um indicador mínimo do capítulo com o tempo restante calculado no **ritmo de leitura da pessoa** (palavras por minuto aprendidas página a página, `src/core/pace.ts`).
+- **Modo Zen**: barras, botões e barra de status somem após 3 s sem toque; um toque no centro traz de volta. Fica um rodapé mínimo com o tempo restante do capítulo calculado no **ritmo de leitura da pessoa** (`src/core/pace.ts`). Os rótulos do que está tocando saíram da barra (ficam só no painel 🎧).
 - **Tipografia**: Literata, Merriweather e Atkinson Hyperlegible (Bookerly é exclusiva da Amazon e não pode ser distribuída), tamanho, entrelinha, espaço entre parágrafos, margens e alinhamento; temas Claro, Sépia, Cinza foco, Escuro e Preto OLED (contraste do texto acima de 7:1).
 - **X-Ray** (`src/core/xray.ts`): nomes e termos do texto são tocáveis e abrem uma ficha — primeira e última menção, número de menções e explicação da IA sob demanda — **só com o que já foi lido** (sem spoiler).
 - **"O que aconteceu até aqui?"** (`src/core/recap.ts` + função `recap`): ao voltar depois de 48 h, um resumo de 2 frases das páginas logo antes do ponto de parada (IA; sem internet, as 2 frases mais relevantes do trecho).
@@ -219,6 +237,7 @@ O que já foi verificado fora do celular:
 | Leitor | testes de ritmo de leitura (WPM), X-Ray sem spoiler, recapitulação e matriz pós-suavização; no Chromium: Modo Zen, toques, rolagem, tipografia, X-Ray, pacote inicial de stems tocando, página cheia, deslize, teclado, marcador, grifo com nota, sumário, busca |
 | Anotações | grifos sobrepostos cortam o texto certo, frases com posições exatas, exportação Markdown, busca sem acento, página cheia não passa da altura e títulos de capítulo abrem tela nova |
 | Acervo | todas as obras em domínio público e com sinopse; busca no Gutenberg pela grafia antiga; Wikisource capítulo por capítulo, sem navegação nem notas; grafia antiga → atual sem mexer em texto moderno; no Chromium: fileiras, ficha e leitura de um clássico com grafia atualizada |
+| Imersão | efeito só com o som narrado (menção, lembrança e comparação não tocam), um som por tela, permanência mínima de cena, loop sem emenda, no máximo um efeito a cada 40 s, pausa por inatividade; no Chromium (390×844): estilo de som na primeira leitura, página cheia com abertura de capítulo e parágrafos inteiros, toque nas laterais e no texto, arrasto que acompanha o dedo, toque longo, X-Ray sem virar a página, rolagem por parágrafo |
 | Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
 | Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |

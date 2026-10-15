@@ -28,7 +28,12 @@ export const PALETTES: Record<ThemeName, Palette> = {
   /** preto absoluto: em telas OLED os pixels pretos ficam apagados (economiza bateria) */
   oled: { bg: '#000000', fg: '#cfcac0', mut: '#86827a', btn: 'rgba(255,255,255,0.08)', card: 'rgba(255,255,255,0.04)', ov: '#000000', danger: '#c06a5c', status: 'light' },
 };
-export const THEME_LABEL: Record<ThemeName, string> = { light: '☀ Claro', sepia: '📜 Sépia', gray: '◐ Cinza foco', dark: '☾ Escuro', oled: '● Preto OLED' };
+/** "Automático": sépia de dia, escuro das 19h às 7h (sem luz branca à noite). */
+export type ThemeChoice = ThemeName | 'auto';
+export const THEME_LABEL: Record<ThemeChoice, string> = { auto: '🌓 Automático', light: '☀ Claro', sepia: '📜 Sépia', gray: '◐ Cinza foco', dark: '☾ Escuro', oled: '● Preto OLED' };
+export const THEME_CHOICES: ThemeChoice[] = ['auto', 'light', 'sepia', 'gray', 'dark', 'oled'];
+export const isNight = (d = new Date()) => d.getHours() >= 19 || d.getHours() < 7;
+export const resolveTheme = (t: ThemeChoice, d = new Date()): ThemeName => (t === 'auto' ? (isNight(d) ? 'dark' : 'sepia') : t);
 
 /* ---------- Tipografia ---------- */
 export const FONTS = {
@@ -51,21 +56,32 @@ export const READING_FONTS: Record<ReadingFont, { label: string; regular: string
   atkinson: { label: 'Atkinson', regular: 'AtkinsonHyperlegible_400Regular', bold: 'AtkinsonHyperlegible_700Bold' },
 };
 
+/** tamanho da letra de leitura com 100% (pontos): ~40–45 caracteres por linha num celular */
+export const BASE_FONT = 19;
 export const SIZES = [0.8, 0.9, 1, 1.1, 1.22, 1.36, 1.5];
-export const LINE_HEIGHTS = [1.4, 1.55, 1.7, 1.85, 2];
-/** espaço entre parágrafos, em múltiplos da altura da linha */
+export const LINE_HEIGHTS = [1.4, 1.5, 1.6, 1.7, 1.85, 2];
+/** espaço entre parágrafos, em múltiplos da altura da linha (estilo "tela"; o estilo livro usa recuo) */
 export const PARA_SPACING = [0, 0.4, 0.8, 1.2];
+export const PARA_LABEL = ['Juntos', 'Pequeno', 'Médio', 'Grande'];
 /** margens laterais, em pontos */
-export const MARGINS = [14, 22, 32, 46];
+export const MARGINS = [12, 18, 24, 32, 46];
+export const MARGIN_LABEL = ['Mínimas', 'Estreitas', 'Normais', 'Largas', 'Muito largas'];
 
 export interface Typography {
   font: ReadingFont;
   lineI: number;
   paraI: number;
   marginI: number;
+  /** justificado (com hifenização onde a plataforma tem); no celular, à esquerda lê melhor */
   justify: boolean;
+  /** estilo livro: recuo na primeira linha, sem espaço entre parágrafos, abertura de capítulo */
+  book: boolean;
+  /** animação ao virar a página */
+  anim: boolean;
+  /** névoa de cor conforme o clima da cena */
+  tint: boolean;
 }
-export const DEFAULT_TYPE: Typography = { font: 'literata', lineI: 2, paraI: 2, marginI: 1, justify: true };
+export const DEFAULT_TYPE: Typography = { font: 'literata', lineI: 2, paraI: 2, marginI: 1, justify: false, book: true, anim: true, tint: true };
 
 /**
  * Página cheia (vários parágrafos por tela, como um livro), um parágrafo por
@@ -98,6 +114,12 @@ export interface SoundPrefs {
   loops: boolean;
   /** modo foco: só o essencial, abafado, sem efeitos */
   focus: boolean;
+  /** alto-falante do celular ou fone de ouvido */
+  output: 'speaker' | 'headphones';
+  /** o ambiente "respira": desce devagar depois de alguns minutos na mesma cena */
+  breathe: boolean;
+  /** estilo escolhido (o último aplicado) */
+  preset?: SoundPreset;
 }
 export const FADE_LEVELS = [
   { label: 'Rápida', value: 0.6 }, { label: 'Normal', value: 1 }, { label: 'Suave', value: 1.4 }, { label: 'Muito suave', value: 1.8 },
@@ -108,7 +130,19 @@ export const SPOT_LEVELS = [
 export const DETAIL_LEVELS = [
   { label: 'Desligados', rate: 0, gain: 0 }, { label: 'Raros', rate: 0.5, gain: 0.8 }, { label: 'Normais', rate: 1, gain: 1 }, { label: 'Frequentes', rate: 1.7, gain: 1 },
 ];
-export const DEFAULT_SOUND: SoundPrefs = { fade: 1, spots: 3, details: 2, auto: true, ambient: 3, sfx: 3, loops: true, focus: false };
+/** Padrão = "Sutil": ambiente baixo, efeitos raros e baixos, transições suaves. */
+export const DEFAULT_SOUND: SoundPrefs = {
+  fade: 2, spots: 1, details: 1, auto: true, ambient: 2, sfx: 1, loops: true, focus: false, output: 'speaker', breathe: true, preset: 'sutil',
+};
+
+/** Estilos de som (escolhidos na primeira leitura e no painel de som). */
+export type SoundPreset = 'sutil' | 'cinema' | 'ambiente' | 'silencio';
+export const SOUND_PRESETS: Record<SoundPreset, { label: string; hint: string; sound: Partial<SoundPrefs>; volI?: number }> = {
+  sutil: { label: '🌙 Sutil', hint: 'Ambiente baixinho, efeitos raros. Recomendado para ler.', sound: { fade: 2, spots: 1, details: 1, ambient: 2, sfx: 1, loops: true, focus: false } },
+  cinema: { label: '🎬 Cinematográfico', hint: 'Ambiente presente e efeitos da cena.', sound: { fade: 1, spots: 2, details: 2, ambient: 3, sfx: 2, loops: true, focus: false } },
+  ambiente: { label: '🌧 Só ambiente', hint: 'Só o som do lugar, sem efeitos.', sound: { fade: 2, spots: 0, details: 1, ambient: 2, sfx: 1, loops: true, focus: false } },
+  silencio: { label: '🔇 Silêncio', hint: 'Leitura sem som. Dá para mudar depois no 🎧.', sound: {}, volI: 3 },
+};
 
 export function applySoundPrefs(p: SoundPrefs): void {
   const d = DETAIL_LEVELS[p.details] ?? DETAIL_LEVELS[2];
@@ -118,31 +152,44 @@ export function applySoundPrefs(p: SoundPrefs): void {
     details: d.gain,
     detailRate: d.rate,
   });
-  engine.setComfort({ ambient: LEVELS[p.ambient] ?? 0.75, sfx: LEVELS[p.sfx] ?? 0.75, loops: p.loops, focus: p.focus });
+  engine.setComfort({ ambient: LEVELS[p.ambient] ?? 0.5, sfx: LEVELS[p.sfx] ?? 0.25, loops: p.loops, focus: p.focus, output: p.output, breathe: p.breathe });
 }
 
 /* ---------- Contexto ---------- */
 interface Prefs {
-  theme: ThemeName;
+  /** escolha da pessoa (pode ser "auto") */
+  theme: ThemeChoice;
+  /** tema em uso agora */
+  themeNow: ThemeName;
   c: Palette;
   sizeI: number;
   volI: number;
   type: Typography;
   layout: ReadingLayout;
   sound: SoundPrefs;
-  setTheme(t: ThemeName): void;
+  setTheme(t: ThemeChoice): void;
   setSize(i: number): void;
   setVol(i: number): void;
   setType(p: Partial<Typography>): void;
   setLayout(l: ReadingLayout): void;
   setSound(p: Partial<SoundPrefs>): void;
+  /** aplica um estilo de som (e o volume, no "Silêncio") */
+  applyPreset(p: SoundPreset): void;
 }
 
 const Ctx = createContext<Prefs | null>(null);
 const clampI = (i: number, n: number) => Math.max(0, Math.min(n - 1, Math.round(i)));
 
 export function PrefsProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeS] = useState<ThemeName>('dark');
+  const [theme, setThemeS] = useState<ThemeChoice>('auto');
+  // "automático": confere a hora a cada minuto
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (theme !== 'auto') return;
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, [theme]);
+  const themeNow = resolveTheme(theme, now);
   const [sizeI, setSizeS] = useState(2);
   const [volI, setVolS] = useState(1);
   const [type, setTypeS] = useState<Typography>(DEFAULT_TYPE);
@@ -153,7 +200,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const repo = await getRepo();
       const [t, s, v, ty, l, sp] = await Promise.all(['theme', 'size2', 'vol', 'type', 'layout', 'sound'].map((k) => repo.kvGet(k)));
-      if (t && t in PALETTES) setThemeS(t as ThemeName);
+      if (t && (t in PALETTES || t === 'auto')) setThemeS(t as ThemeChoice);
       if (s !== null) setSizeS(clampI(Number(s), SIZES.length));
       if (v !== null) setVolS(clampI(Number(v), VOLUMES.length));
       if (l === 'pages' || l === 'scroll' || l === 'full') setLayoutS(l);
@@ -163,19 +210,28 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { applySoundPrefs(sound); }, [sound]);
+  // volume geral (antes era salvo mas não chegava ao motor)
+  useEffect(() => { engine.setVolume(VOLUMES[volI] ?? 0.7); }, [volI]);
 
   const value = useMemo<Prefs>(() => {
     const save = (k: string, v: string) => void getRepo().then((r) => r.kvSet(k, v));
     return {
-      theme, c: PALETTES[theme], sizeI, volI, type, layout, sound,
+      theme, themeNow, c: PALETTES[themeNow], sizeI, volI, type, layout, sound,
       setTheme: (t) => { setThemeS(t); save('theme', t); },
       setSize: (i) => { const x = clampI(i, SIZES.length); setSizeS(x); save('size2', String(x)); },
       setVol: (i) => { setVolS(i); save('vol', String(i)); },
       setType: (p) => setTypeS((cur) => { const next = { ...cur, ...p }; save('type', JSON.stringify(next)); return next; }),
       setLayout: (l) => { setLayoutS(l); save('layout', l); },
       setSound: (p) => setSoundS((cur) => { const next = { ...cur, ...p }; save('sound', JSON.stringify(next)); return next; }),
+      applyPreset: (k) => {
+        const pr = SOUND_PRESETS[k];
+        setSoundS((cur) => { const next = { ...cur, ...pr.sound, preset: k }; save('sound', JSON.stringify(next)); return next; });
+        // sair do "Silêncio" devolve o volume médio
+        const v = pr.volI ?? (volI === 3 ? 1 : volI);
+        setVolS(v); save('vol', String(v));
+      },
     };
-  }, [theme, sizeI, volI, type, layout, sound]);
+  }, [theme, themeNow, sizeI, volI, type, layout, sound]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

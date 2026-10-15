@@ -74,3 +74,48 @@ export class SceneSmoother {
     this.prev = {};
   }
 }
+
+/**
+ * Permanência mínima de cena: o ambiente base só troca quando o lugar muda
+ * de verdade e já tocou por um tempo (padrão: 90 s ou 3 telas). Uma mudança
+ * forte (a tempestade chega, a pessoa sai de casa) troca depois de 30 s.
+ * Trecho sem cena reconhecida mantém o ambiente que já estava.
+ */
+export class SceneHold {
+  private cur: Ambience | null = null;
+  private since = 0;
+  private screens = 0;
+
+  constructor(private minMs = 90_000, private minScreens = 3, private strongMs = 30_000) {}
+
+  /** Camadas que definem o lugar (as mais fortes). */
+  private static core(a: Ambience): Set<Layer> {
+    return new Set((Object.entries(a) as [Layer, number][]).filter(([, g]) => g >= 0.35).map(([L]) => L));
+  }
+
+  next(want: Ambience, now = Date.now()): { amb: Ambience; changed: boolean } {
+    this.screens++;
+    if (!this.cur) { this.cur = want; this.since = now; this.screens = 0; return { amb: want, changed: true }; }
+    if (!Object.keys(want).length) return { amb: this.cur, changed: false };
+    const a = SceneHold.core(this.cur), b = SceneHold.core(want);
+    const same = [...b].filter((L) => a.has(L)).length;
+    const newPlace = b.size > 0 && same === 0;
+    const d = diff(this.cur, want);
+    const age = now - this.since;
+    const settled = age >= this.minMs || this.screens >= this.minScreens;
+    if ((newPlace && settled) || (d > 1.2 && age >= this.strongMs)) {
+      this.cur = want; this.since = now; this.screens = 0;
+      return { amb: want, changed: true };
+    }
+    // mesmo lugar: aceita só ajustes de volume das camadas que já tocam e novas camadas fortes
+    if (!newPlace && d > 0.05) {
+      const m: Ambience = { ...this.cur };
+      (Object.entries(want) as [Layer, number][]).forEach(([L, g]) => { if (L in m || g >= 0.5) m[L] = g; });
+      this.cur = m;
+      return { amb: m, changed: false };
+    }
+    return { amb: this.cur, changed: false };
+  }
+
+  reset(): void { this.cur = null; this.since = 0; this.screens = 0; }
+}

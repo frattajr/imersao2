@@ -6,6 +6,7 @@
 import { Text, View } from 'react-native';
 import { Choice, RoundButton } from '../ui/components';
 import { FONTS, LEVELS, usePrefs } from '../ui/prefs';
+import { OutputRow, PresetRow } from './PresetSheet';
 import { Sheet, SheetRow } from './Sheet';
 
 const LEVEL_LABEL = ['Mudo', '25%', '50%', '75%', '100%'];
@@ -17,6 +18,12 @@ export function AudioSheet({ visible, onClose, playing, onReport, reported }: {
   const lv = LEVELS.map((_, i) => ({ value: i, label: LEVEL_LABEL[i] }));
   return (
     <Sheet visible={visible} title="Som" onClose={onClose}>
+      <SheetRow label="Estilo">
+        <PresetRow />
+      </SheetRow>
+      <SheetRow label="Ouvindo pelo">
+        <OutputRow />
+      </SheetRow>
       <SheetRow label="Tocando agora">
         <Text style={{ fontFamily: FONTS.ui, fontSize: 15, color: c.mut }}>{playing.length ? playing.join('   ') : '🎧 silêncio'}</Text>
       </SheetRow>
@@ -31,6 +38,10 @@ export function AudioSheet({ visible, onClose, playing, onReport, reported }: {
       <SheetRow label="Modo foco" hint="Só o ambiente essencial, abafado, sem efeitos.">
         <Choice value={sound.focus ? 1 : 0} onChange={(v) => setSound({ focus: v === 1 })} accessibilityLabel="Modo foco"
           options={[{ value: 0, label: 'Desligado' }, { value: 1, label: '🎯 Ligado' }]} />
+      </SheetRow>
+      <SheetRow label="Respiro" hint="Depois de alguns minutos no mesmo lugar, o ambiente desce devagar; volta quando a cena muda.">
+        <Choice value={sound.breathe ? 1 : 0} onChange={(v) => setSound({ breathe: v === 1 })} accessibilityLabel="Respiro"
+          options={[{ value: 1, label: 'Ligado' }, { value: 0, label: 'Desligado' }]} />
       </SheetRow>
       {onReport && (
         <View style={{ alignItems: 'flex-start' }}>

@@ -47,6 +47,8 @@ export interface BufferLike {
 export interface SourceLike extends NodeLike {
   buffer: BufferLike | null;
   loop: boolean;
+  /** opcional: variação de tom/velocidade dos detalhes */
+  playbackRate?: ParamLike;
   start(when?: number, offset?: number): void;
   stop(when?: number): void;
 }
@@ -79,14 +81,18 @@ export interface OfflineStore {
 /** Volume de um stem com ganho 1 (arquivos normalizados em TARGET_RMS). */
 const STEM_GAIN = 0.35;
 /** Volume dos efeitos pontuais, multiplicado pela intensidade "w" da cena. */
-const SFX_GAIN = 0.8;
+const SFX_GAIN = 0.6;
+/** Efeitos e detalhes passam por um corte de agudos: soam "na cena", não "no ouvido". */
+const FX_LP = 6500;
+/** Intervalo mínimo entre dois efeitos pontuais (segundos). */
+const SPOT_MIN_GAP = 40;
 /** Detalhes de ambiente (rangidos, gotas…) ficam bem abaixo dos efeitos da ação. */
 const DETAIL_GAIN = 0.55;
 /** Transições: 2,5 s para entrar, 4 s para sair (multiplicadas pela preferência e pela agitação da cena). */
 export const FADE_IN = 2.5;
 export const FADE_OUT = 4;
-/** Ducking: quanto o ambiente abaixa enquanto um efeito toca (0,63 ≈ −4 dB). */
-export const DUCK_LEVEL = 0.63;
+/** Ducking: quanto o ambiente abaixa enquanto um efeito toca (0,85 ≈ −1,4 dB: quase imperceptível, sem "bombear"). */
+export const DUCK_LEVEL = 0.85;
 const DUCK_ATTACK = 0.25;
 const DUCK_RELEASE = 1.4;
 /** Low-pass "aberto" (sem corte audível). */
@@ -98,6 +104,14 @@ const FOCUS_GAIN = 0.75;
 /** Tempo máximo esperando o repositório antes de seguir sem o som. */
 const LOOKUP_TIMEOUT_MS = 2500;
 const TICK_MS = 500;
+/** Emenda cruzada no fim dos loops (segundos). */
+const LOOP_XFADE = 2;
+/** Respiro: depois deste tempo na mesma cena o ambiente desce devagar até este nível. */
+const BREATHE_AFTER = 6 * 60;
+const BREATHE_LEVEL = 0.45;
+/** Saída pelo alto-falante do celular: corta graves que ele não reproduz e agudos que viram chiado. */
+const SPEAKER_HP = 140;
+const SPEAKER_LP = 8000;
 
 /**
  * Curva de potência constante: no cruzamento de dois stems a soma de
@@ -137,6 +151,8 @@ interface StemState {
   priority: number;
   libId: string | null;
   loading: boolean;
+  /** duração da entrada quando o arquivo terminar de carregar (abrir o livro) */
+  entrance?: number;
 }
 
 const valueAt = (r: Ramp, t: number) =>
@@ -171,6 +187,28 @@ export function normalize(b: BufferLike): boolean {
 }
 
 /**
+ * Loop sem emenda: o fim do arquivo é misturado (potência constante) com o
+ * começo e o trecho final é cortado. Ao repetir, o último sample emenda no
+ * primeiro sem clique nem "buraco". Devolve os canais novos (mais curtos).
+ * Exportada para teste.
+ */
+export function seamlessChannels(chans: Float32Array[], sampleRate: number, xfadeSec = LOOP_XFADE): Float32Array[] {
+  const len = chans[0]?.length ?? 0;
+  const x = Math.min(Math.floor(xfadeSec * sampleRate), Math.floor(len / 4));
+  if (x < 32) return chans;
+  return chans.map((d) => {
+    const out = new Float32Array(len - x);
+    for (let i = 0; i < len - x; i++) out[i] = d[i];
+    for (let i = 0; i < x; i++) {
+      const k = (i / x) * (Math.PI / 2);
+      // começo entra (seno) enquanto o fim original sai (cosseno)
+      out[i] = d[i] * Math.sin(k) + d[len - x + i] * Math.cos(k);
+    }
+    return out;
+  });
+}
+
+/**
  * Junta janelas de ducking que se sobrepõem e devolve os pontos do envelope
  * (tempo, ganho) a partir de `now`. Exportada para teste.
  */
@@ -199,6 +237,10 @@ export interface ComfortPrefs {
   loops: boolean;
   /** modo foco: só o essencial, abafado, sem efeitos */
   focus: boolean;
+  /** saída: alto-falante do celular (corta graves e agudos extremos) ou fone */
+  output?: 'speaker' | 'headphones';
+  /** respiro: o ambiente desce devagar depois de alguns minutos na mesma cena */
+  breathe?: boolean;
 }
 
 export class AmbientEngine {
@@ -218,7 +260,19 @@ export class AmbientEngine {
   private sceneGain = 1;
   /** preferências da pessoa (tela Configurações / painel de áudio do leitor) */
   private user = { fade: 1, spots: 1, details: 1, detailRate: 1 };
-  private comfort: ComfortPrefs = { ambient: 1, sfx: 1, loops: true, focus: false };
+  private comfort: ComfortPrefs = { ambient: 1, sfx: 1, loops: true, focus: false, output: 'headphones', breathe: true };
+  /** filtros de saída (perfil alto-falante) e ganho de "presença" (respiro / pausa) */
+  private outHP: FilterLike | null = null;
+  private outLP: FilterLike | null = null;
+  private presenceGain!: GainLike;
+  private presence = 1;
+  private idle = false;
+  /** quando a cena base (camadas essenciais) mudou pela última vez */
+  private sceneSince = 0;
+  private sceneKey = '';
+  private lastSpotAt = -1e9;
+  /** transição de entrada pedida para a próxima matriz (abrir o livro: entra devagar) */
+  private entranceSec: number | null = null;
   private details: AmbientDetail[] = [];
   private nextDetail = 0;
   private lastDetail = '';
@@ -245,13 +299,34 @@ export class AmbientEngine {
     this.ctx = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
-    this.master.connect(ctx.destination);
+    this.presenceGain = ctx.createGain();
+    this.presenceGain.gain.value = 1;
+    this.master.connect(this.presenceGain);
+    if (ctx.createBiquadFilter) {
+      this.outHP = ctx.createBiquadFilter();
+      this.outHP.type = 'highpass';
+      this.outLP = ctx.createBiquadFilter();
+      this.outLP.type = 'lowpass';
+      this.outHP.Q.value = 0.5;
+      this.outLP.Q.value = 0.5;
+      this.presenceGain.connect(this.outHP);
+      this.outHP.connect(this.outLP);
+      this.outLP.connect(ctx.destination);
+      this.applyOutput();
+    } else this.presenceGain.connect(ctx.destination);
     this.duckGain = ctx.createGain();
     this.duckGain.connect(this.master);
     this.ambBus = ctx.createGain();
     this.ambBus.connect(this.duckGain);
     this.fxBus = ctx.createGain();
-    this.fxBus.connect(this.master);
+    if (ctx.createBiquadFilter) {
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = FX_LP;
+      f.Q.value = 0.5;
+      this.fxBus.connect(f);
+      f.connect(this.master);
+    } else this.fxBus.connect(this.master);
     this.spotBus = ctx.createGain();
     this.spotBus.connect(this.fxBus);
     this.detailBus = ctx.createGain();
@@ -295,12 +370,29 @@ export class AmbientEngine {
     this.comfort = { ...prev, ...p };
     if (!this.ctx) return;
     this.applyBusLevels(0.6);
+    if (prev.output !== this.comfort.output) this.applyOutput();
+    if (prev.breathe !== this.comfort.breathe) this.updatePresence(2);
     // foco ou loops mudaram: reaplica a última matriz com as novas regras
     if (prev.focus !== this.comfort.focus || prev.loops !== this.comfort.loops) this.applyMix(this.lastMix);
   }
 
   get comfortPrefs(): ComfortPrefs {
     return { ...this.comfort };
+  }
+
+  /**
+   * A pessoa parou de ler (sem virar a página por muito mais que o esperado):
+   * o som desce devagar quase ao silêncio; volta quando ela retoma.
+   */
+  setIdle(idle: boolean): void {
+    if (this.idle === idle) return;
+    this.idle = idle;
+    this.updatePresence(idle ? 8 : 2.5);
+  }
+
+  /** Nível de presença atual (para testes e para o painel). */
+  get presenceLevel(): number {
+    return this.presence;
   }
 
   async pause(): Promise<void> {
@@ -336,9 +428,10 @@ export class AmbientEngine {
    * um stem que já toca continua com o mesmo arquivo, sem troca brusca).
    * `fade`/`gain` vêm da suavização automática (cena agitada = mais lento e baixo).
    */
-  setMix(mix: MixStem[], looks?: Partial<Record<Layer, SoundVariant>>, opts?: { fade?: number; gain?: number }): void {
+  setMix(mix: MixStem[], looks?: Partial<Record<Layer, SoundVariant>>, opts?: { fade?: number; gain?: number; entrance?: number }): void {
     if (looks) this.looks = { ...this.looks, ...looks };
     this.fade = Math.max(1, Math.min(2.5, opts?.fade ?? 1));
+    if (opts?.entrance) this.entranceSec = opts.entrance;
     this.sceneGain = Math.max(0.5, Math.min(1, opts?.gain ?? 1));
     this.lastMix = mix;
     if (!this.ctx) return;
@@ -371,7 +464,7 @@ export class AmbientEngine {
     this.details = details.slice(0, 3);
     if (!this.ctx) return;
     if (!this.details.length || this.user.detailRate <= 0 || this.comfort.focus) { this.nextDetail = 0; return; }
-    if (!was || !this.nextDetail) this.nextDetail = this.ctx.currentTime + (8 + Math.random() * 10) / this.user.detailRate;
+    if (!was || !this.nextDetail) this.nextDetail = this.ctx.currentTime + (15 + Math.random() * 15) / this.user.detailRate;
   }
 
   /** Interrompe (com fade curto) os efeitos pontuais da página anterior. */
@@ -389,10 +482,14 @@ export class AmbientEngine {
   /** Toca os efeitos pontuais da cena, cada um no seu momento (com ducking do ambiente). */
   playSpots(spots: Spot[]): void {
     if (!this.ctx || !this.enabled || this.user.spots <= 0 || this.comfort.focus || this.comfort.sfx <= 0) return;
-    if (spots.length && this.ctx.state === 'suspended') this.wake();
+    // no máximo um efeito a cada 40 s: evento raro chama atenção para a história, frequente vira ruído
+    const nowT = this.ctx.currentTime;
+    if (!spots.length || nowT - this.lastSpotAt < SPOT_MIN_GAP || this.idle) return;
+    this.lastSpotAt = nowT;
+    if (this.ctx.state === 'suspended') this.wake();
     this.lastSound = this.ctx.currentTime + 12;
     const bus = this.spotBus;
-    for (const sp of spots.slice(0, 3)) {
+    for (const sp of spots.slice(0, 1)) {
       const reps = Math.max(1, Math.min(5, Math.round(sp.rep ?? 1)));
       const gap = sp.gap ?? 5;
       const t0 = this.ctx.currentTime + (sp.at ?? 2);
@@ -447,7 +544,29 @@ export class AmbientEngine {
     rampParam(this.ambBus.gain, this.ambBus.gain.value, amb, t, dur);
     rampParam(this.fxBus.gain, this.fxBus.gain.value, fx, t, dur);
     rampParam(this.spotBus.gain, this.spotBus.gain.value, this.user.spots, t, dur);
-    rampParam(this.detailBus.gain, this.detailBus.gain.value, DETAIL_GAIN * this.user.details, t, dur);
+    const speaker = this.comfort.output === 'speaker' ? 0.75 : 1;
+    rampParam(this.detailBus.gain, this.detailBus.gain.value, DETAIL_GAIN * this.user.details * speaker, t, dur);
+  }
+
+  /** Perfil de saída: no alto-falante, corta graves e agudos extremos. */
+  private applyOutput(): void {
+    if (!this.ctx || !this.outHP || !this.outLP) return;
+    const speaker = this.comfort.output === 'speaker';
+    const t = this.ctx.currentTime;
+    this.outHP.frequency.cancelScheduledValues(t);
+    this.outHP.frequency.setValueAtTime(speaker ? SPEAKER_HP : 20, t);
+    this.outLP.frequency.cancelScheduledValues(t);
+    this.outLP.frequency.setValueAtTime(speaker ? SPEAKER_LP : OPEN_LP, t);
+  }
+
+  /** Presença: 1 normal; respiro depois de minutos na mesma cena; ~0 quando a pessoa parou de ler. */
+  private updatePresence(dur: number): void {
+    if (!this.ctx) return;
+    const breathing = this.comfort.breathe !== false && this.sceneKey !== '' && this.ctx.currentTime - this.sceneSince > BREATHE_AFTER;
+    const target = this.idle ? 0.04 : breathing ? BREATHE_LEVEL : 1;
+    if (Math.abs(target - this.presence) < 0.01) return;
+    this.presence = target;
+    rampParam(this.presenceGain.gain, this.presenceGain.gain.value, target, this.ctx.currentTime, dur);
   }
 
   /** Matriz efetiva: aplica loops/foco e o limite de stems por prioridade. */
@@ -463,6 +582,11 @@ export class AmbientEngine {
     const eff = this.effectiveMix(mix);
     const want = new Map(eff.map((m) => [m.s, m]));
     if (this.enabled && ctx.state === 'suspended' && eff.length) this.wake();
+    // cena base nova (camadas essenciais mudaram): o respiro recomeça
+    const key = eff.filter((m) => m.priority === 1).map((m) => m.s).sort().join('+');
+    if (key && key !== this.sceneKey) { this.sceneKey = key; this.sceneSince = ctx.currentTime; this.updatePresence(4); }
+    const entrance = this.entranceSec;
+    this.entranceSec = null;
     // stems que saem: descem devagar (4 s × preferência)
     this.stems.forEach((s, L) => {
       if (want.has(L) || s.level <= 0) return;
@@ -476,8 +600,9 @@ export class AmbientEngine {
       const entering = level > valueAt(s.ramp, ctx.currentTime) / STEM_GAIN + 0.01;
       s.level = level;
       s.priority = m.priority;
-      const dur = fadeSeconds(entering, this.fade, this.user.fade);
+      const dur = entering && entrance ? entrance : fadeSeconds(entering, this.fade, this.user.fade);
       if (s.src) this.rampStem(s, level * STEM_GAIN, dur);
+      else if (entering && entrance) s.entrance = entrance;
       this.setLowpass(s, m.lowpass ?? OPEN_LP, dur);
       if (!s.src && !s.loading) void this.loadStem(m.s, s);
     }
@@ -523,7 +648,7 @@ export class AmbientEngine {
     s.loading = true;
     try {
       const hit = await this.lookup(layerDesc(L, this.looks[L]));
-      const buf = hit ? await this.fetchUrl(hit.url) : null;
+      const buf = hit ? await this.loopBuffer(hit.url) : null;
       if (!this.ctx || !buf || !hit || this.stems.get(L) !== s) return;
       s.libId = hit.id;
       const src = this.ctx.createBufferSource();
@@ -532,7 +657,8 @@ export class AmbientEngine {
       src.connect(s.filter ?? s.gain);
       src.start(this.ctx.currentTime + 0.02, Math.random() * Math.max(0, buf.duration - 1));
       s.src = src;
-      this.rampStem(s, s.level * STEM_GAIN, fadeSeconds(true, this.fade, this.user.fade));
+      this.rampStem(s, s.level * STEM_GAIN, s.entrance ?? fadeSeconds(true, this.fade, this.user.fade));
+      s.entrance = undefined;
     } finally {
       s.loading = false;
     }
@@ -593,11 +719,33 @@ export class AmbientEngine {
     }
   }
 
+  /** Versão do arquivo preparada para loop sem emenda (guardada em cache). */
+  private async loopBuffer(url: string): Promise<BufferLike | null> {
+    const key = 'loop:' + url;
+    const hit = this.bufCache.get(key);
+    if (hit) return hit;
+    const b = await this.fetchUrl(url);
+    if (!b || !this.ctx) return b;
+    const n = (b as unknown as { numberOfChannels?: number }).numberOfChannels ?? 1;
+    const chans = Array.from({ length: n }, (_, c) => b.getChannelData(c));
+    const out = seamlessChannels(chans, this.ctx.sampleRate);
+    if (out === chans) return b;
+    try {
+      const nb = this.ctx.createBuffer(n, out[0].length, this.ctx.sampleRate);
+      out.forEach((d, c) => { if (nb.copyToChannel) nb.copyToChannel(d, c); else nb.getChannelData(c).set(d); });
+      this.bufCache.set(key, nb);
+      return nb;
+    } catch {
+      return b; // plataforma sem createBuffer completo: toca o arquivo como veio
+    }
+  }
+
   private tickDetails(now: number): void {
     if (!this.details.length || !this.nextDetail || now < this.nextDetail) return;
     if (this.user.detailRate <= 0 || this.comfort.focus || this.comfort.sfx <= 0) { this.nextDetail = 0; return; }
     // intervalo longo e irregular; mais longo ainda quando a cena está agitada
-    this.nextDetail = now + ((20 + Math.random() * 35) * this.fade) / this.user.detailRate;
+    this.nextDetail = now + ((35 + Math.random() * 50) * this.fade) / this.user.detailRate;
+    if (this.idle) return;
     const pool = this.details.length > 1 ? this.details.filter((d) => d.s !== this.lastDetail) : this.details;
     const d = pool[Math.floor(Math.random() * pool.length)];
     this.lastDetail = d.s;
@@ -605,10 +753,12 @@ export class AmbientEngine {
     const bus = this.detailBus;
     void this.spotBuffer(sp).then((buf) => {
       if (!buf || !this.ctx || !this.enabled) return;
+      // cada vez um pouco diferente (volume e tom): o mesmo rangido não vira "o mesmo arquivo"
       const g = this.ctx.createGain();
-      g.gain.value = d.w * SFX_GAIN * this.sceneGain;
+      g.gain.value = d.w * SFX_GAIN * this.sceneGain * (0.6 + Math.random() * 0.4);
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
+      if (src.playbackRate) src.playbackRate.value = 0.9 + Math.random() * 0.2;
       src.connect(g);
       g.connect(bus);
       src.start(this.ctx.currentTime + 0.05);
@@ -637,6 +787,7 @@ export class AmbientEngine {
     this.reap();
     if (!this.enabled || ctx.state !== 'running') return;
     const now = ctx.currentTime;
+    this.updatePresence(40); // respiro: desce em 40 s, quase sem perceber
     this.tickDetails(now);
     if (now > this.retryAt) { this.retryAt = now + 20; this.retryMissing(); }
   }

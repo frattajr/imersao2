@@ -1,4 +1,4 @@
-import { AmbientEngine, DUCK_LEVEL, duckEnvelope, equalPowerPoints, fadeSeconds, type CtxLike } from '../src/audio/engine';
+import { AmbientEngine, DUCK_LEVEL, duckEnvelope, equalPowerPoints, fadeSeconds, seamlessChannels, type CtxLike } from '../src/audio/engine';
 import type { MixStem } from '../src/core/types';
 
 /* ---------- contexto de áudio simulado: registra rampas e conexões ---------- */
@@ -21,7 +21,10 @@ function fakeCtx() {
   const ctx = {
     sampleRate: 44100, currentTime: 0, state: 'running', destination: new Node(),
     createGain: () => new Gain(), createBiquadFilter: () => new Filter(), createBufferSource: () => new Src(),
-    createBuffer: () => ({ duration: 30, getChannelData: () => new Float32Array(10) }),
+    createBuffer: (ch: number, len: number, sr: number) => {
+      const data = Array.from({ length: ch }, () => new Float32Array(len));
+      return { duration: len / sr, numberOfChannels: ch, getChannelData: (c: number) => data[c] };
+    },
     resume: async () => undefined, suspend: async () => undefined,
     decodeAudioData: async () => ({ duration: 30, numberOfChannels: 1, getChannelData: () => Float32Array.from({ length: 1000 }, (_, i) => 0.1 * Math.sin(i)) }),
   };
@@ -146,5 +149,51 @@ describe('motor de mixagem', () => {
     await e.pause();
     ctx.state = 'suspended';
     expect(e.needsUnlock).toBe(false);
+  });
+});
+
+describe('loops e presença', () => {
+  it('loop sem emenda: o último sample emenda no primeiro sem salto', () => {
+    const sr = 1000, len = 10_000;
+    // senoide que NÃO fecha o ciclo no fim (um loop cru daria um salto)
+    const d = Float32Array.from({ length: len }, (_, i) => Math.sin(i * 0.0123));
+    const [out] = seamlessChannels([d], sr, 2);
+    expect(out.length).toBe(len - 2000);
+    const jumpRaw = Math.abs(d[len - 1] - d[0]);
+    const jumpLoop = Math.abs(out[out.length - 1] - out[0]);
+    expect(jumpRaw).toBeGreaterThan(0.1);
+    expect(jumpLoop).toBeLessThan(0.02);
+    // o meio do arquivo fica intacto
+    expect(out[5000]).toBe(d[5000]);
+  });
+
+  it('arquivo curto demais: não mexe', () => {
+    const d = new Float32Array(100);
+    expect(seamlessChannels([d], 1000, 2)[0]).toBe(d);
+  });
+
+  it('pausa por inatividade baixa a presença e um efeito não toca; volta ao retomar', async () => {
+    const { e } = setup();
+    e.setMix([{ s: 'rain', gain: 0.5, priority: 1 }]);
+    await flush();
+    e.setIdle(true);
+    expect(e.presenceLevel).toBeLessThan(0.1);
+    e.setIdle(false);
+    expect(e.presenceLevel).toBe(1);
+  });
+
+  it('no máximo um efeito pontual a cada 40 s', async () => {
+    const { e, ctx } = setup();
+    e.setMix([{ s: 'rain', gain: 0.5, priority: 1 }]);
+    const started: number[] = [];
+    const orig = ctx.createBufferSource;
+    ctx.createBufferSource = () => { const s = orig(); const st = s.start.bind(s); s.start = () => { if (!s.loop) started.push(ctx.currentTime); st(); }; return s; };
+    e.playSpots([{ s: 'door', at: 1, w: 0.5 }]);
+    e.playSpots([{ s: 'knock', at: 1, w: 0.5 }]);
+    await flush();
+    ctx.currentTime = 50;
+    e.playSpots([{ s: 'bell', at: 1, w: 0.5 }]);
+    await flush();
+    expect(started.length).toBe(2);
   });
 });

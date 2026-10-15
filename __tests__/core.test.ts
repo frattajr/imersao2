@@ -3,7 +3,7 @@ import { analyze } from '../src/core/analyze';
 import { parseEpubBytes, resolvePath, sniff, xhtmlToParagraphs, decodeEntities } from '../src/core/epub';
 import { entriesOnPage, removeEntry, upsertEntry } from '../src/core/glossary';
 import { blendAmbience, sanitizePlan } from '../src/core/plan';
-import { chunk, contentId, joinPdfPages, linesToParas, minutesLeft, norm, wordsRemaining } from '../src/core/text';
+import { chunk, contentId, joinPdfPages, linesToParas, minutesLeft, norm, wordsRemaining, continues, plain } from '../src/core/text';
 
 describe('texto', () => {
   it('normaliza acentos', () => {
@@ -16,7 +16,11 @@ describe('texto', () => {
     expect(pages[0]).toBe('Curto.');
     expect(pages.length).toBeGreaterThan(2);
     pages.forEach((p) => expect(p.length).toBeLessThanOrEqual(330));
-    expect(pages.slice(1).join(' ').replace(/\s+/g, ' ')).toBe(longo);
+    expect(pages.slice(1).map(plain).join(' ').replace(/\s+/g, ' ')).toBe(longo);
+    // pedaços do mesmo parágrafo levam a marca de continuação (menos o último)
+    expect(continues(pages[0])).toBe(false);
+    expect(pages.slice(1, -1).every(continues)).toBe(true);
+    expect(continues(pages[pages.length - 1])).toBe(false);
   });
 
   it('reconstrói parágrafos de PDF e une hifenização', () => {

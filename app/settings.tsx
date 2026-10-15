@@ -10,9 +10,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localSounds } from '../src/services/localSounds';
 import { supabase } from '../src/services/supabase';
 import { Choice, RoundButton } from '../src/ui/components';
+import { OutputRow, PresetRow } from '../src/reader/PresetSheet';
+import { TypeRows } from '../src/reader/TypeSheet';
 import {
-  DETAIL_LEVELS, FADE_LEVELS, FONTS, LEVELS, LINE_HEIGHTS, MARGINS, PALETTES, PARA_SPACING, READING_FONTS, SIZES, THEME_LABEL,
-  LAYOUT_LABEL, usePrefs, VOLUMES, type ReadingFont, type ReadingLayout, type ThemeName,
+  BASE_FONT, DETAIL_LEVELS, FADE_LEVELS, FONTS, LEVELS, LINE_HEIGHTS, MARGINS, PARA_SPACING, READING_FONTS, SIZES, usePrefs, VOLUMES,
 } from '../src/ui/prefs';
 
 const VOLUME_LABEL = ['Baixo', 'Médio', 'Alto', 'Mudo'];
@@ -33,19 +34,20 @@ function Group({ title, hint, children }: { title: string; hint?: string; childr
 function TypePreview() {
   const { c, type, sizeI } = usePrefs();
   const f = READING_FONTS[type.font];
-  const size = 19 * SIZES[sizeI];
+  const size = BASE_FONT * SIZES[sizeI];
   const lh = size * LINE_HEIGHTS[type.lineI];
   const p = { fontFamily: f.regular, fontSize: size, lineHeight: lh, color: c.fg, textAlign: type.justify ? 'justify' as const : 'left' as const };
+  const ind = type.book ? '\u2003\u2002' : '';
   return (
     <View style={[st.group, { backgroundColor: c.bg, paddingHorizontal: MARGINS[type.marginI], borderWidth: 1, borderColor: c.btn }]}>
       <Text style={p}>A chuva fina de outubro molhava as janelas do café quando Helena empurrou a porta.</Text>
-      <Text style={[p, { marginTop: lh * PARA_SPACING[type.paraI] }]}>O sino acima dela tilintou baixinho.</Text>
+      <Text style={[p, { marginTop: type.book ? 0 : lh * PARA_SPACING[type.paraI] }]}>{ind}O sino acima dela tilintou baixinho.</Text>
     </View>
   );
 }
 
 export default function Settings() {
-  const { c, volI, setVol, sound, setSound, theme, setTheme, sizeI, setSize, type, setType, layout, setLayout } = usePrefs();
+  const { c, volI, setVol, sound, setSound } = usePrefs();
   const insets = useSafeAreaInsets();
   const [key, setKey] = useState('');
   const [count, setCount] = useState(0);
@@ -66,6 +68,12 @@ export default function Settings() {
         </View>
 
         <Text style={[st.section, { color: c.mut }]}>SOM</Text>
+        <Group title="Estilo de som" hint="Um ponto de partida; os ajustes abaixo continuam valendo.">
+          <PresetRow />
+        </Group>
+        <Group title="Ouvindo pelo" hint="No alto-falante do celular, graves e agudos extremos são cortados para não chiar.">
+          <OutputRow />
+        </Group>
         <Group title="Volume geral">
           <Choice value={volI} onChange={setVol} accessibilityLabel="Volume geral"
             options={VOLUMES.map((_, i) => ({ value: i, label: VOLUME_LABEL[i] }))} />
@@ -97,31 +105,14 @@ export default function Settings() {
             options={[{ value: 1, label: 'Ligada' }, { value: 0, label: 'Desligada' }]} />
         </Group>
 
+        <Group title="Respiro" hint="Depois de alguns minutos no mesmo lugar, o ambiente desce devagar até quase sumir; volta quando a cena muda. Se você parar de ler, o som também desce.">
+          <Choice value={sound.breathe ? 1 : 0} onChange={(v) => setSound({ breathe: v === 1 })} accessibilityLabel="Respiro"
+            options={[{ value: 1, label: 'Ligado' }, { value: 0, label: 'Desligado' }]} />
+        </Group>
+
         <Text style={[st.section, { color: c.mut }]}>LEITURA</Text>
-        <Group title="Tema">
-          <Choice value={theme} onChange={setTheme} options={(Object.keys(PALETTES) as ThemeName[]).map((t) => ({ value: t, label: THEME_LABEL[t] }))} />
-        </Group>
-        <Group title="Modo de leitura" hint="Página cheia: como um livro. Um parágrafo: uma cena por tela. Rolagem: texto contínuo. Em todos, o som acompanha o trecho que você está lendo.">
-          <Choice value={layout} onChange={setLayout} options={(Object.keys(LAYOUT_LABEL) as ReadingLayout[]).map((l) => ({ value: l, label: LAYOUT_LABEL[l] }))} />
-        </Group>
-        <Group title="Fonte">
-          <Choice value={type.font} onChange={(f: ReadingFont) => setType({ font: f })}
-            options={(Object.keys(READING_FONTS) as ReadingFont[]).map((f) => ({ value: f, label: READING_FONTS[f].label }))} />
-        </Group>
-        <Group title="Tamanho da letra">
-          <Choice value={sizeI} onChange={setSize} options={SIZES.map((x, i) => ({ value: i, label: `${Math.round(x * 100)}%` }))} />
-        </Group>
-        <Group title="Espaço entre linhas">
-          <Choice value={type.lineI} onChange={(v) => setType({ lineI: v })} options={LINE_HEIGHTS.map((x, i) => ({ value: i, label: x.toFixed(2).replace('.', ',') }))} />
-        </Group>
-        <Group title="Espaço entre parágrafos">
-          <Choice value={type.paraI} onChange={(v) => setType({ paraI: v })} options={PARA_SPACING.map((_, i) => ({ value: i, label: ['Nenhum', 'Pequeno', 'Médio', 'Grande'][i] }))} />
-        </Group>
-        <Group title="Margens laterais">
-          <Choice value={type.marginI} onChange={(v) => setType({ marginI: v })} options={MARGINS.map((_, i) => ({ value: i, label: ['Estreitas', 'Normais', 'Largas', 'Muito largas'][i] }))} />
-        </Group>
-        <Group title="Alinhamento">
-          <Choice value={type.justify ? 1 : 0} onChange={(v) => setType({ justify: v === 1 })} options={[{ value: 1, label: 'Justificado' }, { value: 0, label: 'À esquerda' }]} />
+        <Group title="Texto e tela">
+          <TypeRows />
         </Group>
         <TypePreview />
 

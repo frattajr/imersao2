@@ -133,3 +133,37 @@ export function mixFromSmoothed(planMix: MixStem[] | undefined, amb: Ambience): 
     .filter(([, g]) => g > 0)
     .map(([s, gain]) => ({ ...(base.get(s) ?? { s, priority: 3 as StemPriority }), s, gain })));
 }
+
+/**
+ * Um único plano para a tela inteira (página cheia): o ambiente é a média
+ * das camadas pesada pelo tamanho de cada parágrafo (a cena que domina a
+ * página), com no máximo um efeito pontual — o mais forte. Assim o som muda
+ * só na virada de página e nunca "adianta" o que a pessoa ainda vai ler.
+ */
+export function mergeScreen(parts: { plan: ScenePlan; words: number }[]): ScenePlan {
+  if (parts.length === 1) return { ...parts[0].plan, spots: parts[0].plan.spots.slice(0, 1) };
+  const total = parts.reduce((a, p) => a + Math.max(1, p.words), 0) || 1;
+  const amb = new Map<Layer, number>();
+  const best = new Map<Layer, MixStem>();
+  const looks: Partial<Record<Layer, SoundVariant>> = {};
+  const moods = new Map<Mood, number>();
+  for (const { plan, words } of parts) {
+    const w = Math.max(1, words) / total;
+    (Object.entries(plan.ambience) as [Layer, number][]).forEach(([L, g]) => amb.set(L, (amb.get(L) ?? 0) + g * w));
+    (plan.mix ?? ambienceToMix(plan.ambience)).forEach((m) => {
+      const cur = best.get(m.s);
+      if (!cur || m.priority < cur.priority) best.set(m.s, m);
+    });
+    Object.assign(looks, plan.looks ?? {});
+    if (plan.mood) moods.set(plan.mood, (moods.get(plan.mood) ?? 0) + w);
+  }
+  // camada citada de passagem num parágrafo curto não entra
+  const kept = [...amb.entries()].filter(([, g]) => g >= 0.18).sort((a, b) => b[1] - a[1]).slice(0, MAX_STEMS);
+  const ambience = Object.fromEntries(kept.map(([L, g]) => [L, Math.round(g * 100) / 100])) as Ambience;
+  const mix = normalizeMix(kept.map(([L, g]) => ({ ...(best.get(L) ?? { s: L, priority: 3 as StemPriority }), s: L, gain: Math.round(g * 100) / 100 })));
+  const spot = parts.flatMap((p) => p.plan.spots).sort((a, b) => b.w - a.w)[0];
+  const mood = [...moods.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const out: ScenePlan = { mood, ambience, spots: spot ? [spot] : [], mix };
+  if (Object.keys(looks).length) out.looks = looks;
+  return out;
+}
