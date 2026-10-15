@@ -1,33 +1,52 @@
 /**
- * Configurações: som (volume, suavidade das transições, sons da história,
- * detalhes de ambiente, suavização automática), leitura e a chave da
- * ElevenLabs.
+ * Configurações, do mais usado ao mais técnico: leitura (tema, modo,
+ * texto), som (estilo, volume, saída), meta diária, ajustes finos do som
+ * (recolhidos), sons da ElevenLabs e créditos.
  */
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GOALS } from '../src/core/catalog';
-import { localSounds } from '../src/services/localSounds';
-import { getGoal, setGoal } from '../src/state/userLists';
-import { supabase } from '../src/services/supabase';
-import { Choice, RoundButton } from '../src/ui/components';
+import { LEVEL_LABEL } from '../src/reader/AudioSheet';
 import { OutputRow, PresetRow } from '../src/reader/PresetSheet';
+import { SheetRow } from '../src/reader/Sheet';
 import { TypeRows } from '../src/reader/TypeSheet';
+import { localSounds } from '../src/services/localSounds';
+import { supabase } from '../src/services/supabase';
+import { getGoal, setGoal } from '../src/state/userLists';
+import { IconButton, RoundButton, Segmented, ToggleRow } from '../src/ui/components';
+import { Icon } from '../src/ui/Icon';
 import {
   BASE_FONT, DETAIL_LEVELS, FADE_LEVELS, FONTS, LEVELS, LINE_HEIGHTS, MARGINS, PARA_SPACING, READING_FONTS, SIZES, usePrefs, VOLUMES,
 } from '../src/ui/prefs';
 
 const VOLUME_LABEL = ['Baixo', 'Médio', 'Alto', 'Mudo'];
-const LEVEL_LABEL = ['Mudo', '25%', '50%', '75%', '100%'];
 
-function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   const { c } = usePrefs();
   return (
-    <View style={[st.group, { backgroundColor: c.card }]}>
-      <Text style={[st.gTitle, { color: c.fg }]}>{title}</Text>
-      {hint ? <Text style={[st.hint, { color: c.mut }]}>{hint}</Text> : null}
-      {children}
+    <View style={{ gap: 10 }}>
+      <Text style={[st.section, { color: c.fg }]}>{title}</Text>
+      <View style={[st.group, { backgroundColor: c.surface, borderColor: c.line }]}>{children}</View>
+    </View>
+  );
+}
+
+/** Bloco que abre e fecha (ajustes finos). */
+function Collapsible({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+  const { c } = usePrefs();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[st.group, { backgroundColor: c.surface, borderColor: c.line }]}>
+      <Pressable onPress={() => setOpen((o) => !o)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.collHead}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[st.collTitle, { color: c.fg }]}>{title}</Text>
+          <Text style={[st.hint, { color: c.mut }]}>{hint}</Text>
+        </View>
+        <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><Icon name="down" size={20} color={c.mut} /></View>
+      </Pressable>
+      {open ? children : null}
     </View>
   );
 }
@@ -39,9 +58,9 @@ function TypePreview() {
   const size = BASE_FONT * SIZES[sizeI];
   const lh = size * LINE_HEIGHTS[type.lineI];
   const p = { fontFamily: f.regular, fontSize: size, lineHeight: lh, color: c.fg, textAlign: type.justify ? 'justify' as const : 'left' as const };
-  const ind = type.book ? '\u2003\u2002' : '';
+  const ind = type.book ? '  ' : '';
   return (
-    <View style={[st.group, { backgroundColor: c.bg, paddingHorizontal: MARGINS[type.marginI], borderWidth: 1, borderColor: c.btn }]}>
+    <View style={[st.preview, { backgroundColor: c.bg, paddingHorizontal: MARGINS[type.marginI], borderColor: c.line }]}>
       <Text style={p}>A chuva fina de outubro molhava as janelas do café quando Helena empurrou a porta.</Text>
       <Text style={[p, { marginTop: type.book ? 0 : lh * PARA_SPACING[type.paraI] }]}>{ind}O sino acima dela tilintou baixinho.</Text>
     </View>
@@ -55,6 +74,7 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const [key, setKey] = useState('');
   const [count, setCount] = useState(0);
+  const lv = LEVELS.map((_, i) => ({ value: i, label: LEVEL_LABEL[i] }));
 
   useEffect(() => {
     void localSounds.getKey().then(setKey);
@@ -64,95 +84,94 @@ export default function Settings() {
   }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.ov }}>
-      <ScrollView contentContainerStyle={[st.wrap, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <ScrollView contentContainerStyle={[st.wrap, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 48 }]}>
         <View style={st.head}>
-          <RoundButton label="←" accessibilityLabel="Voltar" onPress={() => router.back()} />
+          <IconButton icon="back" label="Voltar" onPress={() => router.back()} />
           <Text style={[st.h1, { color: c.fg }]}>Configurações</Text>
         </View>
 
-        <Text style={[st.section, { color: c.mut }]}>SOM</Text>
-        <Group title="Estilo de som" hint="Um ponto de partida; os ajustes abaixo continuam valendo.">
-          <PresetRow />
-        </Group>
-        <Group title="Ouvindo pelo" hint="No alto-falante do celular, graves e agudos extremos são cortados para não chiar.">
-          <OutputRow />
-        </Group>
-        <Group title="Volume geral">
-          <Choice value={volI} onChange={setVol} accessibilityLabel="Volume geral"
-            options={VOLUMES.map((_, i) => ({ value: i, label: VOLUME_LABEL[i] }))} />
-        </Group>
-        <Group title="Ambiente (loops)" hint="Chuva, vento, lareira, taberna… tocando sem parar, baixinho.">
-          <Choice value={sound.ambient} onChange={(v) => setSound({ ambient: v })} accessibilityLabel="Volume do ambiente"
-            options={LEVELS.map((_, i) => ({ value: i, label: LEVEL_LABEL[i] }))} />
-          <Choice value={sound.loops ? 1 : 0} onChange={(v) => setSound({ loops: v === 1 })} accessibilityLabel="Loops de ambiente"
-            options={[{ value: 1, label: 'Loops ligados' }, { value: 0, label: 'Loops desligados' }]} />
-        </Group>
-        <Group title="Efeitos (SFX)" hint="Volume dos sons da cena e dos detalhes, separado do ambiente.">
-          <Choice value={sound.sfx} onChange={(v) => setSound({ sfx: v })} accessibilityLabel="Volume dos efeitos"
-            options={LEVELS.map((_, i) => ({ value: i, label: LEVEL_LABEL[i] }))} />
-        </Group>
-        <Group title="Modo foco" hint="Só o ambiente essencial, abafado e mais baixo, sem efeitos. Para estudar ou ler textos densos.">
-          <Choice value={sound.focus ? 1 : 0} onChange={(v) => setSound({ focus: v === 1 })} accessibilityLabel="Modo foco"
-            options={[{ value: 0, label: 'Desligado' }, { value: 1, label: 'Ligado' }]} />
-        </Group>
-        <Group title="Transições" hint="Quanto tempo o som leva para mudar quando a cena muda. Mais suave = trocas mais lentas e discretas.">
-          <Choice value={sound.fade} onChange={(v) => setSound({ fade: v })} accessibilityLabel="Suavidade das transições"
-            options={FADE_LEVELS.map((l, i) => ({ value: i, label: l.label }))} />
-        </Group>
-        <Group title="Detalhes de ambiente" hint="Rangidos, gotas, rajadas, folhas, coruja… tocam baixinho, de tempos em tempos.">
-          <Choice value={sound.details} onChange={(v) => setSound({ details: v })} accessibilityLabel="Frequência dos detalhes de ambiente"
-            options={DETAIL_LEVELS.map((l, i) => ({ value: i, label: l.label }))} />
-        </Group>
-        <Group title="Suavizar quando a cena muda muito" hint="Se a história troca de lugar várias vezes em pouco tempo, o som fica mais baixo e as trocas mais lentas.">
-          <Choice value={sound.auto ? 1 : 0} onChange={(v) => setSound({ auto: v === 1 })} accessibilityLabel="Suavização automática"
-            options={[{ value: 1, label: 'Ligada' }, { value: 0, label: 'Desligada' }]} />
-        </Group>
-
-        <Group title="Respiro" hint="Depois de alguns minutos no mesmo lugar, o ambiente desce devagar até quase sumir; volta quando a cena muda. Se você parar de ler, o som também desce.">
-          <Choice value={sound.breathe ? 1 : 0} onChange={(v) => setSound({ breathe: v === 1 })} accessibilityLabel="Respiro"
-            options={[{ value: 1, label: 'Ligado' }, { value: 0, label: 'Desligado' }]} />
-        </Group>
-
-        <Text style={[st.section, { color: c.mut }]}>LEITURA</Text>
-        <Group title="Meta diária" hint="Minutos de leitura por dia. A sequência de dias aparece na biblioteca.">
-          <Choice value={goal} onChange={(v) => { setGoalS(v); void setGoal(v); }} accessibilityLabel="Meta diária"
-            options={GOALS.map((g) => ({ value: g, label: `${g} min` }))} />
-        </Group>
-        <Group title="Texto e tela">
+        <Section title="Leitura">
           <TypeRows />
-        </Group>
-        <TypePreview />
+          <TypePreview />
+        </Section>
 
-        <Text style={[st.section, { color: c.mut }]}>SONS DA ELEVENLABS</Text>
-        <Group title="Chave da ElevenLabs"
-          hint={supabase
-            ? 'O app usa o repositório do servidor. Esta chave vale só para testar sons neste aparelho.'
-            : 'Fica salva só neste aparelho. Sons novos são gerados enquanto você lê; os que já existem vêm do repositório, sem custo.'}>
-          <TextInput value={key} onChangeText={(k) => { setKey(k); void localSounds.setKey(k); }} placeholder="sk_…" placeholderTextColor={c.mut}
-            secureTextEntry autoCapitalize="none" autoCorrect={false} style={[st.input, { color: c.fg, backgroundColor: c.btn }]} />
-        </Group>
-        <Group title={`Repositório de sons (${count})`} hint="Veja, ouça e teste os sons já criados, ou crie um novo descrevendo o som.">
-          <RoundButton label="Abrir repositório de sons" onPress={() => router.push('/lab')} />
-        </Group>
-        <Text style={[st.section, { color: c.mut }]}>FONTES E CRÉDITOS</Text>
-        <Group title="De onde vêm os livros">
-          <Text style={[st.hint, { color: c.mut, marginTop: 0 }]}>
+        <Section title="Som">
+          <SheetRow label="Estilo" hint="Um ponto de partida; os ajustes finos continuam valendo.">
+            <PresetRow />
+          </SheetRow>
+          <SheetRow label="Volume geral">
+            <Segmented value={volI} onChange={setVol} accessibilityLabel="Volume geral"
+              options={VOLUMES.map((_, i) => ({ value: i, label: VOLUME_LABEL[i] }))} />
+          </SheetRow>
+          <SheetRow label="Ouvindo pelo" hint="No alto-falante do celular, graves e agudos extremos são cortados para não chiar.">
+            <OutputRow />
+          </SheetRow>
+        </Section>
+
+        <Section title="Meta diária">
+          <SheetRow label="Minutos por dia" hint="A sequência de dias aparece na biblioteca.">
+            <Segmented value={goal} onChange={(v) => { setGoalS(v); void setGoal(v); }} accessibilityLabel="Meta diária"
+              options={GOALS.map((g) => ({ value: g, label: `${g} min` }))} />
+          </SheetRow>
+        </Section>
+
+        <Collapsible title="Ajustes finos do som" hint="Volumes separados, transições, detalhes e respiro.">
+          <SheetRow label="Ambiente" hint="Chuva, vento, lareira, taberna… baixinho, sem parar.">
+            <Segmented value={sound.ambient} onChange={(v) => setSound({ ambient: v })} accessibilityLabel="Volume do ambiente" options={lv} />
+          </SheetRow>
+          <SheetRow label="Efeitos" hint="Sons da cena e dos detalhes, separado do ambiente.">
+            <Segmented value={sound.sfx} onChange={(v) => setSound({ sfx: v })} accessibilityLabel="Volume dos efeitos" options={lv} />
+          </SheetRow>
+          <SheetRow label="Transições" hint="Quanto tempo o som leva para mudar quando a cena muda.">
+            <Segmented value={sound.fade} onChange={(v) => setSound({ fade: v })} accessibilityLabel="Suavidade das transições"
+              options={FADE_LEVELS.map((l, i) => ({ value: i, label: l.label.replace('Muito suave', 'Lenta') }))} />
+          </SheetRow>
+          <SheetRow label="Detalhes de ambiente" hint="Rangidos, gotas, rajadas, coruja… de tempos em tempos.">
+            <Segmented value={sound.details} onChange={(v) => setSound({ details: v })} accessibilityLabel="Frequência dos detalhes de ambiente"
+              options={DETAIL_LEVELS.map((l, i) => ({ value: i, label: l.label.replace('Desligados', 'Nunca') }))} />
+          </SheetRow>
+          <View>
+            <ToggleRow label="Ambiente contínuo" hint="Os loops de chuva, vento, lareira…" value={sound.loops} onChange={(v) => setSound({ loops: v })} />
+            <ToggleRow label="Modo foco" hint="Só o essencial, abafado, sem efeitos. Para estudar ou ler textos densos." value={sound.focus} onChange={(v) => setSound({ focus: v })} />
+            <ToggleRow label="Suavizar mudanças rápidas" hint="Se a história troca de lugar várias vezes seguidas, o som fica mais baixo e lento." value={sound.auto} onChange={(v) => setSound({ auto: v })} />
+            <ToggleRow label="Respiro" hint="Depois de alguns minutos no mesmo lugar, o ambiente desce devagar; volta quando a cena muda." value={sound.breathe} onChange={(v) => setSound({ breathe: v })} />
+          </View>
+        </Collapsible>
+
+        <Collapsible title="Sons da ElevenLabs" hint={`Chave para gerar sons novos · repositório com ${count} ${count === 1 ? 'som' : 'sons'}`}>
+          <SheetRow label="Chave da ElevenLabs"
+            hint={supabase
+              ? 'O app usa o repositório do servidor. Esta chave vale só para testar sons neste aparelho.'
+              : 'Fica salva só neste aparelho. Sons novos são gerados enquanto você lê; os que já existem vêm do repositório, sem custo.'}>
+            <TextInput value={key} onChangeText={(k) => { setKey(k); void localSounds.setKey(k); }} placeholder="sk_…" placeholderTextColor={c.mut}
+              secureTextEntry autoCapitalize="none" autoCorrect={false} style={[st.input, { color: c.fg, backgroundColor: c.bg, borderColor: c.line }]}
+              accessibilityLabel="Chave da ElevenLabs" />
+          </SheetRow>
+          <View style={{ alignItems: 'flex-start' }}>
+            <RoundButton icon="headphones" label="Abrir repositório de sons" onPress={() => router.push('/lab')} />
+          </View>
+        </Collapsible>
+
+        <Section title="Fontes e créditos">
+          <Text style={[st.hint, { color: c.mut }]}>
             Os clássicos são obras em domínio público. Os textos vêm do Project Gutenberg (gutenberg.org) e do Wikisource em português (pt.wikisource.org), passam por limpeza e têm a grafia atualizada pelo app. As capas do acervo vêm da Open Library (openlibrary.org). As traduções de Poe e Dickens e as sinopses foram escritas para o Imersão.
           </Text>
-        </Group>
+        </Section>
       </ScrollView>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, gap: 12, maxWidth: 600, width: '100%', alignSelf: 'center' },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  h1: { fontFamily: FONTS.serifMedium, fontSize: 30 },
-  section: { fontFamily: FONTS.uiBold, fontSize: 12.5, letterSpacing: 1.2, marginTop: 12, marginLeft: 4 },
-  group: { borderRadius: 18, padding: 16, gap: 10 },
-  gTitle: { fontFamily: FONTS.uiBold, fontSize: 16 },
-  hint: { fontFamily: FONTS.ui, fontSize: 14, lineHeight: 20, marginTop: -4 },
-  input: { fontFamily: FONTS.ui, fontSize: 16, minHeight: 48, borderRadius: 14, paddingHorizontal: 14 },
+  wrap: { paddingHorizontal: 16, gap: 22, maxWidth: 600, width: '100%', alignSelf: 'center' },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
+  h1: { fontFamily: FONTS.serifMedium, fontSize: 27 },
+  section: { fontFamily: FONTS.serifMedium, fontSize: 19, marginLeft: 4 },
+  group: { borderRadius: 18, padding: 16, gap: 20, borderWidth: 1 },
+  collHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  collTitle: { fontFamily: FONTS.uiBold, fontSize: 16 },
+  hint: { fontFamily: FONTS.ui, fontSize: 13.5, lineHeight: 20 },
+  preview: { borderRadius: 14, paddingVertical: 16, borderWidth: 1 },
+  input: { fontFamily: FONTS.ui, fontSize: 16, minHeight: 48, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1 },
 });

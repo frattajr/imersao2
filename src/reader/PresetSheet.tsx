@@ -1,10 +1,11 @@
 /**
  * Escolha do estilo de som na primeira leitura: Sutil (recomendado),
- * Cinematográfico, Só ambiente ou Silêncio, e se a pessoa está no
- * alto-falante do celular ou de fone. Dá para mudar depois no 🎧.
+ * Cinema, Só ambiente ou Silêncio, e se a pessoa está no alto-falante do
+ * celular ou de fone. Dá para mudar depois no painel de som.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Choice } from '../ui/components';
+import { Segmented } from '../ui/components';
+import { Icon } from '../ui/Icon';
 import { FONTS, SOUND_PRESETS, usePrefs, type SoundPreset } from '../ui/prefs';
 import { Sheet, SheetRow } from './Sheet';
 
@@ -12,14 +13,19 @@ export function PresetRow({ onPick }: { onPick?: (p: SoundPreset) => void }) {
   const { c, sound, volI, applyPreset } = usePrefs();
   const current: SoundPreset | undefined = volI === 3 ? 'silencio' : sound.preset;
   return (
-    <View style={st.grid}>
+    <View style={st.grid} accessibilityRole="radiogroup" accessibilityLabel="Estilo de som">
       {(Object.keys(SOUND_PRESETS) as SoundPreset[]).map((k) => {
         const on = current === k;
+        const p = SOUND_PRESETS[k];
         return (
           <Pressable key={k} onPress={() => { applyPreset(k); onPick?.(k); }} accessibilityRole="radio" accessibilityState={{ checked: on }}
-            style={({ pressed }) => [st.card, { backgroundColor: on ? c.fg : c.btn, opacity: pressed ? 0.85 : 1 }]}>
-            <Text style={[st.label, { color: on ? c.bg : c.fg }]}>{SOUND_PRESETS[k].label}</Text>
-            <Text style={[st.hint, { color: on ? c.bg : c.mut }]}>{SOUND_PRESETS[k].hint}</Text>
+            accessibilityLabel={`${p.label}. ${p.hint}`}
+            style={({ pressed }) => [st.card, { backgroundColor: on ? c.accentSoft : c.btn, borderColor: on ? c.accent : 'transparent', opacity: pressed ? 0.85 : 1 }]}>
+            <View style={st.head}>
+              <Icon name={p.icon} size={18} color={on ? c.accent : c.fg} />
+              <Text style={[st.label, { color: on ? c.accent : c.fg }]}>{p.label}</Text>
+            </View>
+            <Text style={[st.hint, { color: c.mut }]}>{p.hint}</Text>
           </Pressable>
         );
       })}
@@ -30,8 +36,8 @@ export function PresetRow({ onPick }: { onPick?: (p: SoundPreset) => void }) {
 export function OutputRow() {
   const { sound, setSound } = usePrefs();
   return (
-    <Choice value={sound.output} onChange={(v) => setSound({ output: v })} accessibilityLabel="Saída de som"
-      options={[{ value: 'speaker', label: '📱 Alto-falante' }, { value: 'headphones', label: '🎧 Fone' }]} />
+    <Segmented value={sound.output} onChange={(v) => setSound({ output: v })} accessibilityLabel="Saída de som"
+      options={[{ value: 'speaker', label: 'Alto-falante' }, { value: 'headphones', label: 'Fone de ouvido' }]} />
   );
 }
 
@@ -48,7 +54,8 @@ export function PresetSheet({ visible, onDone }: { visible: boolean; onDone: () 
 
 const st = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  card: { flexGrow: 1, flexBasis: '45%', minHeight: 84, borderRadius: 16, padding: 12, gap: 4 },
-  label: { fontFamily: FONTS.uiBold, fontSize: 15.5 },
-  hint: { fontFamily: FONTS.ui, fontSize: 13, lineHeight: 18 },
+  card: { flexGrow: 1, flexBasis: '45%', minHeight: 82, borderRadius: 16, padding: 12, gap: 6, borderWidth: 1 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  label: { fontFamily: FONTS.uiBold, fontSize: 15 },
+  hint: { fontFamily: FONTS.ui, fontSize: 12.5, lineHeight: 17 },
 });

@@ -80,27 +80,27 @@ export function SelectionSheet({ target, title, onClose, onSave, onDelete }: {
           ))}
         </View>
         <TextInput value={note} onChangeText={setNote} placeholder="Nota (opcional)" placeholderTextColor={c.mut} multiline
-          style={[st.input, { color: c.fg, backgroundColor: c.card }]} accessibilityLabel="Nota" />
+          style={[st.input, { color: c.fg, backgroundColor: c.bg, borderColor: c.line }]} accessibilityLabel="Nota" />
         <View style={st.row}>
-          <RoundButton big label={target.edit ? 'Salvar' : '✎ Grifar'} disabled={!has}
+          <RoundButton big icon="pen" label={target.edit ? 'Salvar' : 'Grifar'} disabled={!has}
             onPress={() => { onSave({ page: target.page, start, end, quote: quote.trim(), color, note: note.trim(), id: target.edit?.id }); onClose(); }} />
-          {target.edit && <RoundButton label="Apagar grifo" onPress={() => { onDelete(target.edit!.id); onClose(); }} />}
+          {target.edit && <RoundButton variant="ghost" icon="trash" label="Apagar grifo" onPress={() => { onDelete(target.edit!.id); onClose(); }} />}
         </View>
       </SheetRow>
 
       <View style={st.row}>
-        <RoundButton label="Copiar" disabled={!has} onPress={async () => { await Clipboard.setStringAsync(shareText); flash('Copiado ✓'); }} />
-        <RoundButton label="Compartilhar" disabled={!has} onPress={async () => {
+        <RoundButton icon="copy" label="Copiar" disabled={!has} onPress={async () => { await Clipboard.setStringAsync(shareText); flash('Copiado'); }} />
+        <RoundButton icon="share" label="Compartilhar" disabled={!has} onPress={async () => {
           try {
             if (Platform.OS === 'web') {
               const nav = globalThis.navigator as Navigator & { share?: (d: { text: string }) => Promise<void> };
               if (nav.share) await nav.share({ text: shareText });
-              else { await Clipboard.setStringAsync(shareText); flash('Copiado para compartilhar ✓'); }
+              else { await Clipboard.setStringAsync(shareText); flash('Copiado para compartilhar'); }
             } else await Share.share({ message: shareText });
           } catch { /* cancelado */ }
         }} />
-        <RoundButton label="Dicionário" disabled={!has} onPress={() => setWords((w) => !w)} />
-        <RoundButton label="Traduzir" disabled={!has}
+        <RoundButton icon="notebook" label="Dicionário" disabled={!has} onPress={() => setWords((w) => !w)} />
+        <RoundButton icon="translate" label="Traduzir" disabled={!has}
           onPress={() => void Linking.openURL(`https://translate.google.com/?sl=auto&tl=en&op=translate&text=${encodeURIComponent(quote.trim().slice(0, 1500))}`)} />
       </View>
       {words && (
@@ -125,7 +125,7 @@ const st = StyleSheet.create({
   para: { fontFamily: FONTS.serif, fontSize: 17, lineHeight: 27 },
   colors: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   dot: { width: 34, height: 34, borderRadius: 17, borderWidth: 3 },
-  input: { fontFamily: FONTS.ui, fontSize: 15, minHeight: 48, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  input: { fontFamily: FONTS.ui, fontSize: 15, minHeight: 48, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
   word: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99 },
 });

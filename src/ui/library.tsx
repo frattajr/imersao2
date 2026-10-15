@@ -9,7 +9,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { previewClimate, previewHasSound } from '../audio/preview';
-import { analyze, LAYER_LABEL } from '../core/analyze';
+import { analyze, LAYER_NAME } from '../core/analyze';
 import { dedupeVolumes, formatDuration, minutesToRead, THEMES, type CatalogEntry, type Origin, type ReadingDays } from '../core/catalog';
 import { detectChapters } from '../core/chapters';
 import { DEFAULT_WPM, type PaceState } from '../core/pace';
@@ -26,6 +26,7 @@ import { deleteRemote, downloadText, onSynced, syncSoon } from '../services/sync
 import { getRepo } from '../state/db';
 import { getGoal, getReadingDays, getTastes, getWishlist, setTastes, toggleWish, type Tastes } from '../state/userLists';
 import { Cover } from './Cover';
+import { Icon } from './Icon';
 import { ProgressBar, RoundButton } from './components';
 import { FONTS, usePrefs } from './prefs';
 
@@ -72,7 +73,7 @@ function acervoItem(a: AcervoEntry, ready: Map<string, AcervoReady>, meta?: Book
     id: acervoId(a.slug), title: a.title, author: a.author, source: 'acervo', kind: a.kind, label: a.kind, origin: a.origin, year: a.year,
     words: r?.words, layers: r?.layers ?? [], tags: a.tags, calibrated: false, openable: !ready.size || !!r,
     emoji: a.emoji, mood: a.mood, synopsis: a.synopsis, pages: meta?.n ?? 0, chapters: 0, meta, sample: false, image: acervoCover(r), acervo: a,
-    credit: `${a.origin === 'BR' ? '🇧🇷 Brasil' : '🇵🇹 Portugal'} · ${a.year} · domínio público${r?.modernized ? ' · grafia atualizada' : ''}`,
+    credit: `${a.origin === 'BR' ? 'Brasil' : 'Portugal'} · ${a.year} · domínio público${r?.modernized ? ' · grafia atualizada' : ''}`,
   };
 }
 
@@ -218,7 +219,7 @@ export function BusyModal({ busy, onClose }: { busy: Busy | null; onClose: () =>
   const { c } = usePrefs();
   return (
     <Modal visible={!!busy} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={[st.modal, { backgroundColor: c.ov }]}>
+      <View style={[st.modal, { backgroundColor: c.bg }]}>
         <Text style={[st.h2, { color: c.fg }]}>{busy?.error ? 'Não deu certo' : 'Abrindo livro'}</Text>
         <Text style={[st.lead, { color: c.mut }]}>{busy?.msg}</Text>
         {!busy?.error && (busy?.pct == null
@@ -230,29 +231,26 @@ export function BusyModal({ busy, onClose }: { busy: Busy | null; onClose: () =>
   );
 }
 
-/** Capa com selos: som calibrado, duração no ritmo da pessoa e "baixado". */
+/** Capa e, embaixo, uma linha discreta: duração no ritmo da pessoa e se tem som calibrado. */
 export const Poster = memo(function Poster({ it, w, wpm, onPress }: { it: Item; w: number; wpm: number; onPress: (it: Item) => void }) {
   const { c } = usePrefs();
   const pct = pctOf(it.meta);
   const downloaded = !!it.meta && (it.source === 'acervo' || it.source === 'gut');
   const dur = it.words ? formatDuration(minutesToRead(it.words, wpm)) : null;
   const a11y = [it.title, it.label, it.calibrated ? 'som calibrado' : '', dur ? `cerca de ${dur}` : '', downloaded ? 'baixado' : ''].filter(Boolean).join(', ');
+  // o fone (na cor de destaque) já diz "som calibrado"; a linha fica curta
+  const line = pct >= 100 ? 'Lido' : pct > 0 ? `${pct}% lido` : dur ?? (it.calibrated ? 'som calibrado' : '');
   return (
     <Pressable onPress={() => onPress(it)} accessibilityRole="button" accessibilityLabel={a11y}
-      style={({ pressed }) => ({ width: w, gap: 6, transform: [{ scale: pressed ? 0.97 : 1 }] })}>
-      <View>
-        <Cover id={it.id} title={it.title} author={it.author} emoji={it.emoji} mood={it.mood} width={w} image={it.image} />
-        {/* selos no alto da capa (o título fica embaixo) */}
-        <View style={st.badges} pointerEvents="none">
-          <View style={st.badgeGroup}>
-            {it.calibrated ? <Text style={st.badge}>🎧</Text> : null}
-            {downloaded ? <Text style={st.badge}>✓</Text> : null}
-          </View>
-          {dur ? <Text style={st.badge}>{dur}</Text> : null}
-        </View>
-      </View>
+      style={({ pressed }) => ({ width: w, gap: 7, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+      <Cover id={it.id} title={it.title} author={it.author} mood={it.mood} width={w} image={it.image} />
       {pct > 0 && pct < 100 ? <ProgressBar pct={pct} height={3} /> : null}
-      {pct >= 100 ? <Text style={[st.done, { color: c.mut }]}>✓ lido</Text> : null}
+      {line ? (
+        <View style={st.pLine}>
+          {it.calibrated && pct === 0 ? <Icon name="headphones" size={12} color={c.accent} strokeWidth={2} /> : null}
+          <Text style={[st.pMeta, { color: c.mut }]} numberOfLines={1}>{line}</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 });
@@ -281,42 +279,55 @@ export function BookSheet({ item, wpm, wished, related, onClose, onRead, onGloss
     setTimeout(() => setPreview((p) => (p === 'on' || p === 'silent' ? 'off' : p)), 12_000);
   };
   const close = () => { stop(); onClose(); };
+  const names = item.layers.map((L) => LAYER_NAME[L]);
+  const soundList = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}` : names[0];
+  const facts = [item.label, item.year && item.source === 'acervo' ? String(item.year) : '', dur ? `${dur} no seu ritmo` : ''].filter(Boolean).join(' · ');
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close}>
       <Pressable style={st.backdrop} onPress={close} accessibilityLabel="Fechar" />
-      <View style={[st.sheet, { backgroundColor: c.bg, paddingBottom: insets.bottom + 20 }]}>
-        <ScrollView contentContainerStyle={{ gap: 14 }}>
+      <View style={[st.sheet, { backgroundColor: c.surface, paddingBottom: insets.bottom + 20 }]}>
+        <View style={[st.grip, { backgroundColor: c.mut }]} />
+        <ScrollView contentContainerStyle={{ gap: 18 }} showsVerticalScrollIndicator={false}>
           <View style={{ flexDirection: 'row', gap: 16 }}>
-            <Cover id={item.id} title={item.title} author={item.author} emoji={item.emoji} mood={item.mood} width={124} image={item.image} />
-            <View style={{ flex: 1, gap: 6 }}>
+            <Cover id={item.id} title={item.title} author={item.author} mood={item.mood} width={104} image={item.image} />
+            <View style={{ flex: 1, gap: 6, paddingTop: 2 }}>
               <Text style={[st.dTitle, { color: c.fg }]}>{item.title}</Text>
-              <Text style={[st.dMeta, { color: c.mut }]}>{item.author}</Text>
-              <Text style={[st.dMeta, { color: c.mut }]}>
-                {[item.label, item.year && item.source === 'acervo' ? String(item.year) : '', item.pages && !notYet ? `${item.pages} páginas` : ''].filter(Boolean).join(' · ')}
-              </Text>
-              {dur ? <Text style={[st.dMeta, { color: c.fg }]}>⏱ cerca de {dur} no seu ritmo</Text> : null}
-              {pct > 0 && <Text style={[st.dMeta, { color: c.fg }]}>{item.meta?.done ? 'Concluído ✓' : `${pct}% lido`}</Text>}
+              <Text style={[st.dAuthor, { color: c.mut }]}>{item.author}</Text>
+              {facts ? <Text style={[st.dMeta, { color: c.mut }]}>{facts}</Text> : null}
+              {pct > 0 && (
+                <View style={{ gap: 6, marginTop: 4 }}>
+                  <Text style={[st.dMeta, { color: c.fg }]}>{item.meta?.done ? 'Concluído' : `${pct}% lido`}</Text>
+                  {!item.meta?.done && <ProgressBar pct={pct} height={3} />}
+                </View>
+              )}
             </View>
           </View>
-          <Text style={[st.dSyn, { color: c.fg }]}>{item.synopsis}</Text>
-          {item.credit ? <Text style={[st.dMeta, { color: c.mut }]}>{item.credit}</Text> : null}
 
-          <View style={[st.soundBox, { backgroundColor: c.card }]}>
-            <Text style={[st.soundTitle, { color: c.fg }]}>{item.calibrated ? '🎧 Som calibrado cena a cena' : '🎧 Som automático pelo texto'}</Text>
+          <View style={{ gap: 10 }}>
+            <RoundButton big icon="play" label={pct > 0 && !item.meta?.done ? 'Continuar' : notYet ? 'Baixar e ler' : 'Ler'}
+              onPress={() => { stop(); onRead(item); }} style={{ alignSelf: 'stretch' }} />
+            <View style={st.dBtns}>
+              <RoundButton icon={wished ? 'check' : 'plus'} label={wished ? 'Na lista' : 'Quero ler'}
+                accessibilityLabel={wished ? 'Tirar da lista Quero ler' : 'Pôr na lista Quero ler'} onPress={() => onWish(item)} style={{ flex: 1 }} />
+              {!notYet && <RoundButton icon="notebook" label="Glossário" accessibilityLabel="Glossário e capítulos" onPress={() => { stop(); onGlossary(item); }} style={{ flex: 1 }} />}
+            </View>
+          </View>
+
+          <Text style={[st.dSyn, { color: c.fg }]}>{item.synopsis}</Text>
+
+          <View style={[st.soundBox, { borderColor: c.line }]}>
+            <View style={st.soundHead}>
+              <Icon name="headphones" size={18} color={c.accent} />
+              <Text style={[st.soundTitle, { color: c.fg }]}>{item.calibrated ? 'Som calibrado cena a cena' : 'Som que acompanha a história'}</Text>
+            </View>
             <Text style={[st.dMeta, { color: c.mut }]}>
-              {item.calibrated ? 'Cada trecho tem a mixagem ajustada à mão.' : 'O ambiente acompanha o lugar da história enquanto você lê.'}
+              {item.calibrated ? 'Cada trecho tem a mixagem ajustada à mão.' : 'O ambiente segue o lugar, a hora e o clima de cada cena.'}
+              {soundList ? ` Neste livro: ${soundList}.` : ''}
             </Text>
             {item.layers.length > 0 && (
-              <View style={st.tags}>
-                {item.layers.map((L) => (
-                  <View key={L} style={[st.tag, { backgroundColor: c.btn }]}><Text style={[st.tagText, { color: c.fg }]}>{LAYER_LABEL[L]}</Text></View>
-                ))}
-              </View>
-            )}
-            {item.layers.length > 0 && (
               <View style={{ alignItems: 'flex-start' }}>
-                <RoundButton label={preview === 'on' ? '■ Parar a prévia' : preview === 'silent' ? 'Os sons deste clima ainda estão sendo preparados' : '▶ Ouvir o clima (10 s)'}
-                  onPress={play} disabled={preview === 'silent'} />
+                <RoundButton variant="ghost" icon={preview === 'on' ? 'stop' : 'play'} onPress={play} disabled={preview === 'silent'}
+                  label={preview === 'on' ? 'Parar a prévia' : preview === 'silent' ? 'Sons ainda em preparo' : 'Ouvir uma prévia'} />
               </View>
             )}
           </View>
@@ -324,23 +335,22 @@ export function BookSheet({ item, wpm, wished, related, onClose, onRead, onGloss
           {item.tags.length > 0 && item.source === 'acervo' && (
             <View style={st.tags}>
               {item.tags.map((t) => (
-                <View key={t} style={[st.tag, { backgroundColor: c.btn }]}><Text style={[st.tagText, { color: c.fg }]}>{t}</Text></View>
+                <View key={t} style={[st.tag, { borderColor: c.line }]}><Text style={[st.tagText, { color: c.mut }]}>{t}</Text></View>
               ))}
             </View>
           )}
-
-          <View style={st.dBtns}>
-            <RoundButton big label={`▶ ${pct > 0 && !item.meta?.done ? 'Continuar' : notYet ? 'Baixar e ler' : 'Ler'}`} onPress={() => { stop(); onRead(item); }} />
-            <RoundButton label={wished ? '✓ Na lista' : '＋ Quero ler'} accessibilityLabel={wished ? 'Tirar da lista Quero ler' : 'Pôr na lista Quero ler'} onPress={() => onWish(item)} />
-            {!notYet && <RoundButton label="📝 Glossário e capítulos" onPress={() => { stop(); onGlossary(item); }} />}
-            {item.source !== 'sample' && !!item.meta && <RoundButton label="Remover" onPress={() => { stop(); onRemove(item); }} />}
-          </View>
+          {item.credit ? <Text style={[st.dMeta, { color: c.mut }]}>{item.credit}</Text> : null}
+          {item.source !== 'sample' && !!item.meta && (
+            <View style={{ alignItems: 'flex-start' }}>
+              <RoundButton variant="ghost" icon="trash" label="Remover da biblioteca" onPress={() => { stop(); onRemove(item); }} />
+            </View>
+          )}
 
           {related.length > 0 && (
             <View style={{ gap: 10 }}>
               <Text style={[st.soundTitle, { color: c.fg }]}>Parecidos</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-                {related.map((r) => <Poster key={r.id} it={r} w={96} wpm={wpm} onPress={(x) => { stop(); onPick(x); }} />)}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {related.map((r) => <Poster key={r.id} it={r} w={92} wpm={wpm} onPress={(x) => { stop(); onPick(x); }} />)}
               </ScrollView>
             </View>
           )}
@@ -380,7 +390,8 @@ export function TastesModal({ visible, onDone }: { visible: boolean; onDone: (th
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => onDone(sel)}>
       <View style={st.backdrop} />
-      <View style={[st.sheet, { backgroundColor: c.bg, paddingBottom: insets.bottom + 20, gap: 14 }]}>
+      <View style={[st.sheet, { backgroundColor: c.surface, paddingBottom: insets.bottom + 20, gap: 14 }]}>
+        <View style={[st.grip, { backgroundColor: c.mut }]} />
         <Text style={[st.dTitle, { color: c.fg }]}>O que você gosta de ler?</Text>
         <Text style={[st.dMeta, { color: c.mut }]}>Escolha quantos quiser. A fileira “Para você” começa por aí.</Text>
         <View style={st.tags}>
@@ -388,14 +399,14 @@ export function TastesModal({ visible, onDone }: { visible: boolean; onDone: (th
             const on = sel.includes(t.key);
             return (
               <Pressable key={t.key} onPress={() => setSel((s) => (on ? s.filter((x) => x !== t.key) : [...s, t.key]))} accessibilityRole="checkbox"
-                accessibilityState={{ checked: on }} style={[st.chip, { backgroundColor: on ? c.fg : c.btn }]}>
-                <Text style={[st.chipText, { color: on ? c.bg : c.fg }]}>{t.label}</Text>
+                accessibilityState={{ checked: on }} style={[st.chip, { backgroundColor: on ? c.accentSoft : c.btn, borderColor: on ? c.accent : 'transparent' }]}>
+                <Text style={[st.chipText, { color: on ? c.accent : c.fg }]}>{t.label}</Text>
               </Pressable>
             );
           })}
         </View>
         <View style={st.dBtns}>
-          <RoundButton big label={sel.length ? 'Pronto' : 'Pular'} onPress={() => onDone(sel)} />
+          <RoundButton big label={sel.length ? 'Pronto' : 'Pular'} onPress={() => onDone(sel)} style={{ flex: 1 }} />
         </View>
       </View>
     </Modal>
@@ -403,25 +414,25 @@ export function TastesModal({ visible, onDone }: { visible: boolean; onDone: (th
 }
 
 const st = StyleSheet.create({
-  badges: { position: 'absolute', top: 6, left: 6, right: 6, flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
-  badgeGroup: { flexDirection: 'row', gap: 4 },
-  badge: { fontFamily: FONTS.uiBold, fontSize: 10.5, color: '#fff', backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
-  done: { fontFamily: FONTS.ui, fontSize: 12 },
+  pLine: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 15 },
+  pMeta: { fontFamily: FONTS.ui, fontSize: 12, flexShrink: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, maxWidth: 640, alignSelf: 'center', width: '100%' },
-  dTitle: { fontFamily: FONTS.serifMedium, fontSize: 24, lineHeight: 29 },
-  dMeta: { fontFamily: FONTS.ui, fontSize: 14, lineHeight: 19 },
-  dSyn: { fontFamily: FONTS.serif, fontSize: 16.5, lineHeight: 25 },
-  soundBox: { borderRadius: 16, padding: 14, gap: 8 },
-  soundTitle: { fontFamily: FONTS.uiBold, fontSize: 15.5 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '90%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 10, maxWidth: 640, alignSelf: 'center', width: '100%', gap: 12 },
+  grip: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, opacity: 0.35 },
+  dTitle: { fontFamily: FONTS.serifMedium, fontSize: 23, lineHeight: 28 },
+  dAuthor: { fontFamily: FONTS.ui, fontSize: 15 },
+  dMeta: { fontFamily: FONTS.ui, fontSize: 13.5, lineHeight: 19 },
+  dSyn: { fontFamily: FONTS.serif, fontSize: 16, lineHeight: 25 },
+  soundBox: { borderRadius: 16, padding: 14, gap: 8, borderWidth: 1 },
+  soundHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  soundTitle: { fontFamily: FONTS.uiBold, fontSize: 15 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
-  tag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
-  tagText: { fontFamily: FONTS.ui, fontSize: 13 },
-  chip: { minHeight: 38, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center' },
+  tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, borderWidth: 1 },
+  tagText: { fontFamily: FONTS.ui, fontSize: 12.5 },
+  chip: { minHeight: 38, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center', borderWidth: 1 },
   chipText: { fontFamily: FONTS.uiBold, fontSize: 14 },
   dBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
   modal: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, padding: 30 },
   h2: { fontFamily: FONTS.serifMedium, fontSize: 28 },
   lead: { fontFamily: FONTS.ui, fontSize: 16.5, lineHeight: 25, textAlign: 'center', maxWidth: 440 },
 });
-

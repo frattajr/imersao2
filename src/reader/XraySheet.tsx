@@ -24,7 +24,7 @@ export function XraySheet({ term, info, glossDesc, canExplain, explain, onAdd, o
       {desc ? <Text style={{ fontFamily: FONTS.ui, fontSize: 16, lineHeight: 23, color: c.fg }}>{desc}</Text> : null}
       {!glossDesc && canExplain && ai.state !== 'done' && (
         <View style={{ alignItems: 'flex-start' }}>
-          <RoundButton label={ai.state === 'busy' ? 'Lendo…' : ai.state === 'error' ? 'Não consegui agora — tentar de novo' : '✦ Explicar sem spoilers'} disabled={ai.state === 'busy'}
+          <RoundButton icon="sparkle" label={ai.state === 'busy' ? 'Lendo…' : ai.state === 'error' ? 'Não consegui agora — tentar de novo' : 'Explicar sem spoilers'} disabled={ai.state === 'busy'}
             onPress={() => {
               if (!term) return;
               setAi({ state: 'busy', text: '' });
@@ -43,7 +43,7 @@ export function XraySheet({ term, info, glossDesc, canExplain, explain, onAdd, o
       )}
       {term && !glossDesc && (
         <View style={{ alignItems: 'flex-start' }}>
-          <RoundButton label="📝 Guardar no glossário" onPress={() => onAdd(term, ai.text)} />
+          <RoundButton variant="ghost" icon="notebook" label="Guardar no glossário" onPress={() => onAdd(term, ai.text)} />
         </View>
       )}
     </Sheet>

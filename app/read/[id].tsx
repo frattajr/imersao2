@@ -1,8 +1,8 @@
 /**
  * Leitor imersivo.
  *
- * - Três modos: PÁGINA CHEIA (o texto ocupa a tela inteira, como um livro),
- *   UM PARÁGRAFO por tela (mais cinematográfico) e ROLAGEM (texto contínuo).
+ * - Três modos: UM PARÁGRAFO por tela (o padrão: foco total, o parágrafo no
+ *   centro óptico da tela), PÁGINA CHEIA (como um livro) e ROLAGEM.
  * - Estilo livro: recuo na primeira linha, parágrafo inteiro mesmo quando
  *   foi dividido em páginas, abertura de capítulo com título e versalete.
  *   A paginação é calibrada com a medida real do texto na tela.
@@ -14,7 +14,8 @@
  *   abrir o livro e desce quase ao silêncio se a pessoa parar de ler.
  * - Toque longo num parágrafo: grifar, anotar, copiar, compartilhar,
  *   dicionário e tradução. Toque num grifo para editar.
- * - 🔖 marca a página; ☰ sumário, progresso, marcadores e grifos; 🔍 busca.
+ * - Barras com ícones e rótulos: marcador, texto, som, sumário, busca e
+ *   glossário. A dica de como virar a página aparece só nas primeiras vezes.
  * - Modo Zen: as barras aparecem por cima do texto com um toque no centro e
  *   somem sozinhas; ficam só um cabeçalho e um rodapé finos.
  * - X-Ray sem spoiler; recapitulação depois de 48 h; estilo de som na
@@ -33,7 +34,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { engine, soundSource } from '../../src/audio';
-import { analyze, LAYER_LABEL, SPOT_LABEL, TINT } from '../../src/core/analyze';
+import { analyze, LAYER_NAME, SPOT_NAME, TINT } from '../../src/core/analyze';
 import { exportMarkdown, newId, type Annotation } from '../../src/core/annotations';
 import { chapterAt, detectChapters, headingOf } from '../../src/core/chapters';
 import { readSoFar, upsertEntry } from '../../src/core/glossary';
@@ -67,7 +68,8 @@ import { getRepo } from '../../src/state/db';
 import { onJump } from '../../src/state/jump';
 import { flushReading, logReading } from '../../src/state/userLists';
 import { SceneDirector } from '../../src/state/scene';
-import { ProgressBar, RoundButton } from '../../src/ui/components';
+import { IconButton, ProgressBar, RoundButton } from '../../src/ui/components';
+import { Icon } from '../../src/ui/Icon';
 import { BASE_FONT, FONTS, LINE_HEIGHTS, MARGINS, PARA_SPACING, READING_FONTS, SIZES, usePrefs } from '../../src/ui/prefs';
 
 const ZEN_AFTER_MS = 3000;
@@ -86,9 +88,11 @@ type SheetName = 'audio' | 'type' | 'nav' | 'search' | null;
 interface Layer2 { key: number; start: number; dir: number; leaving: boolean; offset: number }
 
 /* ---------- Uma tela: entra pelo lado, sai pelo outro; a atual acompanha o dedo ---------- */
-function Page({ children, dir, leaving, offset, onGone, still, maxH, onFit, top, drag, width }: {
+function Page({ children, dir, leaving, offset, onGone, still, maxH, onFit, top, drag, width, lift = 0 }: {
   children: React.ReactNode; dir: number; leaving: boolean; offset: number; onGone: () => void; still: boolean; maxH: number;
   onFit: (tooBig: boolean) => void; top: boolean; drag: Animated.Value | null; width: number;
+  /** sobe o texto centralizado um pouco (centro óptico fica acima do centro da tela) */
+  lift?: number;
 }) {
   const t = useRef(new Animated.Value(0)).current;
   const out = useRef(new Animated.Value(0)).current;
@@ -110,7 +114,7 @@ function Page({ children, dir, leaving, offset, onGone, still, maxH, onFit, top,
   if (drag && !leaving) transform.push({ translateX: drag });
   const style = { opacity: Animated.multiply(t, Animated.subtract(1, out)), transform };
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, st.pageWrap, top && st.pageTop, style]} pointerEvents={leaving ? 'none' : 'box-none'}>
+    <Animated.View style={[StyleSheet.absoluteFill, st.pageWrap, top ? st.pageTop : { paddingBottom: lift }, style]} pointerEvents={leaving ? 'none' : 'box-none'}>
       <View onLayout={(e: LayoutChangeEvent) => onFit(maxH > 0 && e.nativeEvent.layout.height > maxH + 2)} style={{ width: '100%', alignItems: 'center' }}>
         {children}
       </View>
@@ -157,6 +161,8 @@ export default function Reader() {
   const [locked, setLocked] = useState(false);
   /** primeira leitura: escolher o estilo de som */
   const [askPreset, setAskPreset] = useState(false);
+  /** dica de como virar a página e grifar: só nas primeiras leituras */
+  const [hint, setHint] = useState(false);
 
   const idxRef = useRef(0);
   const keyRef = useRef(0);
@@ -228,8 +234,9 @@ export default function Reader() {
     let alive = true;
     void (async () => {
       const repo = await getRepo();
-      const [b, p, g, paceRaw, last, a, asked] = await Promise.all([
+      const [b, p, g, paceRaw, last, a, asked, hints] = await Promise.all([
         repo.getBook(id), repo.getPages(id), repo.getGloss(id), repo.kvGet('pace'), repo.kvGet('session:' + id), repo.listAnnotations(id), repo.kvGet('sound:asked'),
+        repo.kvGet('reader:hints'),
       ]);
       if (!alive || !b || !p?.length) { router.back(); return; }
       const start = b.done ? 0 : Math.min(b.idx, p.length - 1);
@@ -247,6 +254,8 @@ export default function Reader() {
         if (s && page >= s.start && page < s.end) void applyScreen(s);
       }, { publicBook: isPublicBook(id), bundled: bundledPlans(id), fallback: (i) => scenePlan(sceneMap.current!, pagesRef.current, i) });
       if (!asked) setAskPreset(true);
+      const seen = Number(hints ?? 0);
+      if (seen < 3) { setHint(true); void repo.kvSet('reader:hints', String(seen + 1)); }
       // voltou depois de 48 h: "o que aconteceu até aqui?"
       if (needsRecap(last ? Number(last) : null, Date.now(), start)) {
         setRecap({ text: recapLocal(p, start - 1), ai: false });
@@ -631,7 +640,7 @@ export default function Reader() {
     };
     setAnns((as) => [...as, a].sort((x, y) => x.page - y.page || x.start - y.start));
     void getRepo().then((r) => r.saveAnnotation(a));
-    say('🔖 Página marcada');
+    say('Página marcada');
   }, [pages, marked, id, cur.start, say]);
 
   const onHighlight = useCallback((hid: string) => {
@@ -766,7 +775,7 @@ export default function Reader() {
           ListHeaderComponent={<Text style={[st.heading, { color: c.mut, marginBottom: 26 }]}>{book.title}</Text>}
           ListFooterComponent={
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-              <RoundButton big label="Terminei ✓" onPress={finish} />
+              <RoundButton big icon="check" label="Terminei" onPress={finish} />
             </View>
           }
           renderItem={({ item }) => block(item, false, false, false)}
@@ -786,7 +795,7 @@ export default function Reader() {
             const gs = groupsOf(scr);
             return (
               <Page key={l.key} dir={l.dir} leaving={l.leaving} offset={l.offset} onGone={() => removeLayer(l.key)} still={still}
-                maxH={stage.h} top={full} drag={l.leaving ? null : drag} width={stage.w}
+                maxH={stage.h} top={full} drag={l.leaving ? null : drag} width={stage.w} lift={Math.round(stage.h * 0.06)}
                 onFit={(big) => {
                   if (!big || l.leaving) return;
                   if (full) { if (squeeze > 0.6) setSqueeze((q) => Math.max(0.6, q - 0.05)); }
@@ -804,12 +813,14 @@ export default function Reader() {
       )}
 
       {/* ---------- cabeçalho fino (fica no Modo Zen) ---------- */}
-      {layout !== 'pages' ? (
-        <View style={[st.header, { top: insets.top + 6, left: margin, right: margin }]} pointerEvents="none">
-          <Text style={[st.headerText, { color: c.mut }]} numberOfLines={1}>{chTitle}</Text>
-          {marked && !chrome ? <Text style={st.ribbon} accessibilityLabel="Página marcada">🔖</Text> : null}
+      <View style={[st.header, { top: insets.top + 8, left: margin, right: margin }]} pointerEvents="none">
+        <Text style={[st.headerText, { color: c.mut }]} numberOfLines={1}>{chTitle}</Text>
+      </View>
+      {marked && !chrome ? (
+        <View style={[st.ribbonAbs, { top: insets.top + 4 }]} accessibilityLabel="Página marcada" pointerEvents="none">
+          <Icon name="bookmark" size={18} color={c.accent} filled />
         </View>
-      ) : marked && !chrome ? <Text style={[st.ribbon, st.ribbonAbs, { top: insets.top + 4 }]} accessibilityLabel="Página marcada">🔖</Text> : null}
+      ) : null}
 
       {/* ---------- rodapé fino (fica no Modo Zen) ---------- */}
       <View style={[st.mini, { bottom: insets.bottom + 8, left: margin, right: margin }]} pointerEvents="none"
@@ -821,56 +832,60 @@ export default function Reader() {
       </View>
 
       {/* ---------- barras (por cima do texto; somem no Modo Zen) ---------- */}
-      <Animated.View style={[st.top, fade, { paddingTop: insets.top + 8, backgroundColor: c.bg + 'f2', borderBottomColor: c.btn }]} pointerEvents={chrome ? 'box-none' : 'none'}>
+      <Animated.View style={[st.top, fade, { paddingTop: insets.top + 8, backgroundColor: c.bg, borderBottomColor: c.line }]} pointerEvents={chrome ? 'box-none' : 'none'}>
         <View style={st.row}>
-          <RoundButton label="←" accessibilityLabel="Voltar à biblioteca" onPress={() => router.back()} style={st.small} />
-          <View style={{ flex: 1, gap: 5 }}>
-            <Text style={[st.topTitle, { color: c.fg }]} numberOfLines={1} onPress={() => setSheet('nav')} accessibilityRole="button" accessibilityLabel="Sumário e progresso">{book.title}</Text>
-            <ProgressBar pct={bookPct} height={3} />
-          </View>
-          <RoundButton label={marked ? '🔖' : '🏷'} accessibilityLabel={marked ? 'Remover marcador' : 'Marcar esta página'} onPress={toggleBookmark} style={st.small} />
+          <IconButton icon="back" label="Voltar à biblioteca" onPress={() => router.back()} plain />
+          <Pressable style={{ flex: 1, gap: 6 }} onPress={() => setSheet('nav')} accessibilityRole="button" accessibilityLabel="Sumário e progresso">
+            <Text style={[st.topTitle, { color: c.fg }]} numberOfLines={1}>{book.title}</Text>
+            <Text style={[st.topSub, { color: c.mut }]} numberOfLines={1}>
+              {chLeft} {chapters.length > 1 ? 'no capítulo' : 'restantes'} · {bookPct}% do livro
+            </Text>
+          </Pressable>
+          <IconButton icon="bookmark" label={marked ? 'Remover marcador' : 'Marcar esta página'} onPress={toggleBookmark} plain
+            active={!!marked} filled={!!marked} />
         </View>
-        <Text style={[st.topSub, { color: c.mut }]} numberOfLines={1}>
-          {chLeft} {chapters.length > 1 ? 'no capítulo' : 'restantes'} · {bookPct}% do livro
-        </Text>
+        <ProgressBar pct={bookPct} height={2} />
       </Animated.View>
 
-      <Animated.View style={[st.bottom, fade, { paddingBottom: insets.bottom + 30, backgroundColor: c.bg + 'f2', borderTopColor: c.btn }]} pointerEvents={chrome ? 'box-none' : 'none'}>
+      <Animated.View style={[st.bottom, fade, { paddingBottom: insets.bottom + 14, backgroundColor: c.bg, borderTopColor: c.line }]} pointerEvents={chrome ? 'box-none' : 'none'}>
+        {hint ? (
+          <Text style={[st.foot, { color: c.mut }]}>
+            {layout === 'scroll' ? 'Toque longo num parágrafo para grifar · nomes sublinhados mostram quem é'
+              : 'Deslize para virar · toque longo para grifar'}
+          </Text>
+        ) : null}
+        {dl ? <Text style={[st.foot, { color: c.fg }]} accessibilityLiveRegion="polite">{dl.msg}</Text> : null}
         <View style={st.controls}>
-          <RoundButton label="Aa" accessibilityLabel="Tipografia, tema e modo de leitura" onPress={() => setSheet('type')} />
-          <RoundButton label={sound.focus ? '🎯' : '🎧'} accessibilityLabel="Som" onPress={() => setSheet('audio')} />
-          <RoundButton label="☰" accessibilityLabel="Sumário, marcadores e grifos" onPress={() => setSheet('nav')} />
-          <RoundButton label="🔍" accessibilityLabel="Buscar no livro" onPress={() => setSheet('search')} />
-          <RoundButton label="📝" accessibilityLabel="Glossário e capítulos" onPress={() => router.push({ pathname: '/glossary/[id]', params: { id, from: 'reader', at: String(idx) } })} />
+          <IconButton caption icon="type" label="Texto" onPress={() => setSheet('type')} />
+          <IconButton caption icon={sound.focus ? 'target' : 'headphones'} label="Som" onPress={() => setSheet('audio')} />
+          <IconButton caption icon="list" label="Sumário" onPress={() => setSheet('nav')} />
+          <IconButton caption icon="search" label="Buscar" onPress={() => setSheet('search')} />
+          <IconButton caption icon="notebook" label="Glossário" onPress={() => router.push({ pathname: '/glossary/[id]', params: { id, from: 'reader', at: String(idx) } })} />
         </View>
-        {dl ? <Text style={[st.foot, { color: c.fg }]} accessibilityLiveRegion="polite">⬇ {dl.msg}</Text> : null}
-        <Text style={[st.foot, { color: c.mut }]}>
-          {layout === 'scroll' ? 'Toque longo num parágrafo para grifar · nomes sublinhados mostram quem é'
-            : 'Arraste a página ou toque nas laterais · toque longo para grifar'}
-        </Text>
       </Animated.View>
 
       {/* ---------- som bloqueado pelo navegador ---------- */}
       {locked && !finished ? (
-        <Text style={[st.unlock, { top: insets.top + 96, backgroundColor: c.fg, color: c.bg }]} accessibilityRole="button"
+        <Pressable style={[st.unlock, { top: insets.top + 96, backgroundColor: c.accent }]} accessibilityRole="button"
           onPress={() => { engine.start(); setTimeout(() => setLocked(engine.needsUnlock), 300); }}>
-          🔇 Toque para ativar o som
-        </Text>
+          <Icon name="volume" size={17} color={c.onAccent} />
+          <Text style={[st.unlockText, { color: c.onAccent }]}>Toque para ativar o som</Text>
+        </Pressable>
       ) : null}
 
       {toast ? (
-        <View style={[st.toast, { bottom: insets.bottom + 130, backgroundColor: c.fg }]} pointerEvents="none" accessibilityLiveRegion="polite">
-          <Text style={[st.unlockText, { color: c.bg }]}>{toast}</Text>
+        <View style={[st.toast, { bottom: insets.bottom + 130, backgroundColor: c.surface, borderColor: c.line }]} pointerEvents="none" accessibilityLiveRegion="polite">
+          <Text style={[st.toastText, { color: c.fg }]}>{toast}</Text>
         </View>
       ) : null}
 
       {/* ---------- recapitulação ---------- */}
       {recap && recap.text ? (
         <View style={[StyleSheet.absoluteFill, st.recapWrap]} pointerEvents="box-none">
-          <View style={[st.recap, { backgroundColor: c.bg, borderColor: c.btn }]} accessibilityViewIsModal>
-            <Text style={[st.recapKicker, { color: c.mut }]}>O QUE ACONTECEU ATÉ AQUI</Text>
+          <View style={[st.recap, { backgroundColor: c.surface, borderColor: c.line }]} accessibilityViewIsModal>
+            <Text style={[st.recapKicker, { color: c.accent }]}>O QUE ACONTECEU ATÉ AQUI</Text>
             <Text style={{ fontFamily: READING_FONTS[type.font].regular, fontSize: 17, lineHeight: 26, color: c.fg }}>{recap.text}</Text>
-            <Text style={[st.foot, { color: c.mut, textAlign: 'left' }]}>{recap.ai ? '✦ resumo da IA, só com o que você já leu' : 'trechos das últimas páginas que você leu'}</Text>
+            <Text style={[st.foot, { color: c.mut, textAlign: 'left' }]}>{recap.ai ? 'Resumo da IA, só com o que você já leu' : 'Trechos das últimas páginas que você leu'}</Text>
             <RoundButton big label="Continuar lendo" onPress={() => { engine.start(); act(); setRecap(null); }} />
           </View>
         </View>
@@ -919,7 +934,7 @@ export default function Reader() {
           setAnns((as) => [...as.filter((x) => x.id !== a.id), a].sort((x, y) => x.page - y.page || x.start - y.start));
           void getRepo().then((r) => r.saveAnnotation(a));
           setSel(null);
-          say(a.note ? '✎ Nota salva' : 'Trecho grifado');
+          say(a.note ? 'Nota salva' : 'Trecho grifado');
         }}
         onDelete={(hid) => {
           setAnns((as) => as.filter((x) => x.id !== hid));
@@ -937,11 +952,11 @@ export default function Reader() {
         }} />
 
       {finished && (
-        <View style={[StyleSheet.absoluteFill, st.end, { backgroundColor: c.ov }]}>
+        <View style={[StyleSheet.absoluteFill, st.end, { backgroundColor: c.bg }]}>
           <Text style={[st.endTitle, { color: c.fg }]}>Fim</Text>
           <Text style={[st.topSub, { color: c.mut, fontSize: 17 }]}>Você concluiu “{book.title}”.</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
-            <RoundButton big label="Ler de novo" onPress={() => {
+            <RoundButton big icon="retry" label="Ler de novo" onPress={() => {
               setFinished(false); played.current.clear(); hold.current.reset(); idxRef.current = 0; setIdx(0); setFit(1);
               setLayers([{ key: ++keyRef.current, start: 0, dir: 1, leaving: false, offset: 0 }]);
               listRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -956,8 +971,8 @@ export default function Reader() {
 
 /** Rótulos do que está tocando (stems por prioridade + efeito da tela) — só no painel de som. */
 function nowPlaying(mix: MixStem[], plan: ScenePlan): string[] {
-  const a = mix.slice(0, 3).map((m) => LAYER_LABEL[m.s as Layer]);
-  const s = plan.spots.slice(0, 1).map((x) => SPOT_LABEL[x.s]);
+  const a = mix.slice(0, 3).map((m) => LAYER_NAME[m.s as Layer]);
+  const s = plan.spots.slice(0, 1).map((x) => SPOT_NAME[x.s]);
   return [...a, ...s];
 }
 
@@ -968,23 +983,22 @@ const st = StyleSheet.create({
   bodyW: { maxWidth: 680, width: '100%' },
   heading: { fontFamily: FONTS.serifMedium, fontSize: 13, letterSpacing: 3, textTransform: 'uppercase', textAlign: 'center', marginBottom: 22 },
   header: { position: 'absolute', height: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  headerText: { fontFamily: FONTS.ui, fontSize: 11.5, letterSpacing: 0.3, textAlign: 'center', flexShrink: 1 },
-  top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 12, paddingBottom: 10, gap: 6, zIndex: 3, borderBottomWidth: StyleSheet.hairlineWidth },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  small: { height: 40, minWidth: 40, paddingHorizontal: 10 },
-  topTitle: { fontFamily: FONTS.uiBold, fontSize: 14 },
-  topSub: { fontFamily: FONTS.ui, fontSize: 12.5, paddingHorizontal: 4 },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', gap: 8, paddingTop: 12, zIndex: 4, borderTopWidth: StyleSheet.hairlineWidth },
-  controls: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
-  foot: { fontFamily: FONTS.ui, fontSize: 11.5, letterSpacing: 0.2, textAlign: 'center', paddingHorizontal: 16 },
+  headerText: { fontFamily: FONTS.ui, fontSize: 11.5, letterSpacing: 0.4, textAlign: 'center', flexShrink: 1, opacity: 0.85 },
+  top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 8, paddingBottom: 0, gap: 8, zIndex: 3, borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  topTitle: { fontFamily: FONTS.uiBold, fontSize: 15 },
+  topSub: { fontFamily: FONTS.ui, fontSize: 12.5 },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', gap: 10, paddingTop: 10, zIndex: 4, borderTopWidth: StyleSheet.hairlineWidth },
+  controls: { flexDirection: 'row', gap: 4, justifyContent: 'space-around', width: '100%', maxWidth: 460, paddingHorizontal: 8 },
+  foot: { fontFamily: FONTS.ui, fontSize: 12, letterSpacing: 0.2, textAlign: 'center', paddingHorizontal: 16 },
   mini: { position: 'absolute', gap: 4, zIndex: 2 },
   miniBar: { height: 2, borderRadius: 1, overflow: 'hidden' },
   miniText: { fontFamily: FONTS.ui, fontSize: 11, textAlign: 'center' },
-  ribbon: { fontSize: 16, marginLeft: 6 },
-  ribbonAbs: { position: 'absolute', right: 14, zIndex: 2 },
-  unlock: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 99, zIndex: 6, opacity: 0.92, overflow: 'hidden', fontFamily: FONTS.uiBold, fontSize: 14 },
+  ribbonAbs: { position: 'absolute', right: 16, zIndex: 2 },
+  unlock: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 99, zIndex: 6 },
   unlockText: { fontFamily: FONTS.uiBold, fontSize: 14 },
-  toast: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 99, zIndex: 7, opacity: 0.9 },
+  toast: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 99, zIndex: 7, borderWidth: 1, maxWidth: '88%' },
+  toastText: { fontFamily: FONTS.uiBold, fontSize: 14, textAlign: 'center' },
   recapWrap: { justifyContent: 'center', alignItems: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 20 },
   recap: { width: '100%', maxWidth: 520, borderRadius: 20, padding: 22, gap: 14, borderWidth: 1 },
   recapKicker: { fontFamily: FONTS.uiBold, fontSize: 12, letterSpacing: 1.4 },

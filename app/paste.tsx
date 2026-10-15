@@ -22,7 +22,7 @@ export default function Paste() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[st.wrap, { backgroundColor: c.ov, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[st.wrap, { backgroundColor: c.bg, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]}>
       <Text style={[st.h1, { color: c.fg }]}>Meu texto</Text>
       <Text style={[st.lead, { color: c.mut }]}>Cole seu texto. Cada parágrafo vira uma página.</Text>
       <TextInput
@@ -32,12 +32,12 @@ export default function Paste() {
         placeholderTextColor={c.mut}
         multiline
         textAlignVertical="top"
-        style={[st.input, { color: c.fg, backgroundColor: c.card, borderColor: c.btn }]}
+        style={[st.input, { color: c.fg, backgroundColor: c.surface, borderColor: c.line }]}
         accessibilityLabel="Seu texto"
       />
       <View style={{ flexDirection: 'row', gap: 12 }}>
-        <RoundButton big label="Começar a ler" onPress={() => void startReading()} />
         <RoundButton label="Voltar" onPress={() => router.back()} />
+        <RoundButton big icon="play" label="Começar a ler" onPress={() => void startReading()} />
       </View>
     </KeyboardAvoidingView>
   );
@@ -45,7 +45,7 @@ export default function Paste() {
 
 const st = StyleSheet.create({
   wrap: { flex: 1, alignItems: 'center', gap: 14, paddingHorizontal: 20 },
-  h1: { fontFamily: FONTS.serifMedium, fontSize: 30 },
+  h1: { fontFamily: FONTS.serifMedium, fontSize: 27 },
   lead: { fontFamily: FONTS.ui, fontSize: 16, textAlign: 'center' },
-  input: { flex: 1, width: '100%', maxWidth: 560, borderRadius: 16, borderWidth: 2, padding: 16, fontFamily: FONTS.serif, fontSize: 17, lineHeight: 26 },
+  input: { flex: 1, width: '100%', maxWidth: 560, borderRadius: 16, borderWidth: 1, padding: 16, fontFamily: FONTS.serif, fontSize: 17, lineHeight: 26 },
 });

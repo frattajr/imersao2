@@ -29,6 +29,29 @@ App de leitura para iOS e Android: o texto aparece página por página, em letra
 
 ## Experiência de leitura (produto)
 
+**Visual limpo e escuro** (`src/ui/prefs.tsx`, `src/ui/components.tsx`, `src/ui/Icon.tsx`, `src/ui/Cover.tsx`)
+- **Abre no escuro e no modo parágrafo.** Na primeira abertura desta versão, todo mundo começa assim uma vez (chave `ui:v2`); depois vale a escolha da pessoa.
+- **Uma cor de destaque só**, quente como luz de vela: botão principal, opção escolhida, progresso. Todo o resto é neutro: superfícies, linhas finas e texto em dois tons.
+- **Contraste testado** em todos os temas:
+  - texto ≥ 7:1;
+  - texto secundário e destaque ≥ 4,5:1 (o cinza do sépia foi escurecido para passar);
+  - título das capas ≥ 4,5:1.
+- **Ícones de traço** (desenhos do Lucide via `react-native-svg`) no lugar de emoji, que muda de desenho em cada aparelho. Os botões do leitor têm rótulo: Texto, Som, Sumário, Buscar, Glossário.
+- **Capas tipográficas**: título em letra de livro, autor em versalete, moldura fina e lombada na cor do clima da história. Selos saíram de cima da capa; embaixo fica uma linha curta com a duração (o fone na cor de destaque indica som calibrado).
+- **Biblioteca**:
+  - cabeçalho simples com saudação;
+  - meta do dia numa linha;
+  - destaque num cartão (sem a arte gigante);
+  - **nenhum livro repetido entre as fileiras editoriais**, no máximo 2 fileiras de clima (`shelfRows` em `src/core/catalog.ts`).
+- **Controles**:
+  - controles segmentados numa linha;
+  - chaves liga/desliga;
+  - temas como amostras de cor;
+  - tamanho da letra com A− / A+.
+- **Configurações**: leitura primeiro, depois som e meta. Os ajustes finos de som e a ElevenLabs ficam recolhidos.
+- **Painéis** com título, X para fechar e seções em versalete.
+- **A dica "deslize para virar · toque longo para grifar" aparece só nas 3 primeiras leituras.**
+
 **Motor de áudio adaptativo** (`src/audio/engine.ts`)
 - A cena é uma **matriz de mixagem declarativa**: cada stem (loop contínuo: chuva, vento, lareira, taberna, drone de tensão…) com ganho, **low-pass** (abafa o que está "do outro lado da parede" ou longe) e **prioridade**. A IA (`sound-plan`, prompt v5) atua como mixadora: devolve a matriz, nunca áudio.
 - No máximo 4 stems ao mesmo tempo (os de maior prioridade); transições com curva de **potência constante de 2,5 s (entrada) a 4 s (saída)**; **ducking** leve (~1,4 dB, sem "bombear") enquanto um efeito toca.
@@ -36,7 +59,7 @@ App de leitura para iOS e Android: o texto aparece página por página, em letra
 - **Detalhes de ambiente** (rangidos, gotas…) a cada 35–85 s, cada vez com volume e tom um pouco diferentes.
 - **Respiro**: depois de 6 min no mesmo lugar o ambiente desce devagar (40 s) até ~45%; volta quando a cena muda. Se a pessoa parar de ler (sem virar a página por 90 s ou 2,5× o tempo esperado), o som desce quase ao silêncio e volta no próximo toque.
 - **Saída**: perfil **alto-falante** (corta abaixo de 140 Hz e acima de 8 kHz, que o alto-falante do celular transforma em chiado) ou **fone**.
-- **Conforto acústico**: volume de ambiente e de efeitos separados, loops liga/desliga e **modo foco** (só stems essenciais, agudos cortados, sem efeitos) — no painel 🎧 do leitor e nas Configurações.
+- **Conforto acústico**: volume de ambiente e de efeitos separados, loops liga/desliga e **modo foco** (só stems essenciais, agudos cortados, sem efeitos) — no painel Som do leitor e nas Configurações.
 - **Bateria e latência**: stems silenciosos são parados (o buffer fica em cache), o contexto de áudio é suspenso quando nada toca, relógio interno de 0,5 s, consulta ao repositório com limite de 2,5 s e arquivos normalizados uma única vez.
 
 **Som que não atrapalha a leitura** (`src/core/analyze.ts`, `plan.ts`, `smooth.ts`)
@@ -46,7 +69,7 @@ Sons contínuos (chuva, lareira) ajudam a concentrar; sons que mudam (passos, la
 - **Permanência mínima** (`SceneHold`): a cena base fica pelo menos ~90 s ou 3 telas; muda antes só com mudança forte (a tempestade chega) e depois de 30 s; trecho sem cena mantém o ambiente.
 - **Efeitos só quando o som acontece**: "o cachorro latiu" toca; "o cachorro do vizinho", "coração bateu", "como um lobo", lembranças e sonhos não. No máximo **um efeito por tela** e **um a cada 40 s**, mais baixo e abafado.
 - Medido nos livros de exemplo, sem IA: efeitos caíram de 1–8 para 0–3 por minuto; trocas de cena, de 3–12 para 0,4–2,6 por minuto.
-- **Estilos de som** na primeira leitura (e no 🎧): 🌙 Sutil (padrão), 🎬 Cinematográfico, 🌧 Só ambiente e 🔇 Silêncio. O som entra devagar (9 s) ao abrir o livro.
+- **Estilos de som** na primeira leitura (e no painel Som): Sutil (padrão), Cinema, Só ambiente e Silêncio. O som entra devagar (9 s) ao abrir o livro.
 - Correção: o "Volume geral" das Configurações agora chega ao motor de áudio (antes só era salvo).
 
 **Som que acompanha a história, não palavras soltas** (`src/core/narration.ts`, `src/core/narrative.ts`)
@@ -83,19 +106,19 @@ Sons contínuos (chuva, lareira) ajudam a concentrar; sons que mudam (passos, la
 - **Sessão longa:** depois de 35 min, o ambiente fica 15% mais baixo e os detalhes ficam mais raros. Aos 45 min de leitura, o leitor sugere uma pausa.
 
 **Leitura** (`app/read/[id].tsx`, `src/reader/`)
-- **Três modos de leitura**: 📖 **página cheia** (padrão), 🎬 **um parágrafo por tela** e 📜 **rolagem contínua**.
+- **Três modos de leitura**: **um parágrafo por tela** (padrão: foco total, o trecho no centro óptico da tela, um pouco acima do meio), **página cheia** e **rolagem contínua**.
 - **Página cheia feita para celular**: o texto ocupa a tela inteira — só um cabeçalho fino (capítulo) e um rodapé fino (progresso) ficam no Modo Zen; as barras aparecem **por cima** do texto. `src/core/paginate.ts` estima o que cabe e o leitor **calibra a estimativa com a medida real** do texto na tela (`calibrateCharW`), então as páginas ficam cheias.
 - **Estilo livro** (padrão): recuo na primeira linha, sem espaço entre parágrafos, **parágrafo inteiro** mesmo quando foi dividido em páginas (os pedaços levam uma marca invisível de continuação, `CONT` em `src/core/text.ts`, e são desenhados no mesmo bloco de texto), **abertura de capítulo** com título e as primeiras palavras em versalete. Opção "Tela" com espaço entre parágrafos.
 - **Tipografia para celular**: 19 pt, entrelinha 1,6, margem 18 pt (~40 caracteres por linha), **alinhado à esquerda** por padrão; justificado usa hifenização (Android e web).
 - **Virar a página**: a página **acompanha o dedo** e vira ao soltar (ou com um peteleco); toque nas laterais; setas / PageUp / PageDown / espaço (web). Opção "Instantâneo" (sem animação). *Botões de volume* não foram incluídos: precisam de um módulo nativo (ex.: `react-native-volume-manager`) e de um build EAS próprio.
-- **Tema automático**: sépia de dia, escuro das 19h às 7h. A névoa de cor do clima ficou mais sutil e pode ser desligada.
+- **Tema escuro por padrão**; a opção Auto faz sépia de dia e escuro das 19h às 7h. A névoa de cor do clima é sutil e pode ser desligada.
 - **Grifos e notas**: toque longo num parágrafo abre a seleção (escolha as frases); grife em 4 cores, anote, copie, compartilhe, abra uma palavra no dicionário (Dicio) ou traduza o trecho. Toque num grifo para editar. Ficam ancorados no parágrafo + posição do caractere, então sobrevivem a mudanças de fonte e de modo. Tabela `annotations` no SQLite.
-- **Marcadores**: 🏷/🔖 na barra de cima; no Modo Zen aparece uma fita no canto.
-- **☰ Navegar**: barra de progresso arrastável (mostra capítulo e % enquanto arrasta), sumário, lista de marcadores e de grifos/notas com **exportação em Markdown** (compartilhar no celular; copiar na web), e o download do capítulo para ler offline.
-- **🔍 Busca no livro** (sem acento e sem diferenciar maiúsculas): toque num resultado para ir até ele; o trecho pisca em destaque.
-- **"🔇 Toque para ativar o som"**: se o navegador bloquear o áudio (autoplay), aparece um aviso; um toque libera.
-- **Modo Zen**: barras, botões e barra de status somem após 3 s sem toque; um toque no centro traz de volta. Fica um rodapé mínimo com o tempo restante do capítulo calculado no **ritmo de leitura da pessoa** (`src/core/pace.ts`). Os rótulos do que está tocando saíram da barra (ficam só no painel 🎧).
-- **Tipografia**: Literata, Merriweather e Atkinson Hyperlegible (Bookerly é exclusiva da Amazon e não pode ser distribuída), tamanho, entrelinha, espaço entre parágrafos, margens e alinhamento; temas Claro, Sépia, Cinza foco, Escuro e Preto OLED (contraste do texto acima de 7:1).
+- **Marcadores**: ícone de marcador na barra de cima (preenchido na cor de destaque quando a página está marcada); no Modo Zen aparece uma fita no canto.
+- **Sumário (Navegar)**: barra de progresso arrastável (mostra capítulo e % enquanto arrasta), sumário, lista de marcadores e de grifos/notas com **exportação em Markdown** (compartilhar no celular; copiar na web), e o download do capítulo para ler offline.
+- **Busca no livro** (sem acento e sem diferenciar maiúsculas): toque num resultado para ir até ele; o trecho pisca em destaque.
+- **"Toque para ativar o som"**: se o navegador bloquear o áudio (autoplay), aparece um aviso; um toque libera.
+- **Modo Zen**: barras, botões e barra de status somem após 3 s sem toque; um toque no centro traz de volta. Fica um rodapé mínimo com o tempo restante do capítulo calculado no **ritmo de leitura da pessoa** (`src/core/pace.ts`). Os rótulos do que está tocando saíram da barra (ficam só no painel Som).
+- **Tipografia**: Literata, Merriweather e Atkinson Hyperlegible (Bookerly é exclusiva da Amazon e não pode ser distribuída), tamanho, entrelinha, espaço entre parágrafos, margens e alinhamento; temas Escuro, Preto (OLED), Cinza, Sépia, Claro e Auto (contraste do texto acima de 7:1).
 - **X-Ray** (`src/core/xray.ts`): nomes e termos do texto são tocáveis e abrem uma ficha — primeira e última menção, número de menções e explicação da IA sob demanda — **só com o que já foi lido** (sem spoiler).
 - **"O que aconteceu até aqui?"** (`src/core/recap.ts` + função `recap`): ao voltar depois de 48 h, um resumo de 2 frases das páginas logo antes do ponto de parada (IA; sem internet, as 2 frases mais relevantes do trecho).
 - **Offline** (`src/services/offline.ts`): ⬇ no leitor baixa o capítulo — texto (já fica no SQLite), planos de som e arquivos de áudio — para ler sem conexão.
@@ -224,14 +247,14 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
 - **Biblioteca** (`app/index.tsx`, `src/ui/library.tsx`, `src/core/catalog.ts`): todos os livros (exemplos sonorizados, acervo curado, clássicos em domínio público e os da pessoa) num formato só.
   - **Fileiras pessoais**: continuar lendo, Quero ler, **Para você** (pelos gostos escolhidos na primeira abertura e pelo que já leu), **"Porque você leu…"**, lidos e meus livros.
   - **Fileiras editoriais** (`src/data/collections.ts`): **coleção do mês** (troca sozinha), clássicos brasileiros e portugueses, **com som calibrado**, **leituras de até 15 minutos** (no ritmo da pessoa), **frequentes no vestibular**, uma fileira por **clima sonoro** (chuva, mar, noite, lareira, natureza, cidade) e "experimente o som em 1 minuto". Fileira editorial só aparece com 3 livros ou mais.
-  - **Capas com selos**: 🎧 som calibrado, duração no ritmo de leitura da pessoa, ✓ baixado.
-  - **Ficha**: sinopse sempre em português (resumo automático em inglês vira o começo da obra), duração, tipo de som e climas, **prévia do clima** (10 s, baixinho), ＋ Quero ler e livros parecidos.
+  - **Capas tipográficas** com uma linha embaixo: duração no ritmo de leitura da pessoa e o fone de som calibrado; % lido quando já começou.
+  - **Ficha**: sinopse sempre em português (resumo automático em inglês vira o começo da obra), duração, tipo de som e climas, **prévia do clima** (10 s, baixinho), Quero ler e livros parecidos.
   - **Meta diária e sequência de dias**: o leitor conta os minutos lidos (pausas longas não contam); meta de 10, 15, 30 ou 60 min nas Configurações.
   - **Só aparece o que abre agora**: no navegador sem servidor, os clássicos copiados no deploy; volumes repetidos viram uma obra; gramáticas e livros de história ficam só na busca.
-- **Busca** (`app/search.tsx`, 🔍): tudo junto (inclusive os livros da pessoa), sem acento e pela grafia antiga, com filtros de **duração**, **origem** (Brasil/Portugal), **época** e **clima do som**.
+- **Busca** (`app/search.tsx`): tudo junto (inclusive os livros da pessoa), sem acento e pela grafia antiga, com filtros de **duração**, **origem** (Brasil/Portugal), **época** e **clima do som**.
 - **Deploy**: o acervo e a cópia do Gutenberg gravam, para cada obra, os climas que dominam o texto, o tamanho e o começo do texto (`soundProfile`, `openingExcerpt`).
 - **Capítulos** (`src/core/chapters.ts`): o glossário identifica "Capítulo 1", "CAPÍTULO III", "Parte 2", "Chapter 4"… ou, sem títulos, divide o livro em partes. Escolha um capítulo para ver os termos dele, sugestões de personagens e lugares (só do que já foi lido) e ir direto para ele.
-- **Configurações** (`app/settings.tsx`, botão ⚙ na biblioteca e no leitor): volume do ambiente, suavidade das transições, volume dos sons da história, frequência dos detalhes de ambiente, suavização automática, tema, letra, chave da ElevenLabs e o repositório de sons.
+- **Configurações** (`app/settings.tsx`, ícone de ajustes na biblioteca e "Todas as configurações" no painel Texto): leitura (tema, modo, letra), som (estilo, volume, saída), meta diária; recolhidos: ajustes finos do som (ambiente, efeitos, transições, detalhes, loops, foco, suavização, respiro) e a chave da ElevenLabs com o repositório de sons.
 
 ## Acervo curado em português
 
@@ -281,6 +304,7 @@ O que já foi verificado fora do celular:
 | Imersão | efeito só com o som narrado (menção, lembrança e comparação não tocam), um som por tela, permanência mínima de cena, loop sem emenda, no máximo um efeito a cada 40 s, pausa por inatividade; no Chromium (390×844): estilo de som na primeira leitura, página cheia com abertura de capítulo e parágrafos inteiros, toque nas laterais e no texto, arrasto que acompanha o dedo, toque longo, X-Ray sem virar a página, rolagem por parágrafo |
 | Catálogo | duração, busca sem acento e pela grafia antiga, filtros, volumes repetidos, resumo em inglês detectado, trecho de abertura, perfil sonoro, recomendações, gostos, sequência de dias, coleções só com obras que existem, desambiguação do Wikisource; no Chromium: gostos na primeira abertura, fileiras, selos, ficha com sinopse em português e prévia do som, Quero ler, busca com filtros |
 | Contexto e dinâmica | narração sem falas, lembranças, metáforas e nomes próprios; nenhum som por palavra solta ("chamou", "olhos escuros", "onda de ciúme", "Rio de Janeiro"); cenas que persistem, salto de tempo e mudança de lugar abrem cena nova, abertura de capítulo, época do livro, tensão pelo ritmo, ambiente de cada lugar e hora; arco da cena, respiro de capítulo, tom à noite e com tensão, vozes abafadas, relógio com limite, efeito rítmico uma vez por cena, troca de tomada do loop |
+| Visual | escuro e modo parágrafo como padrão; contraste de texto, destaque e capas em todos os temas; vitrine sem livros repetidos, fileiras pessoais que repetem, limite de fileiras de clima; no Chromium (390×844): nenhum emoji na vitrine, nenhuma capa repetida, abre no parágrafo, seta vira uma tela, marcador, painéis Som e Texto, troca para página cheia e volta, toque longo, a escolha continua ao reabrir, ajustes finos nas Configurações |
 | Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
 | Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |
@@ -295,6 +319,7 @@ O que já foi verificado fora do celular:
 - `createBiquadFilter` (low-pass) no `react-native-audio-api`: se a versão instalada não tiver, o motor segue sem o filtro;
 - tocar com a tela bloqueada (iOS e Android);
 - leitura de arquivos pelo `expo-file-system` (há um plano B com `fetch`);
+- `react-native-svg` (ícones) é nativo: o app de desenvolvimento precisa de um build novo (`npm run build:dev:ios` / `:android`); no Expo Go já vem incluído;
 - geração de sons pela API da ElevenLabs com uma chave real (o formato do pedido segue a documentação, mas só foi testado com a API simulada).
 
 ## Estrutura

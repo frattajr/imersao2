@@ -62,12 +62,12 @@ export const ERAS = [
 
 /** Climas sonoros (para filtros e fileiras "ao som de…"). */
 export const CLIMATES: { key: string; label: string; row: string; layers: Layer[] }[] = [
-  { key: 'chuva', label: '🌧 Chuva', row: '🌧 Para ler ao som da chuva', layers: ['rain', 'thunder'] },
-  { key: 'mar', label: '🌊 Mar', row: '🌊 Ao som do mar', layers: ['sea'] },
-  { key: 'noite', label: '🌙 Noite', row: '🌙 Histórias da noite', layers: ['night', 'cricket', 'drone'] },
-  { key: 'fogo', label: '🔥 Lareira', row: '🔥 Junto à lareira', layers: ['fire'] },
-  { key: 'natureza', label: '🌲 Natureza', row: '🌲 Na natureza', layers: ['leaves', 'birds', 'water', 'wind'] },
-  { key: 'cidade', label: '🏙 Cidade', row: '🏙 Na cidade', layers: ['city', 'train', 'crowd', 'cafe', 'tavern'] },
+  { key: 'chuva', label: 'Chuva', row: 'Para ler ao som da chuva', layers: ['rain', 'thunder'] },
+  { key: 'mar', label: 'Mar', row: 'Ao som do mar', layers: ['sea'] },
+  { key: 'noite', label: 'Noite', row: 'Histórias da noite', layers: ['night', 'cricket', 'drone'] },
+  { key: 'fogo', label: 'Lareira', row: 'Junto à lareira', layers: ['fire'] },
+  { key: 'natureza', label: 'Natureza', row: 'Na natureza', layers: ['leaves', 'birds', 'water', 'wind'] },
+  { key: 'cidade', label: 'Cidade', row: 'Na cidade', layers: ['city', 'train', 'crowd', 'cafe', 'tavern'] },
 ];
 
 export interface Filters {
@@ -193,14 +193,14 @@ export function soundProfile(text: string): { layers: Layer[]; words: number } {
 
 /** Temas que a pessoa escolhe na primeira abertura (casam com temas, climas e gênero). */
 export const THEMES: { key: string; label: string; tags: RegExp; layers?: Layer[]; kinds?: string[] }[] = [
-  { key: 'amor', label: '💘 Amor', tags: /amor|casamento|adulterio/ },
-  { key: 'misterio', label: '🕯 Mistério e terror', tags: /gotico|terror|loucura|misterio|suspense|morte/, layers: ['drone'] },
-  { key: 'humor', label: '😄 Humor e sátira', tags: /humor|satira|ironia|malandragem/ },
-  { key: 'natureza', label: '🌿 Natureza e sertão', tags: /natureza|sertao|floresta|campo|aldeia|indianismo/, layers: ['leaves', 'birds', 'water'] },
-  { key: 'cidade', label: '🏙 Cidade', tags: /cidade|rio de janeiro|lisboa|imprensa|sociedade/, layers: ['city'] },
-  { key: 'mar', label: '🌊 Mar e aventura', tags: /\bmar\b|ilha|aventura|navio/, layers: ['sea'] },
-  { key: 'historia', label: '📜 História', tags: /historia|guerra|escravidao|racismo/ },
-  { key: 'poesia', label: '🪶 Poesia e teatro', tags: /poesia|teatro/, kinds: ['Poesia', 'Teatro'] },
+  { key: 'amor', label: 'Amor', tags: /amor|casamento|adulterio/ },
+  { key: 'misterio', label: 'Mistério e terror', tags: /gotico|terror|loucura|misterio|suspense|morte/, layers: ['drone'] },
+  { key: 'humor', label: 'Humor e sátira', tags: /humor|satira|ironia|malandragem/ },
+  { key: 'natureza', label: 'Natureza e sertão', tags: /natureza|sertao|floresta|campo|aldeia|indianismo/, layers: ['leaves', 'birds', 'water'] },
+  { key: 'cidade', label: 'Cidade', tags: /cidade|rio de janeiro|lisboa|imprensa|sociedade/, layers: ['city'] },
+  { key: 'mar', label: 'Mar e aventura', tags: /\bmar\b|ilha|aventura|navio/, layers: ['sea'] },
+  { key: 'historia', label: 'História', tags: /historia|guerra|escravidao|racismo/ },
+  { key: 'poesia', label: 'Poesia e teatro', tags: /poesia|teatro/, kinds: ['Poesia', 'Teatro'] },
 ];
 
 const themeHits = (e: CatalogEntry, keys: string[]) => THEMES.filter((t) => keys.includes(t.key)).reduce((s, t) => {
@@ -270,3 +270,34 @@ export function streakOf(days: ReadingDays, today: Date): number {
 }
 
 export const GOALS = [10, 15, 30, 60];
+
+/** Uma fileira da vitrine. `personal` (continuar, Quero ler, lidos…) pode repetir livros; as editoriais não. */
+export interface ShelfRow<T extends { id: string }> {
+  key: string; items: T[];
+  /** mínimo de livros (novos) para a fileira aparecer; padrão 3 */
+  min?: number; personal?: boolean;
+  /** fileira de clima (chuva, mar, noite…): no máximo `maxClimate` delas */
+  climate?: boolean;
+  /** aparece mesmo vazia (ex.: cartões de "abrir PDF") */
+  always?: boolean;
+}
+
+/**
+ * Monta a vitrine sem repetição: cada livro aparece em uma fileira
+ * editorial só (a primeira em que cabe) e nunca repete o destaque. Fileiras
+ * que ficam com poucos livros novos somem; no máximo `maxClimate` fileiras
+ * de clima.
+ */
+export function shelfRows<T extends { id: string }, R extends ShelfRow<T>>(rows: R[], opts: { hero?: string; maxClimate?: number; min?: number } = {}): R[] {
+  const seen = new Set<string>(opts.hero ? [opts.hero] : []);
+  const out: R[] = [];
+  let climates = 0;
+  for (const r of rows) {
+    const items = r.personal ? r.items : r.items.filter((i) => !seen.has(i.id));
+    if (items.length < (r.min ?? opts.min ?? 3) && !r.always) continue;
+    if (r.climate && ++climates > (opts.maxClimate ?? Infinity)) continue;
+    if (!r.personal) items.forEach((i) => seen.add(i.id));
+    out.push({ ...r, items });
+  }
+  return out;
+}

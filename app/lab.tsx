@@ -16,11 +16,11 @@ import {
 } from '../supabase/functions/_shared/sound-library';
 import { createAudioContext } from '../src/audio/context';
 import { normalize, type BufferLike, type CtxLike, type SourceLike } from '../src/audio/engine';
-import { LAYER_LABEL, SPOT_LABEL } from '../src/core/analyze';
+import { LAYER_NAME, SPOT_NAME } from '../src/core/analyze';
 import type { Layer, SpotName } from '../src/core/types';
 import { localSounds, type LocalSound } from '../src/services/localSounds';
 import { supabase } from '../src/services/supabase';
-import { RoundButton, SectionTitle } from '../src/ui/components';
+import { IconButton, RoundButton, SectionTitle } from '../src/ui/components';
 import { FONTS, usePrefs } from '../src/ui/prefs';
 
 const LABEL_PT: Record<string, string> = {
@@ -39,14 +39,14 @@ function Chips<T extends string>({ items, value, onChange, label, allowNone = tr
   return (
     <View style={st.chips}>
       {allowNone && (
-        <Pressable onPress={() => onChange(undefined)} style={[st.chip, { backgroundColor: value === undefined ? c.fg : c.btn }]}>
-          <Text style={[st.chipText, { color: value === undefined ? c.bg : c.fg }]}>tanto faz</Text>
+        <Pressable onPress={() => onChange(undefined)} style={[st.chip, { backgroundColor: value === undefined ? c.accentSoft : 'transparent', borderColor: value === undefined ? c.accent : c.line }]}>
+          <Text style={[st.chipText, { color: value === undefined ? c.accent : c.fg }]}>tanto faz</Text>
         </Pressable>
       )}
       {items.map((it) => (
         <Pressable key={it} onPress={() => onChange(it)} accessibilityRole="button" accessibilityState={{ selected: value === it }}
-          style={[st.chip, { backgroundColor: value === it ? c.fg : c.btn }]}>
-          <Text style={[st.chipText, { color: value === it ? c.bg : c.fg }]}>{label(it)}</Text>
+          style={[st.chip, { backgroundColor: value === it ? c.accentSoft : 'transparent', borderColor: value === it ? c.accent : c.line }]}>
+          <Text style={[st.chipText, { color: value === it ? c.accent : c.fg }]}>{label(it)}</Text>
         </Pressable>
       ))}
     </View>
@@ -146,8 +146,8 @@ export default function Lab() {
       const r = await localSounds.findOrGenerate(full);
       await playUrl(r.sound.id, r.url, desc.cat === 'layer');
       setStatus(r.reused
-        ? { kind: 'hit', text: `♻️ Reaproveitado do repositório (semelhança ${r.score.toFixed(2).replace('.', ',')}). Nenhuma geração, custo zero.` }
-        : { kind: 'gen', text: '✨ Gerado e guardado no repositório. Ele já toca na leitura; peça algo parecido para ver o reaproveitamento.' });
+        ? { kind: 'hit', text: `Reaproveitado do repositório (semelhança ${r.score.toFixed(2).replace('.', ',')}). Nenhuma geração, custo zero.` }
+        : { kind: 'gen', text: 'Gerado e guardado no repositório. Ele já toca na leitura; peça algo parecido para ver o reaproveitamento.' });
     } catch (e) {
       setStatus({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -156,7 +156,7 @@ export default function Lab() {
   };
 
   const names = desc.cat === 'layer' ? LIB_LAYERS : LIB_SPOTS;
-  const nameLabel = (n: string) => (desc.cat === 'layer' ? LAYER_LABEL[n as Layer] : SPOT_LABEL[n as SpotName]) ?? n;
+  const nameLabel = (n: string) => (desc.cat === 'layer' ? LAYER_NAME[n as Layer] : SPOT_NAME[n as SpotName]) ?? n;
   const set = (patch: Partial<SoundDesc>) => setDesc((d) => {
     const n = { ...d, ...patch };
     (Object.keys(n) as (keyof SoundDesc)[]).forEach((k) => n[k] === undefined && delete n[k]);
@@ -165,10 +165,10 @@ export default function Lab() {
   const statusColor = status?.kind === 'error' ? '#e0806a' : status?.kind === 'hit' ? '#8fc9a0' : status?.kind === 'gen' ? '#d8b86a' : c.mut;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.ov }}>
-      <ScrollView contentContainerStyle={[st.wrap, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <ScrollView contentContainerStyle={[st.wrap, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}>
         <View style={st.head}>
-          <RoundButton label="←" accessibilityLabel="Voltar" onPress={() => { stop(); router.back(); }} />
+          <IconButton icon="back" label="Voltar" onPress={() => { stop(); router.back(); }} />
           <Text style={[st.h1, { color: c.fg }]}>Repositório de sons</Text>
         </View>
         <Text style={[st.lead, { color: c.mut }]}>
@@ -194,39 +194,39 @@ export default function Lab() {
 
         <SectionTitle>Detalhe (em inglês, até 6 palavras)</SectionTitle>
         <TextInput value={detail} onChangeText={setDetail} placeholder="ex.: tin roof, old wooden ship"
-          placeholderTextColor={c.mut} style={[st.input, { color: c.fg, backgroundColor: c.card }]} autoCapitalize="none" />
+          placeholderTextColor={c.mut} style={[st.input, { color: c.fg, backgroundColor: c.surface, borderColor: c.line }]} autoCapitalize="none" />
 
-        <View style={[st.box, { backgroundColor: c.card }]}>
+        <View style={[st.box, { backgroundColor: c.surface, borderColor: c.line }]}>
           <Text style={[st.mono, { color: c.mut }]}>chave: {descKey(full)}</Text>
           <Text style={[st.small, { color: c.fg }]}>Pedido para a IA de áudio ({req.seconds} s{req.loop ? ', loop' : ''}):</Text>
           <Text style={[st.small, { color: c.mut }]}>{req.text}</Text>
         </View>
 
         <View style={st.actions}>
-          <RoundButton big label={busy ? 'Gerando…' : '✨ Buscar ou gerar'} disabled={busy} onPress={() => void findOrGenerate()} />
-          <RoundButton label="■" accessibilityLabel="Parar" onPress={stop} />
+          <RoundButton big icon="sparkle" label={busy ? 'Gerando…' : 'Buscar ou gerar'} disabled={busy} onPress={() => void findOrGenerate()} />
+          <IconButton icon="stop" label="Parar" onPress={stop} />
         </View>
         {status && <Text style={[st.status, { color: statusColor }]}>{status.text}</Text>}
 
         <SectionTitle>{`Repositório deste aparelho (${repo.length})`}</SectionTitle>
         {repo.length === 0 && <Text style={[st.small, { color: c.mut }]}>Vazio. Os sons gerados aqui ou durante a leitura aparecem nesta lista.</Text>}
         {repo.map((s) => (
-          <View key={s.id} style={[st.item, { backgroundColor: c.card }]}>
+          <View key={s.id} style={[st.item, { backgroundColor: c.surface, borderColor: c.line }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[st.itemTitle, { color: c.fg }]}>
-                {s.cat === 'layer' ? LAYER_LABEL[s.name as Layer] : SPOT_LABEL[s.name as SpotName]}
+                {s.cat === 'layer' ? LAYER_NAME[s.name as Layer] : SPOT_NAME[s.name as SpotName]}
                 {[s.material, s.place, s.distance, s.intensity].filter(Boolean).map((v) => ' · ' + LABEL_PT[v as string]).join('')}
               </Text>
               <Text style={[st.small, { color: c.mut }]}>{s.detail ? `“${s.detail}” · ` : ''}usado {s.uses}×</Text>
             </View>
-            <RoundButton label="▶" accessibilityLabel="Tocar" onPress={() => void playSaved(s)} />
-            <RoundButton label="✕" accessibilityLabel="Apagar som" onPress={() => void localSounds.report(s.id)} />
+            <IconButton icon="play" label="Tocar" onPress={() => void playSaved(s)} size={18} />
+            <IconButton icon="trash" label="Apagar som" onPress={() => void localSounds.report(s.id)} size={18} />
           </View>
         ))}
 
         <SectionTitle>Chave da ElevenLabs</SectionTitle>
         <TextInput value={apiKey} onChangeText={saveKey} placeholder="sk_…" placeholderTextColor={c.mut} secureTextEntry
-          autoCapitalize="none" autoCorrect={false} style={[st.input, { color: c.fg, backgroundColor: c.card }]} />
+          autoCapitalize="none" autoCorrect={false} style={[st.input, { color: c.fg, backgroundColor: c.surface, borderColor: c.line }]} />
         <Text style={[st.small, { color: c.mut }]}>
           {supabase
             ? 'Fica salva só neste aparelho e vale para este laboratório. Na leitura, o app usa o repositório do servidor.'
@@ -240,17 +240,17 @@ export default function Lab() {
 const st = StyleSheet.create({
   wrap: { paddingHorizontal: 16, gap: 10, maxWidth: 560, width: '100%', alignSelf: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  h1: { fontFamily: FONTS.serifMedium, fontSize: 28, flexShrink: 1 },
+  h1: { fontFamily: FONTS.serifMedium, fontSize: 26, flexShrink: 1 },
   lead: { fontFamily: FONTS.ui, fontSize: 15.5, lineHeight: 23 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center' },
+  chip: { minHeight: 34, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center', borderWidth: 1 },
   chipText: { fontFamily: FONTS.uiBold, fontSize: 14 },
-  input: { fontFamily: FONTS.ui, fontSize: 16, minHeight: 48, borderRadius: 14, paddingHorizontal: 14 },
-  box: { borderRadius: 16, padding: 14, gap: 6, marginTop: 8 },
+  input: { fontFamily: FONTS.ui, fontSize: 16, minHeight: 48, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1 },
+  box: { borderRadius: 16, padding: 14, gap: 6, marginTop: 8, borderWidth: 1 },
   mono: { fontFamily: FONTS.ui, fontSize: 12.5 },
   small: { fontFamily: FONTS.ui, fontSize: 14, lineHeight: 20 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 6 },
   status: { fontFamily: FONTS.uiBold, fontSize: 14.5, lineHeight: 21 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 12 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 12, borderWidth: 1 },
   itemTitle: { fontFamily: FONTS.uiBold, fontSize: 15 },
 });

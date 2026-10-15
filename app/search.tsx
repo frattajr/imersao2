@@ -10,7 +10,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CLIMATES, DURATIONS, ERAS, recommend, searchCatalog, type Filters } from '../src/core/catalog';
 import { BookSheet, BusyModal, Poster, useBookActions, useLibrary, type Item } from '../src/ui/library';
-import { RoundButton } from '../src/ui/components';
+import { Icon } from '../src/ui/Icon';
+import { IconButton, RoundButton } from '../src/ui/components';
 import { FONTS, usePrefs } from '../src/ui/prefs';
 
 const PAGE = 48;
@@ -27,8 +28,8 @@ function ChipRow<T extends string>({ label, value, options, onChange }: {
           const on = value === o.key;
           return (
             <Pressable key={o.key} onPress={() => onChange(on ? undefined : o.key)} accessibilityRole="button" accessibilityState={{ selected: on }}
-              style={[st.chip, { backgroundColor: on ? c.fg : c.btn }]}>
-              <Text style={[st.chipText, { color: on ? c.bg : c.fg }]}>{o.label}</Text>
+              style={[st.chip, { backgroundColor: on ? c.accentSoft : 'transparent', borderColor: on ? c.accent : c.line }]}>
+              <Text style={[st.chipText, { color: on ? c.accent : c.fg }]}>{o.label}</Text>
             </Pressable>
           );
         })}
@@ -53,30 +54,34 @@ export default function Search() {
   const any = !!(f.q || f.duration || f.origin || f.era || f.climate);
 
   const cols = width > 900 ? 6 : width > 600 ? 4 : 3;
-  const w = Math.floor((Math.min(width, 1100) - 32 - (cols - 1) * 12) / cols);
+  const w = Math.floor((Math.min(width, 1100) - 40 - (cols - 1) * 12) / cols);
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.ov }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView contentContainerStyle={[st.wrap, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
         <View style={st.head}>
-          <RoundButton label="←" accessibilityLabel="Voltar" onPress={() => router.back()} />
+          <IconButton icon="back" label="Voltar" onPress={() => router.back()} />
           <Text style={[st.h1, { color: c.fg }]}>Buscar</Text>
         </View>
-        <TextInput value={f.q ?? ''} onChangeText={(q) => set({ q })} placeholder="Título, autor ou tema (ex.: Machado, amor, sertão)"
-          placeholderTextColor={c.mut} style={[st.input, { color: c.fg, backgroundColor: c.card }]} autoCorrect={false} returnKeyType="search"
-          accessibilityLabel="Buscar livros" />
-        <ChipRow label="DURAÇÃO (NO SEU RITMO)" value={f.duration} onChange={(duration) => set({ duration })}
+        <View style={[st.inputBox, { backgroundColor: c.surface, borderColor: c.line }]}>
+          <Icon name="search" size={18} color={c.mut} />
+          <TextInput value={f.q ?? ''} onChangeText={(q) => set({ q })} placeholder="Título, autor ou tema"
+            placeholderTextColor={c.mut} style={[st.input, { color: c.fg }]} autoCorrect={false} returnKeyType="search"
+            accessibilityLabel="Buscar livros" />
+          {f.q ? <IconButton icon="close" label="Apagar a busca" size={16} plain onPress={() => set({ q: '' })} /> : null}
+        </View>
+        <ChipRow label="DURAÇÃO NO SEU RITMO" value={f.duration} onChange={(duration) => set({ duration })}
           options={DURATIONS.map((d) => ({ key: d.key as string, label: d.label }))} />
         <ChipRow label="ORIGEM" value={f.origin} onChange={(origin) => set({ origin })}
-          options={[{ key: 'BR' as const, label: '🇧🇷 Brasil' }, { key: 'PT' as const, label: '🇵🇹 Portugal' }]} />
+          options={[{ key: 'BR' as const, label: 'Brasil' }, { key: 'PT' as const, label: 'Portugal' }]} />
         <ChipRow label="ÉPOCA" value={f.era} onChange={(era) => set({ era })} options={ERAS.map((e) => ({ key: e.key as string, label: e.label }))} />
-        <ChipRow label="CLIMA DO SOM" value={f.climate} onChange={(climate) => set({ climate })} options={CLIMATES.map((x) => ({ key: x.key, label: x.label }))} />
+        <ChipRow label="SOM DA HISTÓRIA" value={f.climate} onChange={(climate) => set({ climate })} options={CLIMATES.map((x) => ({ key: x.key, label: x.label }))} />
 
         <View style={st.countRow}>
           <Text style={[st.count, { color: c.mut }]}>
             {results.length.toLocaleString('pt-BR')} {results.length === 1 ? 'livro' : 'livros'}{lib.gutState === 'loading' ? ' · carregando mais clássicos…' : ''}
           </Text>
-          {any ? <Text style={[st.clear, { color: c.fg }]} onPress={() => { setF({}); setShown(PAGE); }} accessibilityRole="button">Limpar</Text> : null}
+          {any ? <Text style={[st.clear, { color: c.accent }]} onPress={() => { setF({}); setShown(PAGE); }} accessibilityRole="button">Limpar filtros</Text> : null}
         </View>
 
         <View style={st.grid}>
@@ -92,7 +97,7 @@ export default function Search() {
             <RoundButton label={`Mostrar mais (${(results.length - shown).toLocaleString('pt-BR')})`} onPress={() => setShown((s) => s + PAGE)} />
           </View>
         )}
-        <Text style={[st.clear, { color: c.mut, textAlign: 'center' }]} onPress={() => router.push('/catalog')} accessibilityRole="link">
+        <Text style={[st.link, { color: c.mut }]} onPress={() => router.push('/catalog')} accessibilityRole="link">
           Ver o catálogo completo de clássicos em domínio público
         </Text>
       </ScrollView>
@@ -110,17 +115,19 @@ export default function Search() {
 }
 
 const st = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, gap: 14, maxWidth: 1100, width: '100%', alignSelf: 'center' },
+  wrap: { paddingHorizontal: 20, gap: 16, maxWidth: 1100, width: '100%', alignSelf: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  h1: { fontFamily: FONTS.serifMedium, fontSize: 30 },
-  input: { fontFamily: FONTS.ui, fontSize: 16, minHeight: 50, borderRadius: 14, paddingHorizontal: 16 },
-  fLabel: { fontFamily: FONTS.uiBold, fontSize: 11.5, letterSpacing: 1.1 },
+  h1: { fontFamily: FONTS.serifMedium, fontSize: 27 },
+  inputBox: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 50, borderRadius: 14, paddingLeft: 14, paddingRight: 6, borderWidth: 1 },
+  input: { flex: 1, fontFamily: FONTS.ui, fontSize: 16, minHeight: 48, outlineStyle: 'none' } as object,
+  fLabel: { fontFamily: FONTS.uiBold, fontSize: 11, letterSpacing: 1.1 },
   chips: { gap: 8 },
-  chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center' },
+  chip: { minHeight: 34, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center', borderWidth: 1 },
   chipText: { fontFamily: FONTS.uiBold, fontSize: 13.5 },
-  countRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  count: { fontFamily: FONTS.ui, fontSize: 14 },
-  clear: { fontFamily: FONTS.uiBold, fontSize: 14, textDecorationLine: 'underline' },
+  countRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  count: { fontFamily: FONTS.ui, fontSize: 13.5 },
+  clear: { fontFamily: FONTS.uiBold, fontSize: 13.5 },
+  link: { fontFamily: FONTS.ui, fontSize: 13.5, textAlign: 'center', textDecorationLine: 'underline', marginTop: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   empty: { fontFamily: FONTS.ui, fontSize: 15, lineHeight: 22 },
 });

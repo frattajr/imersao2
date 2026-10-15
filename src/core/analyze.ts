@@ -107,9 +107,19 @@ export const LAYER_LABEL: Record<Layer, string> = {
   tavern: '🍺 taberna', drone: '🌑 tensão',
 };
 
+/** Nome simples de cada camada (sem ícone), para listas e frases. */
+export const LAYER_NAME = Object.fromEntries(
+  (Object.entries(LAYER_LABEL) as [Layer, string][]).map(([k, v]) => [k, v.replace(/^\S+\s+/, '')]),
+) as Record<Layer, string>;
+
 export const SPOT_LABEL: Record<Spot['s'], string> = {
   steps: '👣 passos', door: '🚪 porta', knock: '✊ batidas', doorbell: '🔔 sininho', keys: '🗝 chaves',
   roar: '🐉 rugido', howl: '🐺 uivo', bark: '🐕 latido', owl: '🦉 coruja', bell: '🔔 sino', horn: '📯 apito',
   hooves: '🐎 cavalo', creak: '🪵 rangido', drip: '💧 gotas', gust: '💨 rajada', rustle: '🧥 tecido',
   purr: '🐈 ronrom', musicbox: '🎶 caixa de música', heartbeat: '🫀 coração', chains: '⛓ correntes',
 };
+
+/** Nome simples de cada efeito (sem ícone). */
+export const SPOT_NAME = Object.fromEntries(
+  (Object.entries(SPOT_LABEL) as [Spot['s'], string][]).map(([k, v]) => [k, v.replace(/^\S+\s+/, '')]),
+) as Record<Spot['s'], string>;

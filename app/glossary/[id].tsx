@@ -10,7 +10,7 @@ import { AiError, aiAvailable, fetchGlossary } from '../../src/services/ai';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
 import { requestJump } from '../../src/state/jump';
-import { RoundButton } from '../../src/ui/components';
+import { IconButton, RoundButton } from '../../src/ui/components';
 import { FONTS, usePrefs } from '../../src/ui/prefs';
 
 export default function Glossary() {
@@ -23,7 +23,7 @@ export default function Glossary() {
   const [list, setList] = useState<GlossaryEntry[]>([]);
   const [term, setTerm] = useState('');
   const [desc, setDesc] = useState('');
-  const [aiLabel, setAiLabel] = useState('✦ Gerar do que li até aqui');
+  const [aiLabel, setAiLabel] = useState('Gerar do que li até aqui');
   const [aiBusy, setAiBusy] = useState(false);
   const listRef = useRef<FlatList<GlossaryEntry>>(null);
   const [pages, setPages] = useState<string[]>([]);
@@ -89,15 +89,15 @@ export default function Glossary() {
         if (next.length > before) added++;
       }
       await save(next);
-      setAiLabel(added ? `✦ ${added} novas entradas` : 'Nada novo por enquanto');
+      setAiLabel(added ? `${added} novas entradas` : 'Nada novo por enquanto');
     } catch (e) {
       setAiLabel(e instanceof AiError && e.code === 'limit' ? 'Limite de hoje atingido' : 'Não consegui gerar agora');
     }
-    setTimeout(() => { setAiBusy(false); setAiLabel('✦ Gerar do que li até aqui'); }, 2500);
+    setTimeout(() => { setAiBusy(false); setAiLabel('Gerar do que li até aqui'); }, 2500);
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: c.ov }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: c.bg }}>
       <FlatList
         ref={listRef}
         data={sorted}
@@ -116,21 +116,21 @@ export default function Glossary() {
                   const unread = i >= 0 && chp.start > at;
                   return (
                     <Pressable key={k} onPress={() => setCh(i)} accessibilityRole="button" accessibilityState={{ selected: on }}
-                      style={[st.chChip, { backgroundColor: on ? c.fg : c.btn, opacity: unread && !on ? 0.6 : 1 }]}>
-                      <Text style={[st.chText, { color: on ? c.bg : c.fg }]} numberOfLines={1}>{unread ? '○ ' : ''}{chp.title}</Text>
+                      style={[st.chChip, { backgroundColor: on ? c.accentSoft : 'transparent', borderColor: on ? c.accent : c.line, opacity: unread && !on ? 0.6 : 1 }]}>
+                      <Text style={[st.chText, { color: on ? c.accent : c.fg }]} numberOfLines={1}>{unread ? '○ ' : ''}{chp.title}</Text>
                     </Pressable>
                   );
                 })}
               </ScrollView>
             )}
             {chapter && (
-              <View style={[st.chBox, { backgroundColor: c.card }]}>
+              <View style={[st.chBox, { backgroundColor: c.surface, borderColor: c.line }]}>
                 <Text style={[st.chTitle, { color: c.fg }]}>{chapter.title}</Text>
                 <Text style={[st.small, { color: c.mut }]}>
                   Páginas {chapter.start + 1}–{chapter.end} · {chapterRead ? (at >= chapter.end - 1 ? 'lido' : 'lendo agora') : 'ainda não lido'}
                 </Text>
                 <View style={st.row}>
-                  <RoundButton label="▶ Ler este capítulo" onPress={() => void readChapter(chapter.start)} />
+                  <RoundButton icon="play" label="Ler este capítulo" onPress={() => void readChapter(chapter.start)} />
                 </View>
                 {suggestions.length > 0 && (
                   <>
@@ -138,7 +138,7 @@ export default function Glossary() {
                     <View style={st.row}>
                       {suggestions.map((n) => (
                         <Pressable key={n} onPress={() => void save(upsertEntry(list, n, ''))} accessibilityRole="button" accessibilityLabel={`Adicionar ${n}`}
-                          style={[st.chChip, { backgroundColor: c.btn }]}>
+                          style={[st.chChip, { backgroundColor: c.btn, borderColor: 'transparent' }]}>
                           <Text style={[st.chText, { color: c.fg }]}>+ {n}</Text>
                         </Pressable>
                       ))}
@@ -149,7 +149,7 @@ export default function Glossary() {
               </View>
             )}
             {aiAvailable() && (!chapter || chapterRead) && (
-              <RoundButton label={chapter && aiLabel.startsWith('✦ Gerar') ? '✦ Gerar deste capítulo' : aiLabel} onPress={() => void generate()} disabled={aiBusy} />
+              <RoundButton icon="sparkle" label={chapter && aiLabel.startsWith('Gerar do') ? 'Gerar deste capítulo' : aiLabel} onPress={() => void generate()} disabled={aiBusy} />
             )}
           </View>
         }
@@ -159,23 +159,22 @@ export default function Glossary() {
           </Text>
         }
         renderItem={({ item, index }) => (
-          <View style={[st.item, { backgroundColor: c.card, borderColor: index === focusIndex ? c.mut : 'transparent' }]}>
+          <View style={[st.item, { backgroundColor: c.surface, borderColor: index === focusIndex ? c.accent : c.line }]}>
             <View style={{ flex: 1 }}>
               <Text style={[st.term, { color: c.fg }]}>{item.term}</Text>
               {item.desc ? <Text style={[st.desc, { color: c.mut }]}>{item.desc}</Text> : null}
             </View>
-            <RoundButton label="✕" accessibilityLabel={`Remover ${item.term}`} style={{ height: 36, minWidth: 36, paddingHorizontal: 0 }}
-              onPress={() => void save(removeEntry(list, item.term))} />
+            <IconButton icon="close" label={`Remover ${item.term}`} size={16} onPress={() => void save(removeEntry(list, item.term))} />
           </View>
         )}
       />
-      <View style={[st.form, { paddingBottom: insets.bottom + 14, borderTopColor: c.btn }]}>
+      <View style={[st.form, { paddingBottom: insets.bottom + 14, borderTopColor: c.line, backgroundColor: c.bg }]}>
         <TextInput value={term} onChangeText={setTerm} placeholder="Termo ou personagem" placeholderTextColor={c.mut}
-          style={[st.input, { color: c.fg, backgroundColor: c.card, borderColor: c.btn }]} />
+          style={[st.input, { color: c.fg, backgroundColor: c.surface, borderColor: c.line }]} accessibilityLabel="Termo ou personagem" />
         <TextInput value={desc} onChangeText={setDesc} placeholder="Descrição curta" placeholderTextColor={c.mut}
-          style={[st.input, { color: c.fg, backgroundColor: c.card, borderColor: c.btn }]} />
+          style={[st.input, { color: c.fg, backgroundColor: c.surface, borderColor: c.line }]} accessibilityLabel="Descrição curta" />
         <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center' }}>
-          <RoundButton label="Adicionar" onPress={() => { if (term.trim()) { void save(upsertEntry(list, term, desc)); setTerm(''); setDesc(''); } }} />
+          <RoundButton icon="plus" label="Adicionar" onPress={() => { if (term.trim()) { void save(upsertEntry(list, term, desc)); setTerm(''); setDesc(''); } }} />
           <RoundButton big label="Voltar à leitura" onPress={() => router.back()} />
         </View>
       </View>
@@ -185,18 +184,18 @@ export default function Glossary() {
 
 const st = StyleSheet.create({
   wrap: { paddingHorizontal: 18, gap: 8, maxWidth: 560, width: '100%', alignSelf: 'center' },
-  h1: { fontFamily: FONTS.serifMedium, fontSize: 30 },
+  h1: { fontFamily: FONTS.serifMedium, fontSize: 27 },
   lead: { fontFamily: FONTS.ui, fontSize: 15, textAlign: 'center' },
-  item: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14, borderRadius: 16, borderWidth: 2 },
+  item: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14, borderRadius: 16, borderWidth: 1 },
   term: { fontFamily: FONTS.serifMedium, fontSize: 17 },
   desc: { fontFamily: FONTS.ui, fontSize: 15, lineHeight: 21, marginTop: 2 },
   chs: { gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
-  chChip: { minHeight: 36, maxWidth: 260, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center' },
+  chChip: { minHeight: 34, maxWidth: 260, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center', borderWidth: 1 },
   chText: { fontFamily: FONTS.uiBold, fontSize: 14 },
-  chBox: { alignSelf: 'stretch', borderRadius: 16, padding: 14, gap: 8 },
+  chBox: { alignSelf: 'stretch', borderRadius: 16, padding: 14, gap: 8, borderWidth: 1 },
   chTitle: { fontFamily: FONTS.serifMedium, fontSize: 18 },
   small: { fontFamily: FONTS.ui, fontSize: 14, lineHeight: 20 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   form: { gap: 8, paddingHorizontal: 18, paddingTop: 12, borderTopWidth: 1, maxWidth: 560, width: '100%', alignSelf: 'center' },
-  input: { height: 46, borderRadius: 14, borderWidth: 2, paddingHorizontal: 14, fontFamily: FONTS.ui, fontSize: 16 },
+  input: { height: 46, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, fontFamily: FONTS.ui, fontSize: 16 },
 });

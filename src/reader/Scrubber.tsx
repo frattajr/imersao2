@@ -43,9 +43,9 @@ export function Scrubber({ value, max, label, onCommit }: {
         onAccessibilityAction={(e) => onCommit(Math.max(0, Math.min(max - 1, value + (e.nativeEvent.actionName === 'increment' ? 1 : -1) * Math.max(1, Math.round(max / 50)))))}
       >
         <View style={[st.track, { backgroundColor: c.btn }]} pointerEvents="none">
-          <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.fg }]} />
+          <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.accent }]} />
         </View>
-        <View style={[st.knob, { left: `${pct}%`, backgroundColor: c.fg, borderColor: c.bg }]} pointerEvents="none" />
+        <View style={[st.knob, { left: `${pct}%`, backgroundColor: c.accent, borderColor: c.surface }]} pointerEvents="none" />
       </View>
     </View>
   );
@@ -55,6 +55,6 @@ const st = StyleSheet.create({
   label: { fontFamily: FONTS.uiBold, fontSize: 14 },
   hit: { height: 34, justifyContent: 'center' },
   track: { height: 4, borderRadius: 2, overflow: 'hidden' },
-  fill: { height: '100%', opacity: 0.7 },
+  fill: { height: '100%', opacity: 0.85 },
   knob: { position: 'absolute', width: 20, height: 20, borderRadius: 10, marginLeft: -10, borderWidth: 3 },
 });

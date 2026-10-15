@@ -39,7 +39,7 @@ export const monthlyCollection = (d = new Date()): Collection => MONTHLY[(d.getF
 
 /** Clássicos em domínio público que aparecem com frequência nas listas de leitura de vestibulares. */
 export const VESTIBULAR: Collection = {
-  id: 'vestibular', title: '🎓 Frequentes no vestibular', subtitle: 'Obras em domínio público que costumam cair nas listas de leitura',
+  id: 'vestibular', title: 'Frequentes no vestibular', subtitle: 'Obras em domínio público que costumam cair nas listas de leitura',
   ids: [
     'pt-dom-casmurro', 'pt-memorias-postumas', 'pt-o-cortico', 'pt-iracema', 'pt-sargento-de-milicias', 'pt-a-moreninha',
     'pt-policarpo-quaresma', 'pt-os-sertoes', 'pt-o-ateneu', 'pt-quincas-borba', 'pt-auto-da-barca', 'pt-o-alienista', 'pt-o-mulato',
