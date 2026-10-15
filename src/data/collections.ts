@@ -15,15 +15,15 @@ export interface Collection {
 export const MONTHLY: Collection[] = [
   {
     id: 'goticos', title: 'Góticos para noite de chuva', subtitle: 'Coleção do mês · contos de medo para ler com o som baixinho',
-    ids: ['sample-poe-coracao', 'sample-poe-amontillado', 'sample-dickens-sinaleiro', 'pt-noite-na-taverna', 'pt-o-alienista', 'pt-contos-machado'],
+    ids: ['sample-poe-coracao', 'sample-poe-amontillado', 'sample-dickens-sinaleiro', 'pt-noite-na-taverna', 'pt-o-alienista', 'pt-o-mandarim', 'pt-contos-machado'],
   },
   {
     id: 'amores', title: 'Amores do século XIX', subtitle: 'Coleção do mês · paixões, dotes e famílias contra',
-    ids: ['pt-senhora', 'pt-luciola', 'pt-amor-de-perdicao', 'pt-a-moreninha', 'pt-iracema', 'pt-inocencia', 'pt-primo-basilio'],
+    ids: ['pt-senhora', 'pt-luciola', 'pt-amor-de-perdicao', 'pt-a-moreninha', 'pt-iracema', 'pt-inocencia', 'pt-morgadinha', 'pt-primo-basilio'],
   },
   {
     id: 'rio', title: 'O Rio de Janeiro dos clássicos', subtitle: 'Coleção do mês · cortiços, redações, salões e malandros',
-    ids: ['pt-dom-casmurro', 'pt-memorias-postumas', 'pt-quincas-borba', 'pt-o-cortico', 'pt-sargento-de-milicias', 'pt-policarpo-quaresma', 'pt-isaias-caminha'],
+    ids: ['pt-dom-casmurro', 'pt-memorias-postumas', 'pt-quincas-borba', 'pt-o-cortico', 'pt-sargento-de-milicias', 'pt-policarpo-quaresma', 'pt-isaias-caminha', 'pt-esau-e-jaco', 'pt-memorial-de-aires'],
   },
   {
     id: 'natureza', title: 'Mata, sertão e mar', subtitle: 'Coleção do mês · para ler ao som da natureza',
@@ -31,7 +31,7 @@ export const MONTHLY: Collection[] = [
   },
   {
     id: 'portugal', title: 'Uma viagem a Portugal', subtitle: 'Coleção do mês · Lisboa, Leiria, o Minho e Viseu',
-    ids: ['pt-os-maias', 'pt-primo-basilio', 'pt-padre-amaro', 'pt-amor-de-perdicao', 'pt-pupilas-do-senhor-reitor', 'pt-auto-da-barca'],
+    ids: ['pt-o-mandarim', 'pt-morgadinha', 'pt-amor-de-perdicao', 'pt-os-maias', 'pt-primo-basilio', 'pt-padre-amaro', 'pt-pupilas-do-senhor-reitor', 'pt-auto-da-barca'],
   },
 ];
 

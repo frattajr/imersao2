@@ -81,16 +81,41 @@ export function chapterTitle(sub: string): string {
 const inBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
 const HEADERS: Record<string, string> = inBrowser ? {} : { 'User-Agent': 'imersao-app/1.0 (https://github.com/frattajr/imersao2; leitura com som ambiente)' };
 
+/**
+ * Gentileza com a Wikimedia: um pedido de cada vez com intervalo mínimo
+ * (`setWikisourcePace`; o script do deploy usa ~250 ms) e novas tentativas,
+ * com espera crescente, quando o servidor pede calma (429) ou falha (5xx).
+ */
+let gapMs = 0;
+let nextAt = 0;
+export const setWikisourcePace = (ms: number) => { gapMs = ms; };
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function api(f: Fetch, params: Record<string, string>, timeoutMs = 30_000): Promise<unknown> {
-  const q = new URLSearchParams({ format: 'json', formatversion: '2', origin: '*', ...params });
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), timeoutMs);
-  try {
-    const r = await f(`${API}?${q.toString()}`, { signal: ctl.signal, headers: HEADERS });
-    if (!r.ok) throw new Error(`Wikisource ${r.status}`);
-    return await r.json();
-  } finally {
-    clearTimeout(t);
+  const q = new URLSearchParams({ format: 'json', formatversion: '2', origin: '*', maxlag: '5', ...params });
+  for (let attempt = 0; ; attempt++) {
+    if (gapMs) {
+      const wait = nextAt - Date.now();
+      nextAt = Math.max(Date.now(), nextAt) + gapMs;
+      if (wait > 0) await sleep(wait);
+    }
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeoutMs);
+    try {
+      const r = await f(`${API}?${q.toString()}`, { signal: ctl.signal, headers: HEADERS });
+      if ((r.status === 429 || r.status >= 500) && attempt < 4) {
+        const ra = Number(r.headers?.get?.('retry-after'));
+        await sleep(Number.isFinite(ra) && ra > 0 ? ra * 1000 : 1500 * 2 ** attempt);
+        continue;
+      }
+      if (!r.ok) throw new Error(`Wikisource ${r.status}`);
+      const j = (await r.json()) as { error?: { code?: string } };
+      // servidor sobrecarregado (maxlag): espera e tenta de novo
+      if (j?.error?.code === 'maxlag' && attempt < 4) { await sleep(2000 * 2 ** attempt); continue; }
+      return j;
+    } finally {
+      clearTimeout(t);
+    }
   }
 }
 
@@ -143,7 +168,7 @@ export async function fetchWikisourceBook(
     const p = cands[k];
     if (tried.has(p)) continue;
     tried.add(p);
-    const html = await parsePage(f, p).catch(() => null);
+    const html = await parsePage(f, p).catch((e: unknown) => { opts.log?.(`Wikisource "${p}": ${e instanceof Error ? e.message : String(e)}`); return null; });
     if (html) {
       const text = await readWork(f, p, html, opts);
       if (text) return text;

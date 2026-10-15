@@ -18,7 +18,7 @@ import { booksFromCatalogCsv, cleanGutenbergText, findInCatalog, type GutBook } 
 import { norm } from '../src/core/text';
 import type { Layer } from '../src/core/types';
 import { looksArchaic, modernize } from '../src/core/orthography';
-import { fetchWikisourceBook } from '../src/core/wikisource';
+import { fetchWikisourceBook, setWikisourcePace } from '../src/core/wikisource';
 import { ACERVO, type AcervoEntry } from '../src/data/acervo';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -89,7 +89,7 @@ async function cover(f: Fetch, a: AcervoEntry, out: string): Promise<string | un
 export async function buildAcervo(f: Fetch, out: string, opts: { log?: (m: string) => void; budgetMs?: number } = {}) {
   const log = opts.log ?? console.log;
   const t0 = Date.now();
-  const left = () => (opts.budgetMs ?? 12 * 60_000) - (Date.now() - t0);
+  const left = () => (opts.budgetMs ?? 13 * 60_000) - (Date.now() - t0);
   await mkdir(join(out, 'books'), { recursive: true });
   await mkdir(join(out, 'covers'), { recursive: true });
 
@@ -126,7 +126,9 @@ export async function buildAcervo(f: Fetch, out: string, opts: { log?: (m: strin
       }
     }
   };
-  await Promise.all([worker(), worker()]); // gentileza com o Wikisource (cada obra já baixa capítulos em paralelo)
+  // um livro por vez e um pedido a cada 250 ms: o Wikisource limita quem pede demais
+  setWikisourcePace(250);
+  await worker();
   await save();
   log(`Acervo: ${ready.length}/${ACERVO.length} obras prontas em ${Math.round((Date.now() - t0) / 1000)} s.`);
   return ready;

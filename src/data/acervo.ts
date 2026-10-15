@@ -60,9 +60,19 @@ export const ACERVO: AcervoEntry[] = [
     tags: ['loucura', 'ciência', 'sátira'], find: { gutenberg: { title: 'O Alienista', author: 'Machado' }, wikisource: 'O Alienista' },
   },
   {
-    slug: 'contos-machado', title: 'Várias Histórias', author: 'Machado de Assis', year: 1896, died: 1908, origin: 'BR', kind: 'Contos', mood: 'calm', emoji: '🕯️',
-    synopsis: 'Dezesseis contos do Machado maduro, entre eles “A Cartomante”, “Uns Braços”, “O Enfermeiro” e “Missa do Galo”: pequenas histórias de desejo, culpa e acaso, contadas com a ironia mais fina da língua.',
-    tags: ['contos', 'desejo', 'Rio de Janeiro'], find: { gutenberg: { title: 'Varias Historias', author: 'Machado' }, wikisource: 'Várias Histórias' },
+    slug: 'contos-machado', title: 'Histórias sem Data', author: 'Machado de Assis', year: 1884, died: 1908, origin: 'BR', kind: 'Contos', mood: 'calm', emoji: '🕯️',
+    synopsis: 'Dezoito contos do Machado maduro, entre eles “A Igreja do Diabo”, em que o Diabo resolve fundar a própria igreja, e “Cantiga de Esponsais”, sobre um músico que passa a vida atrás de uma única melodia. Ironia fina, filosofia de bolso e muito humor.',
+    tags: ['contos', 'ironia', 'sátira', 'Rio de Janeiro'], find: { gutenberg: { title: 'Historias Sem Data', author: 'Machado' }, wikisource: 'Histórias sem Data' },
+  },
+  {
+    slug: 'esau-e-jaco', title: 'Esaú e Jacó', author: 'Machado de Assis', year: 1904, died: 1908, origin: 'BR', kind: 'Romance', mood: 'city', emoji: '👬',
+    synopsis: 'Os gêmeos Pedro e Paulo brigam desde a barriga da mãe: um é monarquista, o outro republicano, e os dois gostam da mesma moça, Flora. No Rio da passagem do Império para a República, o Conselheiro Aires observa tudo com sua ironia discreta.',
+    tags: ['família', 'política', 'amor', 'Rio de Janeiro'], find: { gutenberg: { title: 'Esau e Jacob', author: 'Machado' }, wikisource: 'Esaú e Jacó' },
+  },
+  {
+    slug: 'memorial-de-aires', title: 'Memorial de Aires', author: 'Machado de Assis', year: 1908, died: 1908, origin: 'BR', kind: 'Romance', mood: 'warm', emoji: '📔',
+    synopsis: 'O diário do diplomata aposentado Aires, entre 1888 e 1889: a viúva Fidélia, o casal Aguiar que nunca teve filhos, o afilhado Tristão e o Rio de Janeiro do fim da escravidão. O último romance de Machado, cheio de ternura e melancolia.',
+    tags: ['memória', 'amor', 'velhice', 'Rio de Janeiro'], find: { gutenberg: { title: 'Memorial de Ayres', author: 'Machado' }, wikisource: 'Memorial de Aires' },
   },
   {
     slug: 'iracema', title: 'Iracema', author: 'José de Alencar', year: 1865, died: 1877, origin: 'BR', kind: 'Romance', mood: 'forest', emoji: '🏹',
@@ -173,6 +183,16 @@ export const ACERVO: AcervoEntry[] = [
     slug: 'pupilas-do-senhor-reitor', title: 'As Pupilas do Senhor Reitor', author: 'Júlio Dinis', year: 1867, died: 1871, origin: 'PT', kind: 'Romance', mood: 'forest', emoji: '🌾',
     synopsis: 'Numa aldeia do Minho, o bondoso reitor cuida de duas órfãs, Margarida e Clara, enquanto os irmãos Pedro e Daniel bagunçam os corações da vila. Romance campestre, cheio de festas, sinos e colheitas.',
     tags: ['aldeia', 'amor', 'campo'], find: { gutenberg: { title: 'As Pupillas do Senhor Reitor', author: 'Diniz' }, wikisource: 'As Pupilas do Senhor Reitor' },
+  },
+  {
+    slug: 'o-mandarim', title: 'O Mandarim', author: 'Eça de Queirós', year: 1880, died: 1900, origin: 'PT', kind: 'Romance', mood: 'tension', emoji: '🔔',
+    synopsis: 'Teodoro, pobre amanuense em Lisboa, encontra num livro velho uma proposta: basta tocar uma campainha para que um mandarim riquíssimo morra na China e toda a fortuna dele passe para quem tocou. Uma fábula curta e fantástica sobre dinheiro e consciência.',
+    tags: ['fantástico', 'dinheiro', 'culpa', 'Lisboa', 'China'], find: { gutenberg: { title: 'O Mandarim', author: 'Queiroz' }, wikisource: 'O Mandarim' },
+  },
+  {
+    slug: 'morgadinha', title: 'A Morgadinha dos Canaviais', author: 'Júlio Dinis', year: 1868, died: 1871, origin: 'PT', kind: 'Romance', mood: 'forest', emoji: '🍇',
+    synopsis: 'Henrique, lisboeta entediado e convencido de que está doente, vai se tratar numa aldeia do Minho. Entre a morgadinha Madalena, as festas, as eleições da terra e as intrigas dos vizinhos, descobre uma vida que não conhecia. Romance de aldeia, leve e bem-humorado.',
+    tags: ['aldeia', 'campo', 'amor', 'humor', 'Portugal'], find: { gutenberg: { title: 'A Morgadinha dos Cannaviaes', author: 'Diniz' }, wikisource: 'A Morgadinha dos Canaviais' },
   },
   {
     slug: 'auto-da-barca', title: 'Auto da Barca do Inferno', author: 'Gil Vicente', year: 1517, died: 1536, origin: 'PT', kind: 'Teatro', mood: 'sea', emoji: '⛴️',

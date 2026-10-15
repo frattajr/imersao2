@@ -202,7 +202,7 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
 
 ## Acervo curado em português
 
-O Gutenberg tem pouco em português e quase tudo na grafia antiga. Por isso o app tem um **acervo curado** (`src/data/acervo.ts`): 28 clássicos do Brasil e de Portugal, todos em domínio público. Entre os autores estão Machado, Alencar, Aluísio Azevedo, Lima Barreto, Álvares de Azevedo, Castro Alves, Eça, Camilo, Júlio Dinis e Gil Vicente. Cada obra tem sinopse escrita para o app (sem spoiler), temas, clima da capa e ano.
+O Gutenberg tem pouco em português e quase tudo na grafia antiga. Por isso o app tem um **acervo curado** (`src/data/acervo.ts`): 32 clássicos do Brasil e de Portugal, todos em domínio público. Entre os autores estão Machado, Alencar, Aluísio Azevedo, Lima Barreto, Álvares de Azevedo, Castro Alves, Eça, Camilo, Júlio Dinis e Gil Vicente. Cada obra tem sinopse escrita para o app (sem spoiler), temas, clima da capa e ano.
 
 - **Texto:** no deploy, `scripts/build-acervo.ts` procura a obra no catálogo oficial do Gutenberg por título e autor. Se não achar, baixa do **Wikisource em português** (API do MediaWiki, capítulo por capítulo). O texto é limpo e publicado em `/acervo/books/<obra>.txt`.
 - **Grafia atual:** `src/core/orthography.ts` converte a grafia anterior a 1943 e a de 1943–1971 ("elle" → "ele", "pharmacia" → "farmácia", "hontem" → "ontem", "n'um" → "num", "á noite" → "à noite", "sôbre" → "sobre").
