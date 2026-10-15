@@ -12,7 +12,9 @@
       "bundleIdentifier": "com.imersao.leitura",
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "UISupportsDocumentBrowser": false,
         "LSSupportsOpeningDocumentsInPlace": false,
         "ITSAppUsesNonExemptEncryption": false
@@ -21,7 +23,11 @@
     "android": {
       "package": "com.imersao.leitura",
       "edgeToEdgeEnabled": true,
-      "permissions": ["android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK", "android.permission.WAKE_LOCK"]
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.WAKE_LOCK"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -32,15 +38,29 @@
         {
           "iosBackgroundMode": true,
           "androidForegroundService": true,
-          "androidFSTypes": ["mediaPlayback"],
-          "androidPermissions": ["android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"]
+          "androidFSTypes": [
+            "mediaPlayback"
+          ],
+          "androidPermissions": [
+            "android.permission.FOREGROUND_SERVICE",
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+          ]
         }
       ],
       [
         "expo-splash-screen",
-        { "backgroundColor": "#15151a", "resizeMode": "contain" }
+        {
+          "backgroundColor": "#15151a",
+          "resizeMode": "contain"
+        }
       ]
     ],
-    "experiments": { "typedRoutes": false }
+    "experiments": {
+      "typedRoutes": false
+    },
+    "web": {
+      "output": "single",
+      "bundler": "metro"
+    }
   }
 }

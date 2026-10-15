@@ -152,3 +152,10 @@ __tests__/           testes (Jest)
 4. **Assinatura** (compras dentro do app — obrigatório nas lojas para conteúdo digital), por exemplo com RevenueCat; o `AI_DAILY_LIMIT` pode variar por plano.
 5. **Ícone, splash, política de privacidade** (explicar que PDFs são lidos no servidor e apagados, e que trechos vão para a IA) e notas para a revisão da Apple.
 6. **Publicar** com `npx eas build --profile production` e `npx eas submit`.
+
+## Preview web
+
+Há uma versão para navegador, só para visualizar o app (biblioteca, leitor, glossário e sons sintetizados pelo Web Audio). No navegador o banco local usa `sql.js` (`src/state/db.web.ts`), salvo no `localStorage`.
+
+- Rodar localmente: `npx expo start --web`
+- Publicada automaticamente no GitHub Pages pelo workflow `.github/workflows/preview.yml` a cada push. Se o deploy falhar na primeira vez, ative em **Settings → Pages → Source: GitHub Actions** e rode o workflow de novo.

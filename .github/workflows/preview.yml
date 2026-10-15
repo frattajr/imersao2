@@ -1,0 +1,50 @@
+name: Preview web (GitHub Pages)
+
+on:
+  push:
+    branches: [main, claude/github-project-preview-o2jd93]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx jest
+      - name: Exportar para a web em /<repo>/
+        run: |
+          node -e "const f='app.json',j=require('./'+f);j.expo.experiments.baseUrl='/${{ github.event.repository.name }}';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          npx expo export --platform web
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
