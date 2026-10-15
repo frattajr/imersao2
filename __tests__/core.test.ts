@@ -132,3 +132,42 @@ describe('glossário', () => {
     expect(entriesOnPage(g, 'O velho Orm olhou a maré e a acao.').map((x) => x.term)).toEqual(['Orm', 'Ação']);
   });
 });
+
+import { chapterAt, detectChapters, headingOf, properNouns } from '../src/core/chapters';
+import { SAMPLE_BOOKS } from '../src/data/books';
+
+describe('capítulos', () => {
+  it('reconhece títulos de capítulo', () => {
+    expect(headingOf('Capítulo 1 — A nevasca')).toBe('Capítulo 1 — A nevasca');
+    expect(headingOf('CAPÍTULO III')).toBe('CAPÍTULO III');
+    expect(headingOf('Parte dois: o retorno.')).toBe('Parte dois: o retorno');
+    expect(headingOf('XII')).toBe('Capítulo XII');
+    expect(headingOf('Chapter 4')).toBe('Chapter 4');
+    expect(headingOf('O capítulo mais difícil da vida dela começou naquela manhã de chuva.')).toBeNull();
+  });
+
+  it('divide o livro pelos títulos', () => {
+    const cabana = SAMPLE_BOOKS.find((b) => b.id === 'sample-cabana')!;
+    const chs = detectChapters(cabana.pages);
+    expect(chs.map((c) => c.title)).toEqual(['Capítulo 1 — A nevasca', 'Capítulo 2 — O visitante', 'Capítulo 3 — Manhã branca']);
+    expect(chs[0].start).toBe(0);
+    expect(chs[2].end).toBe(cabana.pages.length);
+    expect(chapterAt(chs, 7)).toBe(1);
+  });
+
+  it('livro sem títulos: partes de tamanho parecido, nomeadas pelo começo', () => {
+    const farol = SAMPLE_BOOKS.find((b) => b.id === 'sample-farol')!;
+    const chs = detectChapters(farol.pages);
+    expect(chs.length).toBeGreaterThan(1);
+    expect(chs[0].title).toMatch(/^Parte 1 · Marina chegou/);
+    expect(chs.reduce((n, c) => n + (c.end - c.start), 0)).toBe(farol.pages.length);
+  });
+
+  it('sugere nomes próprios do capítulo, não palavras comuns', () => {
+    const t = 'Ela abriu a porta. Bento sorriu. — Meu nome é Bento — disse ele, e o cachorro Farol deitou perto do fogo. Lá fora, Júlia ouviu o sino.';
+    const names = properNouns(t);
+    expect(names).toEqual(expect.arrayContaining(['Bento', 'Farol', 'Júlia']));
+    expect(names).not.toContain('Ela');
+    expect(names).not.toContain('Meu');
+  });
+});

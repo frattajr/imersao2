@@ -76,4 +76,27 @@ const s = StyleSheet.create({
   title: { fontFamily: FONTS.serifMedium, fontSize: 19, lineHeight: 24 },
   sub: { fontFamily: FONTS.ui, fontSize: 14 },
   sec: { fontFamily: FONTS.uiBold, fontSize: 12.5, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 14, marginLeft: 4 },
+  choice: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  opt: { minHeight: 40, paddingHorizontal: 16, borderRadius: 99, justifyContent: 'center' },
+  optText: { fontFamily: FONTS.uiBold, fontSize: 14.5 },
 });
+
+/** Escolha entre poucas opções (configurações, filtros). */
+export function Choice<T extends string | number>({ options, value, onChange, accessibilityLabel }: {
+  options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; accessibilityLabel?: string;
+}) {
+  const { c } = usePrefs();
+  return (
+    <View style={s.choice} accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable key={String(o.value)} onPress={() => onChange(o.value)} accessibilityRole="radio" accessibilityState={{ checked: on }}
+            style={({ pressed }) => [s.opt, { backgroundColor: on ? c.fg : c.btn, opacity: pressed ? 0.8 : 1 }]}>
+            <Text style={[s.optText, { color: on ? c.bg : c.fg }]}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}

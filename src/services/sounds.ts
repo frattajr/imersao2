@@ -2,7 +2,7 @@
  * Repositório de sons no app: pergunta ao servidor qual arquivo usar para
  * cada descrição. Junta os pedidos feitos no mesmo instante numa chamada só,
  * guarda as respostas e, quando o som ainda está sendo gerado, tenta de novo
- * mais tarde (até lá toca a síntese).
+ * mais tarde (até lá, aquele som fica em silêncio).
  */
 import { descKey, type SoundDesc } from '../../supabase/functions/_shared/sound-library';
 import { planDescs } from '../core/sound';
@@ -25,7 +25,7 @@ class SoundLibrary {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private off = !supabase;
 
-  /** Arquivo para a descrição, ou null (usa gravação do pacote ou síntese). */
+  /** Arquivo para a descrição, ou null (ainda não existe). */
   resolve(d: SoundDesc): Promise<LibraryHit | null> {
     if (this.off) return Promise.resolve(null);
     // a chave ignora o "detail", mas ele muda a escolha: entra na chave local

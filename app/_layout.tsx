@@ -23,6 +23,7 @@ function Root() {
         <Stack.Screen name="index" />
         <Stack.Screen name="read/[id]" options={{ gestureEnabled: false }} />
         <Stack.Screen name="lab" />
+        <Stack.Screen name="settings" />
         <Stack.Screen name="paste" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="glossary/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
@@ -34,7 +35,7 @@ export default function Layout() {
   const [loaded] = useFonts({ Literata_400Regular, Literata_500Medium, Nunito_600SemiBold, Nunito_800ExtraBold });
 
   useEffect(() => {
-    bootAudio(process.env.EXPO_PUBLIC_SOUND_PACK_URL);
+    bootAudio();
     void ensureSession().then(() => syncNow());
     const sub = AppState.addEventListener('change', (s) => { if (s === 'active') void syncNow(); });
     return () => sub.remove();

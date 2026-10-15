@@ -156,7 +156,7 @@ class LocalSoundLibrary {
   }
 
   /**
-   * Para o leitor: arquivo do som mais parecido, ou null (toca a síntese).
+   * Para o leitor: arquivo do som mais parecido, ou null (ainda não existe; fica em silêncio).
    * Se nada serve e há chave, começa a gerar em segundo plano.
    */
   async resolve(d: SoundDesc): Promise<{ id: string; url: string } | null> {

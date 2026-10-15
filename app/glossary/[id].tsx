@@ -1,18 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { norm } from '../../src/core/text';
-import { readSoFar, removeEntry, sortEntries, upsertEntry } from '../../src/core/glossary';
+import { chapterAt, detectChapters, properNouns, type Chapter } from '../../src/core/chapters';
+import { entriesIn, readSoFar, removeEntry, sortEntries, upsertEntry } from '../../src/core/glossary';
 import type { GlossaryEntry } from '../../src/core/types';
 import { AiError, aiAvailable, fetchGlossary } from '../../src/services/ai';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
+import { requestJump } from '../../src/state/jump';
 import { RoundButton } from '../../src/ui/components';
 import { FONTS, usePrefs } from '../../src/ui/prefs';
 
 export default function Glossary() {
-  const params = useLocalSearchParams<{ id: string; at?: string; focus?: string }>();
+  const params = useLocalSearchParams<{ id: string; at?: string; focus?: string; from?: string }>();
   const id = decodeURIComponent(String(params.id));
   const at = Number(params.at ?? 0);
   const { c } = usePrefs();
@@ -24,14 +26,34 @@ export default function Glossary() {
   const [aiLabel, setAiLabel] = useState('✦ Gerar do que li até aqui');
   const [aiBusy, setAiBusy] = useState(false);
   const listRef = useRef<FlatList<GlossaryEntry>>(null);
+  const [pages, setPages] = useState<string[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  /** capítulo escolhido (-1 = livro todo) */
+  const [ch, setCh] = useState(-1);
 
   useEffect(() => {
     void (async () => {
       const repo = await getRepo();
       setTitle((await repo.getBook(id))?.title ?? '');
       setList(await repo.getGloss(id));
+      const p = (await repo.getPages(id)) ?? [];
+      const chs = detectChapters(p);
+      setPages(p);
+      setChapters(chs);
+      if (chs.length > 1) setCh(chapterAt(chs, at)); // abre no capítulo que a pessoa está lendo
     })();
-  }, [id]);
+  }, [id, at]);
+
+  const chapter = ch >= 0 ? chapters[ch] : null;
+  const chapterText = useMemo(() => (chapter ? pages.slice(chapter.start, chapter.end).join('\n') : ''), [chapter, pages]);
+  /** só sugere e gera a partir do que já foi lido (sem spoiler) */
+  const chapterRead = !!chapter && chapter.start <= at;
+  const suggestions = useMemo(() => {
+    if (!chapter || !chapterRead) return [];
+    const known = new Set(list.map((g) => norm(g.term)));
+    const text = pages.slice(chapter.start, Math.min(chapter.end, at + 1)).join('\n');
+    return properNouns(text, 10).filter((n) => !known.has(norm(n))).slice(0, 8);
+  }, [chapter, chapterRead, list, pages, at]);
 
   const save = async (next: GlossaryEntry[]) => {
     setList(next);
@@ -39,7 +61,14 @@ export default function Glossary() {
     syncSoon();
   };
 
-  const sorted = sortEntries(list);
+  /** vindo do leitor: volta já no capítulo; vindo da biblioteca: abre o leitor nele */
+  const readChapter = async (page: number) => {
+    if (params.from === 'reader') { requestJump(id, page); router.back(); return; }
+    await (await getRepo()).saveProgress(id, page, false);
+    router.replace(`/read/${encodeURIComponent(id)}`);
+  };
+
+  const sorted = chapter ? entriesIn(list, chapterText) : sortEntries(list);
   const focusIndex = params.focus ? sorted.findIndex((g) => norm(g.term) === norm(params.focus!)) : -1;
 
   useEffect(() => {
@@ -50,9 +79,9 @@ export default function Glossary() {
     setAiBusy(true);
     setAiLabel('Lendo e anotando…');
     try {
-      const repo = await getRepo();
-      const pages = (await repo.getPages(id)) ?? [];
-      const entries = await fetchGlossary(title, readSoFar(pages, at), list.map((g) => g.term));
+      // capítulo escolhido: só o trecho dele que já foi lido; senão, tudo o que foi lido até aqui
+      const text = chapter ? pages.slice(chapter.start, Math.min(chapter.end, at + 1)).join('\n') : readSoFar(pages, at);
+      const entries = await fetchGlossary(title, text, list.map((g) => g.term));
       let next = list, added = 0;
       for (const e of entries) {
         const before = next.length;
@@ -79,12 +108,54 @@ export default function Glossary() {
           <View style={{ alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <Text style={[st.h1, { color: c.fg }]}>Glossário</Text>
             <Text style={[st.lead, { color: c.mut }]}>{title} · {list.length} {list.length === 1 ? 'entrada' : 'entradas'}</Text>
-            {aiAvailable() && <RoundButton label={aiLabel} onPress={() => void generate()} disabled={aiBusy} />}
+            {chapters.length > 1 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chs} style={{ alignSelf: 'stretch' }}>
+                {[{ title: 'Livro todo', start: 0, end: 0 }, ...chapters].map((chp, k) => {
+                  const i = k - 1;
+                  const on = i === ch;
+                  const unread = i >= 0 && chp.start > at;
+                  return (
+                    <Pressable key={k} onPress={() => setCh(i)} accessibilityRole="button" accessibilityState={{ selected: on }}
+                      style={[st.chChip, { backgroundColor: on ? c.fg : c.btn, opacity: unread && !on ? 0.6 : 1 }]}>
+                      <Text style={[st.chText, { color: on ? c.bg : c.fg }]} numberOfLines={1}>{unread ? '○ ' : ''}{chp.title}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+            {chapter && (
+              <View style={[st.chBox, { backgroundColor: c.card }]}>
+                <Text style={[st.chTitle, { color: c.fg }]}>{chapter.title}</Text>
+                <Text style={[st.small, { color: c.mut }]}>
+                  Páginas {chapter.start + 1}–{chapter.end} · {chapterRead ? (at >= chapter.end - 1 ? 'lido' : 'lendo agora') : 'ainda não lido'}
+                </Text>
+                <View style={st.row}>
+                  <RoundButton label="▶ Ler este capítulo" onPress={() => void readChapter(chapter.start)} />
+                </View>
+                {suggestions.length > 0 && (
+                  <>
+                    <Text style={[st.small, { color: c.mut }]}>Personagens e lugares deste capítulo — toque para adicionar:</Text>
+                    <View style={st.row}>
+                      {suggestions.map((n) => (
+                        <Pressable key={n} onPress={() => void save(upsertEntry(list, n, ''))} accessibilityRole="button" accessibilityLabel={`Adicionar ${n}`}
+                          style={[st.chChip, { backgroundColor: c.btn }]}>
+                          <Text style={[st.chText, { color: c.fg }]}>+ {n}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
+                {!chapterRead && <Text style={[st.small, { color: c.mut }]}>Sem sugestões para não estragar a surpresa: leia até aqui primeiro.</Text>}
+              </View>
+            )}
+            {aiAvailable() && (!chapter || chapterRead) && (
+              <RoundButton label={chapter && aiLabel.startsWith('✦ Gerar') ? '✦ Gerar deste capítulo' : aiLabel} onPress={() => void generate()} disabled={aiBusy} />
+            )}
           </View>
         }
         ListEmptyComponent={
           <Text style={[st.lead, { color: c.mut, marginTop: 8 }]}>
-            Nada por aqui ainda. Adicione termos abaixo{aiAvailable() ? ' ou peça para a IA montar a partir do que você já leu.' : '.'}
+            {chapter ? 'Nenhum termo do glossário aparece neste capítulo ainda. ' : 'Nada por aqui ainda. '}Adicione termos abaixo{aiAvailable() ? ' ou peça para a IA montar a partir do que você já leu.' : '.'}
           </Text>
         }
         renderItem={({ item, index }) => (
@@ -119,6 +190,13 @@ const st = StyleSheet.create({
   item: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14, borderRadius: 16, borderWidth: 2 },
   term: { fontFamily: FONTS.serifMedium, fontSize: 17 },
   desc: { fontFamily: FONTS.ui, fontSize: 15, lineHeight: 21, marginTop: 2 },
+  chs: { gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
+  chChip: { minHeight: 36, maxWidth: 260, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center' },
+  chText: { fontFamily: FONTS.uiBold, fontSize: 14 },
+  chBox: { alignSelf: 'stretch', borderRadius: 16, padding: 14, gap: 8 },
+  chTitle: { fontFamily: FONTS.serifMedium, fontSize: 18 },
+  small: { fontFamily: FONTS.ui, fontSize: 14, lineHeight: 20 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   form: { gap: 8, paddingHorizontal: 18, paddingTop: 12, borderTopWidth: 1, maxWidth: 560, width: '100%', alignSelf: 'center' },
   input: { height: 46, borderRadius: 14, borderWidth: 2, paddingHorizontal: 14, fontFamily: FONTS.ui, fontSize: 16 },
 });

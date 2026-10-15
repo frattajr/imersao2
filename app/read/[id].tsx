@@ -17,6 +17,7 @@ import type { Ambience, BookMeta, GlossaryEntry, Layer, Mood, ScenePlan } from '
 import { activeLibrary } from '../../src/services/sounds';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
+import { onJump } from '../../src/state/jump';
 import { SceneDirector } from '../../src/state/scene';
 import { ProgressBar, RoundButton } from '../../src/ui/components';
 import { FONTS, SIZES, usePrefs, VOLUME_ICON, VOLUMES } from '../../src/ui/prefs';
@@ -81,7 +82,7 @@ export default function Reader() {
   useKeepAwake();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = decodeURIComponent(String(rawId));
-  const { c, sizeI, setSize, volI, setVol, theme, setTheme } = usePrefs();
+  const { c, sizeI, setSize, volI, setVol, theme, setTheme, sound } = usePrefs();
   const insets = useSafeAreaInsets();
 
   const [book, setBook] = useState<BookMeta | null>(null);
@@ -117,6 +118,8 @@ export default function Reader() {
   /** como soa cada camada neste livro (lido do texto inteiro ao abrir) */
   const profile = useRef<BookProfile>({ looks: {}, tags: [] });
   const smoother = useRef(new SceneSmoother());
+  const autoSmooth = useRef(true);
+  autoSmooth.current = sound.auto;
   const audioTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tintAnim = useRef(new Animated.Value(0)).current;
 
@@ -177,7 +180,8 @@ export default function Reader() {
     const blended = blendAmbience(prevAmb.current, rich.ambience, !r.fromAi);
     prevAmb.current = blended;
     // muitas trocas seguidas: transições mais longas e volume mais baixo
-    const sm = smoother.current.next(blended);
+    const auto = smoother.current.next(blended);
+    const sm = autoSmooth.current ? auto : { amb: blended, fade: 1, gain: 1, busy: 0 };
     engine.setScene(sm.amb, rich.looks, { fade: sm.fade, gain: sm.gain });
     engine.setDetails(rich.details);
     // cada página toca seus sons pontuais uma vez (se a IA chegar depois, só o ambiente é atualizado)
@@ -204,6 +208,16 @@ export default function Reader() {
     audioTimer.current = setTimeout(() => void applyAudio(idx), 700);
     void getRepo().then((r) => r.saveProgress(id, idx, false)).then(() => syncSoon(8000));
   }, [idx, pages, book, id, applyAudio]);
+
+  /* capítulo escolhido no glossário: volta à leitura já nele */
+  useEffect(() => onJump((bookId, page) => {
+    if (bookId !== id || !pages) return;
+    const ni = Math.max(0, Math.min(pages.length - 1, page));
+    setFinished(false);
+    idxRef.current = ni;
+    setIdx(ni);
+    setLayers((ls) => [...ls.map((l) => ({ ...l, leaving: true })), { key: ++keyRef.current, idx: ni, dir: 1, leaving: false }]);
+  }), [id, pages]);
 
   const go = useCallback((d: number) => {
     if (!pages || busyRef.current || finished) return;
@@ -291,7 +305,7 @@ export default function Reader() {
         {chips.length > 0 && (
           <View style={st.chips}>
             {chips.map((g) => (
-              <Pressable key={g.term} onPress={() => router.push({ pathname: '/glossary/[id]', params: { id, at: String(idx), focus: g.term } })}
+              <Pressable key={g.term} onPress={() => router.push({ pathname: '/glossary/[id]', params: { id, from: 'reader', at: String(idx), focus: g.term } })}
                 style={[st.chip, { backgroundColor: c.btn }]} accessibilityRole="button" accessibilityLabel={`Glossário: ${g.term}`}>
                 <Text style={[st.chipText, { color: c.fg }]}>📝 {g.term}</Text>
               </Pressable>
@@ -302,8 +316,8 @@ export default function Reader() {
         <View style={st.controls}>
           <RoundButton label="☰" accessibilityLabel="Biblioteca" onPress={() => router.back()} />
           <RoundButton label={VOLUME_ICON[volI]} accessibilityLabel="Volume do som ambiente" onPress={() => setVol((volI + 1) % VOLUMES.length)} />
-          <RoundButton label={theme === 'sepia' ? '☀' : '☾'} accessibilityLabel="Tema" onPress={() => setTheme(theme === 'sepia' ? 'dark' : 'sepia')} />
-          <RoundButton label="📝" accessibilityLabel="Glossário" onPress={() => router.push({ pathname: '/glossary/[id]', params: { id, at: String(idx) } })} />
+          <RoundButton label="⚙" accessibilityLabel="Configurações de som e leitura" onPress={() => router.push('/settings')} />
+          <RoundButton label="📝" accessibilityLabel="Glossário" onPress={() => router.push({ pathname: '/glossary/[id]', params: { id, from: 'reader', at: String(idx) } })} />
           <RoundButton label="A−" accessibilityLabel="Diminuir letra" onPress={() => setSize(sizeI - 1)} />
           <RoundButton label="A+" accessibilityLabel="Aumentar letra" onPress={() => setSize(sizeI + 1)} />
         </View>

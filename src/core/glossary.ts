@@ -47,3 +47,8 @@ export function readSoFar(pages: string[], idx: number, maxChars = 14000): strin
   if (txt.length > maxChars) txt = txt.slice(-maxChars);
   return txt;
 }
+
+/** Termos do glossário que aparecem no trecho (todos, na ordem alfabética). */
+export function entriesIn(list: GlossaryEntry[], text: string): GlossaryEntry[] {
+  return sortEntries(list.filter((g) => entriesOnPage([g], text).length > 0));
+}

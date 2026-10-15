@@ -180,7 +180,7 @@ ok(r.status === 422 && (await r.json()).error.includes('senha'), 'PDF protegido 
 
 /* ---------- sound-resolve ---------- */
 await import('../supabase/functions/sound-resolve/index.ts');
-db.sounds.push({ id: 'aaaaaaaa-0000-0000-0000-000000000001', key: 'k', cat: 'layer', name: 'rain', material: null, place: null, distance: null, intensity: null, detail: null, path: 'pack/rain-1.m4a', source: 'recorded', status: 'ok', uses: 0, reports: 0, created_at: '2026-01-01' });
+db.sounds.push({ id: 'aaaaaaaa-0000-0000-0000-000000000001', key: 'k', cat: 'layer', name: 'rain', material: null, place: null, distance: null, intensity: null, detail: null, path: 'lib/layer/rain/r1.mp3', source: 'generated', status: 'ok', uses: 0, reports: 0, created_at: '2026-01-01' });
 r = await post({ descs: [{ cat: 'layer', name: 'rain' }] }, 'Bearer ruim');
 ok(r.status === 401, 'sound-resolve recusa quem não está logado');
 r = await post({ descs: [] });
@@ -188,7 +188,7 @@ ok(r.status === 400, 'sound-resolve recusa lista vazia');
 r = await post({ descs: [{ cat: 'layer', name: 'rain', intensity: 'soft' }, { cat: 'layer', name: 'lava' }, { cat: 'spot', name: 'roar', distance: 'far' }] });
 j = await r.json();
 await Promise.all(waiting.splice(0));
-ok(j.items[0].status === 'hit' && j.items[0].url.endsWith('/sounds/pack/rain-1.m4a'), 'reaproveita gravação do repositório (URL pública)');
+ok(j.items[0].status === 'hit' && j.items[0].url.endsWith('/sounds/lib/layer/rain/r1.mp3'), 'reaproveita som do repositório (URL pública)');
 ok(db.sounds[0].uses === 1, 'conta o uso do som reaproveitado');
 ok(j.items[1].status === 'none', 'descrição inválida vira "none", sem quebrar as outras');
 ok(j.items[2].status === 'none' && genCalls === 0, 'sem ELEVENLABS_API_KEY não gera nada (usa a reserva)');

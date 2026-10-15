@@ -1,11 +1,19 @@
 import type { Mood } from '../core/types';
 
+/** Temas da biblioteca (filtros e fileiras da tela inicial). */
+export const GENRES = ['Mistério', 'Fantasia', 'Aconchego', 'Suspense', 'Aventura'] as const;
+export type Genre = (typeof GENRES)[number];
+
 export interface SampleBook {
   id: string;
   title: string;
   sub: string;
   emoji: string;
   mood: Mood;
+  genre: Genre;
+  /** autor fictício, para o cartaz */
+  author: string;
+  synopsis: string;
   pages: string[];
 }
 
@@ -17,6 +25,9 @@ export const SAMPLE_BOOKS: SampleBook[] = [
     sub: "Mistério e mar",
     emoji: "🏮",
     mood: 'sea',
+    genre: 'Mistério',
+    author: 'Ana Ventura',
+    synopsis: "Numa noite de tempestade, Marina chega a um farol abandonado e descobre que não está sozinha.",
     pages: [
       "Marina chegou ao farol quando o céu já era uma ferida escura sobre o mar.",
       "O vento empurrava a porta como se não quisesse que ela entrasse. Ela empurrou de volta, e a madeira velha rangeu.",
@@ -40,6 +51,9 @@ export const SAMPLE_BOOKS: SampleBook[] = [
     sub: "Fantasia sombria",
     emoji: "🐉",
     mood: 'fire',
+    genre: 'Fantasia',
+    author: 'Tomás Brandão',
+    synopsis: "No último posto de vigia do vale, um menino e um velho guarda ouvem algo enorme se aproximar pelas montanhas.",
     pages: [
       "Kael subiu a trilha de cascalho até o último posto de vigia, onde o vento cortava como faca. Atrás dele, o vale dormia sob a neve fina.",
       "No posto, o velho Orm mantinha uma fogueira baixa. As brasas estalavam, e a fumaça subia reta no ar parado.",
@@ -59,6 +73,9 @@ export const SAMPLE_BOOKS: SampleBook[] = [
     sub: "Reencontro em dia de chuva",
     emoji: "☕",
     mood: 'warm',
+    genre: 'Aconchego',
+    author: 'Clara Moreno',
+    synopsis: "Dez anos depois, dois velhos amigos se reencontram num café enquanto a chuva fina de outubro cai lá fora.",
     pages: [
       "A chuva fina de outubro molhava as janelas do café quando Helena empurrou a porta. O sino acima dela tilintou baixinho.",
       "Lá dentro, o ar era quente e cheirava a café moído e pão assado. Em cada mesa, vozes baixas se misturavam ao barulho das xícaras.",
@@ -76,6 +93,9 @@ export const SAMPLE_BOOKS: SampleBook[] = [
     sub: "Suspense na madrugada",
     emoji: "🚆",
     mood: 'tension',
+    genre: 'Suspense',
+    author: 'Rafael Duarte',
+    synopsis: "Meia-noite, uma plataforma vazia e o último trem. No vagão, só uma mulher de casaco vermelho.",
     pages: [
       "Rafael correu pela plataforma vazia, a mochila batendo nas costas. O relógio da estação marcava quase meia-noite.",
       "O apito do trem cortou a madrugada. As portas se abriram com um chiado, e ele entrou no último vagão.",
@@ -94,6 +114,9 @@ export const SAMPLE_BOOKS: SampleBook[] = [
     sub: "Aventura e fantasia",
     emoji: "🌲",
     mood: 'forest',
+    genre: 'Aventura',
+    author: 'Lia Campos',
+    synopsis: "Um mapa escondido num carvalho leva Lia por riachos, cachoeiras e uma caverna com um segredo.",
     pages: [
       "Lia encontrou o mapa dentro do tronco oco de um velho carvalho. O papel estava amarelado, com um X desenhado em tinta vermelha.",
       "Ela seguiu a trilha de terra, e as folhas secas estalavam sob suas botas. Os passarinhos cantavam lá no alto.",
@@ -103,6 +126,85 @@ export const SAMPLE_BOOKS: SampleBook[] = [
       "No fundo da caverna, um baú de ferro coberto de musgo. Lia girou a chave enferrujada. O trinco rangeu e a tampa se abriu.",
       "Dentro, não havia ouro. Só uma pequena caixa de música, que começou a tocar sozinha uma melodia suave, como um sonho.",
       "E a floresta inteira pareceu escutar. Os pássaros calaram, o vento parou, e uma luz dourada encheu a caverna. Lia sorriu: aquele era o verdadeiro tesouro.",
+    ],
+  },
+  {
+    id: "sample-cabana",
+    title: "A Cabana na Neve",
+    sub: "Inverno e amizade",
+    emoji: "🏔️",
+    mood: 'cold',
+    genre: 'Aconchego',
+    author: 'Helena Prado',
+    synopsis: "Presa numa cabana durante uma nevasca, Júlia recebe uma visita inesperada que muda o seu inverno.",
+    pages: [
+      "Capítulo 1 — A nevasca",
+      "A neve começou a cair no meio da tarde, devagar, como quem pede licença. Quando Júlia percebeu, a estrada da montanha já tinha sumido sob um manto branco.",
+      "Ela chegou à cabana de madeira com as mãos dormentes. A porta rangeu, e o cheiro de lenha velha e pinho encheu o ar frio lá dentro.",
+      "Acendeu a lareira com os últimos fósforos. As chamas estalaram, tímidas no começo, e logo a sala inteira ganhou um brilho alaranjado.",
+      "Lá fora, o vento assobiava entre os pinheiros e jogava neve contra a janela. O velho relógio da parede marcava o tempo, tic-tac, sem pressa.",
+      "Capítulo 2 — O visitante",
+      "Já era noite quando ouviu as batidas na porta. Três, firmes. Júlia prendeu a respiração. Ninguém subia a montanha com aquele tempo.",
+      "Abriu uma fresta. Do lado de fora, coberto de neve até as sobrancelhas, um senhor de barba branca segurava uma lanterna e um cachorro peludo.",
+      "— Desculpe incomodar — disse ele, tremendo. — Meu nome é Bento. A estrada fechou, e a sua chaminé era a única luz no vale.",
+      "Ela o deixou entrar. O cachorro, Farol, sacudiu a neve no assoalho e foi direto deitar perto do fogo, como se a casa fosse dele.",
+      "Bento contou histórias da montanha enquanto a chaleira chiava: o inverno em que o lago congelou inteiro, a raposa que roubava luvas, o sino da capela que tocava sozinho.",
+      "Capítulo 3 — Manhã branca",
+      "Júlia acordou com um silêncio enorme. A nevasca tinha passado. Pela janela, o vale inteiro brilhava, branco e azul, sob um céu limpo.",
+      "Bento já estava lá fora, abrindo caminho na neve com uma pá. Os passos dele afundavam, macios, e Farol pulava atrás, latindo para os flocos que caíam dos galhos.",
+      "Ao longe, o sino da capela tocou. Uma vez, duas. Bento sorriu. — Está vendo? Ele sempre toca quando alguém encontra o caminho de casa.",
+      "Júlia não sabia se acreditava. Mas, com a caneca quente nas mãos e o sol nascendo sobre os pinheiros, sentiu que tinha encontrado alguma coisa naquela montanha.",
+    ],
+  },
+  {
+    id: "sample-navio",
+    title: "O Navio da Névoa",
+    sub: "Mistério em alto-mar",
+    emoji: "⛵",
+    mood: 'sea',
+    genre: 'Mistério',
+    author: 'Diogo Arruda',
+    synopsis: "Um cargueiro encontra à deriva um veleiro antigo, intacto e sem ninguém a bordo. O diário do capitão termina no meio de uma frase.",
+    pages: [
+      "Capítulo 1 — À deriva",
+      "A névoa chegou sem aviso e engoliu o mar. Do convés do Estrela do Sul, Inês mal enxergava a própria mão na amurada molhada.",
+      "Então a sirene de nevoeiro soou ao longe, grave e comprida. Não era a deles. Alguém mais estava ali, perdido no branco.",
+      "Pouco depois, um veleiro antigo surgiu da névoa, balançando nas ondas, com as velas rasgadas e o casco de madeira rangendo a cada movimento.",
+      "Capítulo 2 — A bordo",
+      "Inês e o velho marinheiro Caetano remaram até o veleiro. A escada de corda estava solta. Subiram em silêncio, ouvindo só as ondas batendo no casco.",
+      "O convés estava vazio. Cordas enroladas com capricho, uma lanterna ainda morna pendurada no mastro, e um gato preto que os observava do alto do leme.",
+      "Desceram à cabine do capitão. A madeira dos degraus gemia sob os passos. Lá dentro, gotas pingavam de uma rachadura no teto, uma a uma, sobre a mesa.",
+      "Sobre a mesa, um diário aberto. A última frase dizia: “Esta noite, ouvimos o sino de novo, e decidimos seguir o som até”. E mais nada.",
+      "Capítulo 3 — O sino",
+      "Quando voltaram ao convés, a névoa começava a se abrir. E, bem longe, por cima das ondas, um sino tocou. Devagar. Como se chamasse alguém.",
+      "Caetano tirou o chapéu. — Os antigos diziam que esse sino guia os navios perdidos para casa. Só toca para quem precisa ouvir.",
+      "Inês olhou para o horizonte e viu, por um instante, a silhueta de um farol onde nenhum mapa mostrava terra. Depois a névoa voltou, e o som sumiu com ela.",
+      "Naquela noite, ela abriu o diário e escreveu, embaixo da última frase do capitão: “o lugar onde todos os que se perdem são finalmente encontrados.”",
+    ],
+  },
+  {
+    id: "sample-mercado",
+    title: "O Mercado das Lanternas",
+    sub: "Aventura na cidade antiga",
+    emoji: "🪔",
+    mood: 'city',
+    genre: 'Aventura',
+    author: 'Marcos Tavares',
+    synopsis: "Uma moeda estranha leva Davi a um mercado noturno que só aparece quando todas as lanternas da cidade velha se acendem.",
+    pages: [
+      "Capítulo 1 — A moeda",
+      "Davi achou a moeda entre as pedras da calçada, perto da fonte da praça. Era de cobre, quente ao toque, com uma lanterna gravada de um lado e uma lua do outro.",
+      "Naquela noite, o relógio da torre bateu doze vezes, e as lanternas da cidade velha se acenderam sozinhas, uma por uma, rua após rua.",
+      "Capítulo 2 — A rua que não existia",
+      "Seguindo a luz, ele encontrou uma rua que nunca tinha visto. Estreita, de pedra, cheia de barracas coloridas e de uma multidão que falava baixinho.",
+      "Havia vendedores de mapas que mudavam de lugar, de caixinhas de música que tocavam lembranças, de chaves para portas que ainda não existiam.",
+      "Um cavalo puxava uma carroça de especiarias, os cascos batendo no chão de pedra. O cheiro de canela e cravo se misturava à fumaça das lanternas.",
+      "Uma senhora de xale vermelho segurou o braço dele. — Essa moeda compra uma única coisa aqui, menino. Escolha bem. O mercado só abre uma vez para cada um.",
+      "Capítulo 3 — A escolha",
+      "Davi andou por todas as barracas. Viu relógios que voltavam no tempo e livros que se escreviam sozinhos. Mas parou diante de uma caixinha de música simples, de madeira.",
+      "Quando a abriu, ouviu a melodia que a avó cantava para ele dormir. Os olhos dele se encheram d'água. Entregou a moeda sem pensar duas vezes.",
+      "O sino da torre tocou uma vez. As lanternas se apagaram, a rua sumiu, e Davi estava de novo na praça, sozinho, com a caixinha nas mãos.",
+      "Desde então, toda noite, ela toca a mesma canção. E Davi jura que, quando o relógio bate meia-noite, consegue ouvir ao longe as vozes do mercado.",
     ],
   },
 ];

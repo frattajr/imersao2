@@ -1,6 +1,5 @@
 /**
- * Laboratório de som: descreva um som com os campos do repositório, ouça a
- * síntese e veja o repositório funcionando — "Buscar ou gerar" reaproveita
+ * Laboratório de som: descreva um som com os campos do repositório e veja o repositório funcionando — "Buscar ou gerar" reaproveita
  * um som parecido já criado nesta sessão ou gera um novo pela ElevenLabs.
  *
  * O repositório é o do aparelho (src/services/localSounds.ts), o mesmo que
@@ -17,7 +16,6 @@ import {
 } from '../supabase/functions/_shared/sound-library';
 import { createAudioContext } from '../src/audio/context';
 import { normalize, type BufferLike, type CtxLike, type SourceLike } from '../src/audio/engine';
-import { renderLayer, renderSpot } from '../src/audio/recipes';
 import { LAYER_LABEL, SPOT_LABEL } from '../src/core/analyze';
 import type { Layer, SpotName } from '../src/core/types';
 import { localSounds, type LocalSound } from '../src/services/localSounds';
@@ -129,20 +127,6 @@ export default function Lab() {
 
   const stop = () => { try { playing.current?.stop(); } catch { /* */ } };
 
-  const playSynth = () => {
-    const a = audio();
-    const chans = desc.cat === 'layer'
-      ? (() => { const { left, right } = renderLayer(desc.name as Layer, a.sampleRate, Date.now() % 1000); return [left, right]; })()
-      : [renderSpot({
-          s: desc.name as SpotName, at: 0, w: desc.intensity === 'soft' ? 0.3 : desc.intensity === 'strong' ? 0.8 : 0.5,
-          surface: (['wood', 'gravel', 'stone', 'grass', 'snow', 'metal'] as const).find((m) => m === desc.material),
-        }, a.sampleRate, Date.now() % 1000)];
-    const b = a.createBuffer(chans.length, chans[0].length, a.sampleRate);
-    chans.forEach((d, i) => (b.copyToChannel ? b.copyToChannel(d, i) : b.getChannelData(i).set(d)));
-    play(b, desc.cat === 'layer' ? 1 : 0.9);
-    setStatus({ kind: 'info', text: 'Tocando a síntese (a reserva que o app usa quando não há arquivo).' });
-  };
-
   const saveKey = (k: string) => {
     setApiKey(k);
     void localSounds.setKey(k);
@@ -185,7 +169,7 @@ export default function Lab() {
       <ScrollView contentContainerStyle={[st.wrap, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]}>
         <View style={st.head}>
           <RoundButton label="←" accessibilityLabel="Voltar" onPress={() => { stop(); router.back(); }} />
-          <Text style={[st.h1, { color: c.fg }]}>Laboratório de som</Text>
+          <Text style={[st.h1, { color: c.fg }]}>Repositório de sons</Text>
         </View>
         <Text style={[st.lead, { color: c.mut }]}>
           Descreva um som como a IA descreve cada cena. “Buscar ou gerar” reaproveita um som parecido já criado ou gera um novo.
@@ -219,7 +203,6 @@ export default function Lab() {
         </View>
 
         <View style={st.actions}>
-          <RoundButton label="▶ Ouvir síntese" onPress={playSynth} />
           <RoundButton big label={busy ? 'Gerando…' : '✨ Buscar ou gerar'} disabled={busy} onPress={() => void findOrGenerate()} />
           <RoundButton label="■" accessibilityLabel="Parar" onPress={stop} />
         </View>

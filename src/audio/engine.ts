@@ -3,17 +3,15 @@
  *
  * Usa só o essencial de qualquer API de áudio estilo Web Audio: buffers em
  * loop, nós de ganho e rampas de volume. Funciona com react-native-audio-api
- * (celular) e com o AudioContext do navegador. Para cada camada e som
- * pontual a ordem é: arquivo do repositório de sons (o mais parecido com a
- * descrição da cena), gravação do pacote fixo, e por fim a síntese.
+ * (celular) e com o AudioContext do navegador. Todos os sons vêm do
+ * repositório da ElevenLabs (o arquivo mais parecido com a descrição da
+ * cena). Som que ainda não existe é gerado; até ficar pronto, fica em silêncio.
  */
 import type { SoundDesc, SoundVariant } from '../../supabase/functions/_shared/sound-library';
 import { layerDesc, spotDesc } from '../core/sound';
 import type { AmbientDetail } from '../core/scenery';
 import type { Ambience, Layer, Spot } from '../core/types';
 import { LAYERS } from '../core/types';
-import { rng } from './dsp';
-import { renderLayer, renderSpot, SPORADIC } from './recipes';
 
 /* ---------- Subconjunto da API de áudio que usamos ---------- */
 export interface ParamLike {
@@ -48,13 +46,6 @@ export interface CtxLike {
   decodeAudioData?(data: ArrayBuffer): Promise<BufferLike>;
 }
 
-/** Pacote de gravações reais (manifest.json numa pasta pública). */
-export interface PackManifest {
-  layers?: Partial<Record<Layer, string[]>>;
-  /** ex.: { "roar": ["roar-1.m4a"], "steps": { "wood": ["steps-wood.m4a"], "*": [...] } } */
-  spots?: Partial<Record<Spot['s'], string[] | Record<string, string[]>>>;
-}
-
 /** Repositório de sons (ver src/services/sounds.ts). */
 export interface SoundSource {
   resolve(d: SoundDesc): Promise<{ id: string; url: string } | null>;
@@ -78,11 +69,9 @@ interface LayerState {
   src: SourceLike | null;
   ramp: Ramp;
   level: number;
-  recorded: boolean;
   /** id do som do repositório que está tocando (para "som ruim") */
   libId: string | null;
   loading: boolean;
-  nextSporadic: number;
 }
 
 const valueAt = (r: Ramp, t: number) =>
@@ -124,15 +113,13 @@ export class AmbientEngine {
   private spotBus!: GainLike;
   private layers = new Map<Layer, LayerState>();
   private bufCache = new Map<string, BufferLike>();
-  private renderQueue: Promise<unknown> = Promise.resolve();
-  private manifest: PackManifest | null = null;
-  private packUrl = '';
   private timer: ReturnType<typeof setInterval> | null = null;
   private volume = 0.7;
-  private seed = 1;
   private enabled = true;
   private fade = 1;
   private sceneGain = 1;
+  /** preferências da pessoa (tela Configurações) */
+  private user = { fade: 1, spots: 1, details: 1, detailRate: 1 };
   private details: AmbientDetail[] = [];
   private nextDetail = 0;
   private lastDetail = '';
@@ -157,26 +144,13 @@ export class AmbientEngine {
     this.spotBus = ctx.createGain();
     this.spotBus.connect(this.master);
     this.detailBus = ctx.createGain();
-    this.detailBus.gain.value = DETAIL_GAIN;
+    this.detailBus.gain.value = DETAIL_GAIN * this.user.details;
     this.detailBus.connect(this.master);
     this.timer = setInterval(() => this.tick(), 250);
   }
 
   get running(): boolean {
     return !!this.ctx;
-  }
-
-  /** Carrega o pacote de gravações reais (opcional). */
-  async loadPack(baseUrl: string | undefined): Promise<void> {
-    if (!baseUrl) return;
-    try {
-      const r = await fetch(baseUrl.replace(/\/$/, '') + '/manifest.json');
-      if (!r.ok) return;
-      this.manifest = (await r.json()) as PackManifest;
-      this.packUrl = baseUrl.replace(/\/$/, '');
-    } catch {
-      this.manifest = null;
-    }
   }
 
   setVolume(v: number): void {
@@ -221,7 +195,7 @@ export class AmbientEngine {
     if (!this.ctx) return;
     if (looks) this.looks = { ...this.looks, ...looks };
     // cena agitada: transições mais longas e tudo um pouco mais baixo (ver core/smooth.ts)
-    this.fade = Math.max(1, Math.min(3, opts?.fade ?? 1));
+    this.fade = Math.max(0.5, Math.min(6, (opts?.fade ?? 1) * this.user.fade));
     this.sceneGain = Math.max(0.5, Math.min(1, opts?.gain ?? 1));
     if (this.enabled && this.ctx.state === 'suspended' && Object.values(amb).some((v) => (v ?? 0) > 0)) void this.ctx.resume();
     for (const L of LAYERS) {
@@ -230,10 +204,22 @@ export class AmbientEngine {
       if (!st && target <= 0) continue;
       const s = st ?? this.createLayer(L);
       s.level = target;
-      const gainTarget = target * (s.recorded ? RECORDED_GAIN : 1);
+      const gainTarget = target * RECORDED_GAIN;
       this.rampLayer(s, gainTarget, (gainTarget > valueAt(s.ramp, this.ctx.currentTime) ? UP : DOWN) * this.fade);
       if (target > 0 && !s.src && !s.loading) void this.loadLayer(L, s);
     }
+  }
+
+  /**
+   * Preferências da pessoa: suavidade das transições (multiplica o tempo),
+   * volume dos sons da história e dos detalhes, e frequência dos detalhes
+   * (0 = desligados).
+   */
+  setUserPrefs(p: { fade: number; spots: number; details: number; detailRate: number }): void {
+    this.user = { ...p };
+    if (this.ctx) this.detailBus.gain.value = DETAIL_GAIN * p.details;
+    if (p.detailRate <= 0) this.nextDetail = 0;
+    else if (this.details.length && !this.nextDetail && this.ctx) this.nextDetail = this.ctx.currentTime + 10;
   }
 
   /**
@@ -246,7 +232,8 @@ export class AmbientEngine {
     this.details = details.slice(0, 3);
     if (!this.ctx) return;
     if (!this.details.length) { this.nextDetail = 0; return; }
-    if (!was || !this.nextDetail) this.nextDetail = this.ctx.currentTime + 8 + Math.random() * 10;
+    if (this.user.detailRate <= 0) { this.nextDetail = 0; return; }
+    if (!was || !this.nextDetail) this.nextDetail = this.ctx.currentTime + (8 + Math.random() * 10) / this.user.detailRate;
   }
 
   /** Interrompe (com fade curto) os sons pontuais da página anterior. */
@@ -263,7 +250,7 @@ export class AmbientEngine {
 
   /** Toca os sons pontuais da cena, cada um no seu momento. */
   playSpots(spots: Spot[]): void {
-    if (!this.ctx || !this.enabled) return;
+    if (!this.ctx || !this.enabled || this.user.spots <= 0) return;
     if (spots.length && this.ctx.state === 'suspended') void this.ctx.resume();
     this.lastSound = this.ctx.currentTime + 12;
     const bus = this.spotBus;
@@ -274,7 +261,7 @@ export class AmbientEngine {
       void this.spotBuffer(sp).then((buf) => {
         if (!buf || !this.ctx || bus !== this.spotBus) return;
         const lib = this.spotLib.get(buf);
-        const level = this.sceneGain;
+        const level = this.sceneGain * this.user.spots;
         if (lib) this.recentSpots = [...this.recentSpots.filter((x) => x.until > this.ctx!.currentTime), { id: lib, until: t0 + reps * gap + 6 }];
         for (let r = 0; r < reps; r++) {
           const src = this.ctx.createBufferSource();
@@ -335,7 +322,7 @@ export class AmbientEngine {
     const g = this.ctx!.createGain();
     g.gain.value = 0;
     g.connect(this.master);
-    const s: LayerState = { gain: g, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, recorded: false, libId: null, loading: false, nextSporadic: 0 };
+    const s: LayerState = { gain: g, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, libId: null, loading: false };
     this.layers.set(L, s);
     return s;
   }
@@ -357,14 +344,9 @@ export class AmbientEngine {
       const hit = await this.lookup(layerDesc(L, this.looks[L]));
       if (hit) {
         buf = await this.fetchUrl(hit.url);
-        if (buf) { s.recorded = true; s.libId = hit.id; }
+        if (buf) s.libId = hit.id;
       }
-      const files = this.manifest?.layers?.[L];
-      if (!buf && files?.length) {
-        buf = await this.fetchBuffer(files[Math.floor(Math.random() * files.length)]);
-        if (buf) s.recorded = true;
-      }
-      if (!buf) buf = await this.synthLayer(L);
+      // sem arquivo ainda (som novo sendo gerado): a camada fica em silêncio e entra quando ficar pronto
       if (!this.ctx || !buf || this.layers.get(L) !== s) return;
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
@@ -372,59 +354,22 @@ export class AmbientEngine {
       src.connect(s.gain);
       src.start(this.ctx.currentTime + 0.02, Math.random() * Math.max(0, buf.duration - 1));
       s.src = src;
-      if (s.recorded) this.rampLayer(s, s.level * RECORDED_GAIN, UP);
+      this.rampLayer(s, s.level * RECORDED_GAIN, UP * this.fade);
     } finally {
       s.loading = false;
     }
   }
 
   /**
-   * Troca camadas que estão tocando a síntese por um arquivo do repositório,
-   * se agora houver um (ex.: um som acabou de ser gerado). A camada desce,
-   * troca e sobe de novo, devagar, para a troca não chamar atenção.
+   * Carrega as camadas que ainda não têm arquivo (o som estava sendo
+   * gerado). Chamado quando o repositório avisa que entrou um som novo e,
+   * por garantia, a cada 20 s.
    */
-  upgradeLayers(): void {
+  retryMissing(): void {
     if (!this.ctx || !this.library) return;
     this.layers.forEach((s, L) => {
-      if (s.recorded || s.loading || !s.src || s.level <= 0) return;
-      s.loading = true;
-      void this.lookup(layerDesc(L, this.looks[L])).then(async (hit) => {
-        const buf = hit ? await this.fetchUrl(hit.url) : null;
-        if (!hit || !buf || !this.ctx || this.layers.get(L) !== s || !s.src) { s.loading = false; return; }
-        this.rampLayer(s, 0, 1.5);
-        await sleep(1600);
-        if (!this.ctx || this.layers.get(L) !== s) { s.loading = false; return; }
-        try { s.src?.stop(); s.src?.disconnect(); } catch { /* já parado */ }
-        const src = this.ctx.createBufferSource();
-        src.buffer = buf;
-        src.loop = true;
-        src.connect(s.gain);
-        src.start(this.ctx.currentTime + 0.02, Math.random() * Math.max(0, buf.duration - 1));
-        s.src = src;
-        s.recorded = true;
-        s.libId = hit.id;
-        s.loading = false;
-        this.rampLayer(s, s.level * RECORDED_GAIN, UP);
-      });
+      if (!s.src && !s.loading && s.level > 0) void this.loadLayer(L, s);
     });
-  }
-
-  /** Gera o loop sintetizado (um por vez, cedendo a vez para a interface). */
-  private synthLayer(L: Layer): Promise<BufferLike | null> {
-    const key = 'layer:' + L;
-    const hit = this.bufCache.get(key);
-    if (hit) return Promise.resolve(hit);
-    const job = this.renderQueue.then(async () => {
-      await sleep(16);
-      const ctx = this.ctx;
-      if (!ctx) return null;
-      const { left, right } = renderLayer(L, ctx.sampleRate, this.seed++);
-      const b = this.toBuffer([left, right]);
-      this.bufCache.set(key, b);
-      return b;
-    });
-    this.renderQueue = job.catch(() => null);
-    return job;
   }
 
   /** Qual som do repositório cada buffer de som pontual veio (para "som ruim"). */
@@ -438,35 +383,17 @@ export class AmbientEngine {
       const b = await this.fetchUrl(found.url);
       if (b) { this.spotLib.set(b, found.id); return b; }
     }
-    const entry = this.manifest?.spots?.[sp.s];
-    if (entry) {
-      const list = Array.isArray(entry) ? entry : entry[sp.surface ?? sp.kind ?? '*'] ?? entry['*'];
-      if (list?.length) {
-        const b = await this.fetchBuffer(list[Math.floor(Math.random() * list.length)]);
-        if (b) return b;
-      }
-    }
-    const key = 'spot:' + JSON.stringify([sp.s, sp.surface, sp.kind, sp.n, sp.pace, Math.round(sp.w * 10)]);
-    const hit = this.bufCache.get(key);
-    if (hit) return hit;
-    await sleep(0);
-    if (!this.ctx) return null;
-    const b = this.toBuffer([renderSpot(sp, this.ctx.sampleRate, this.seed++)]);
-    this.bufCache.set(key, b);
-    return b;
+    // sem arquivo: não toca (o som novo está sendo gerado e toca nas próximas vezes)
+    return null;
   }
 
-  /** Consulta o repositório sem segurar o som: se demorar, segue com a reserva. */
+  /** Consulta o repositório sem segurar a cena: se demorar, segue sem o som por enquanto. */
   private lookup(d: SoundDesc): Promise<{ id: string; url: string } | null> {
     if (!this.library) return Promise.resolve(null);
     return Promise.race([
       this.library.resolve(d).catch(() => null),
       sleep(LOOKUP_TIMEOUT_MS).then(() => null),
     ]);
-  }
-
-  private fetchBuffer(file: string): Promise<BufferLike | null> {
-    return this.fetchUrl(`${this.packUrl}/${file}`);
   }
 
   private async fetchUrl(url: string): Promise<BufferLike | null> {
@@ -487,20 +414,11 @@ export class AmbientEngine {
     }
   }
 
-  private toBuffer(chans: Float32Array[]): BufferLike {
-    const ctx = this.ctx!;
-    const b = ctx.createBuffer(chans.length, chans[0].length, ctx.sampleRate);
-    chans.forEach((c, i) => {
-      if (b.copyToChannel) b.copyToChannel(c, i);
-      else b.getChannelData(i).set(c);
-    });
-    return b;
-  }
-
   private tickDetails(now: number): void {
     if (!this.details.length || !this.nextDetail || now < this.nextDetail) return;
     // intervalo longo e irregular; mais longo ainda quando a cena está agitada
-    this.nextDetail = now + (20 + Math.random() * 35) * this.fade;
+    if (this.user.detailRate <= 0) { this.nextDetail = 0; return; }
+    this.nextDetail = now + ((20 + Math.random() * 35) * Math.max(1, this.fade)) / this.user.detailRate;
     const pool = this.details.length > 1 ? this.details.filter((d) => d.s !== this.lastDetail) : this.details;
     const d = pool[Math.floor(Math.random() * pool.length)];
     this.lastDetail = d.s;
@@ -518,7 +436,8 @@ export class AmbientEngine {
     });
   }
 
-  /** Eventos esporádicos (pássaros, trovão, ondas grandes, xícaras, carros). */
+  private retryAt = 0;
+
   private tick(): void {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -526,22 +445,6 @@ export class AmbientEngine {
     if (!this.enabled || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     this.tickDetails(now);
-    this.layers.forEach((s, L) => {
-      const sp = SPORADIC[L];
-      if (!sp || s.recorded || s.level < 0.12) { s.nextSporadic = 0; return; }
-      if (!s.nextSporadic) { s.nextSporadic = now + 0.5 + Math.random() * Math.min(sp.every, 4); return; }
-      if (now < s.nextSporadic) return;
-      s.nextSporadic = now + sp.every * (1 + (Math.random() * 2 - 1) * sp.jit);
-      const key = `spor:${L}:${Math.floor(Math.random() * 4)}`;
-      let b = this.bufCache.get(key);
-      if (!b) {
-        b = this.toBuffer([sp.render(ctx.sampleRate, rng(this.seed++))]);
-        this.bufCache.set(key, b);
-      }
-      const src = ctx.createBufferSource();
-      src.buffer = b;
-      src.connect(s.gain);
-      src.start(now + 0.05);
-    });
+    if (now > this.retryAt) { this.retryAt = now + 20; this.retryMissing(); }
   }
 }

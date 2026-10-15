@@ -16,8 +16,8 @@ App de leitura para iOS e Android: o texto aparece página por página, em letra
 │                                  │            │  imports/ PDFs (apagados ao ler)  │
 │ Motor de som                     │            │  sounds/  gravações reais (opcional)
 │  loops + volumes + crossfades    │  pede plano│ Funções                           │
-│  síntese em JS (reserva)         │───────────►│  sound-plan  → Claude (com cache) │
-│  gravações reais (pacote)        │            │  glossary    → Claude (com cache) │
+│  arquivos da ElevenLabs          │───────────►│  sound-plan  → Claude (com cache) │
+│  sons reaproveitados (cache)     │            │  glossary    → Claude (com cache) │
 │                                  │            │  extract-pdf → texto do PDF       │
 │ EPUB lido no aparelho            │            └──────────────────────────────────┘
 └──────────────────────────────────┘
@@ -67,36 +67,6 @@ npx expo run:ios        # ou: npx expo run:android
 npx eas build --profile development --platform ios
 ```
 
-## Sons gravados (recomendado para a loja)
-
-A síntese em JavaScript é a reserva: funciona em qualquer lugar e já soa razoável. Para soar **real**, suba gravações ao bucket público `sounds` com um `manifest.json`:
-
-```json
-{
-  "layers": {
-    "rain": ["rain-roof-1.m4a", "rain-window-2.m4a"],
-    "cafe": ["cafe-1.m4a"],
-    "fire": ["fireplace-1.m4a"]
-  },
-  "spots": {
-    "roar": ["roar-distant-1.m4a"],
-    "steps": { "wood": ["steps-wood-1.m4a"], "gravel": ["steps-gravel-1.m4a"], "*": ["steps-1.m4a"] },
-    "doorbell": ["shop-bell-1.m4a"]
-  }
-}
-```
-
-E no `.env`: `EXPO_PUBLIC_SOUND_PACK_URL=https://SEU-PROJETO.supabase.co/storage/v1/object/public/sounds`.
-
-O app usa a gravação quando ela existe e a síntese para o resto, camada por camada. Dicas para os arquivos:
-
-- **Camadas:** 30–90 s, loop sem emenda (corte em cruzamento por zero, crossfade nas pontas), AAC `.m4a` 128 kbps, nível em torno de −23 LUFS, sem eventos marcantes (o ouvido percebe a repetição).
-- **Sons pontuais:** curtos, com a cauda natural, um pouco distantes (reverberação do ambiente).
-- **Licença:** use bibliotecas com licença comercial clara (por exemplo, coleções CC0 ou pacotes de efeitos com licença para apps). Guarde os comprovantes — a loja pode pedir.
-
-Camadas: `wind leaves birds rain thunder sea water fire cafe crowd city train night cricket clock`.
-Sons pontuais: `steps door knock doorbell keys roar howl bark owl bell horn hooves creak drip gust rustle purr musicbox`.
-
 ## Repositório de sons (reaproveitar ou gerar)
 
 Cada som que toca é descrito com campos fixos — nome (`rain`, `steps`...), `material`, `place`, `distance`, `intensity` e um `detail` curto em inglês. A IA preenche esses campos no plano de cada página (`looks` nas camadas, `v` nos sons pontuais), e a função `sound-resolve` procura no repositório (`sound_library`) o som mais parecido:
@@ -108,20 +78,14 @@ descrição da cena ──► sound-resolve ──► achou parecido (≥ 0,7)? 
                          geração ligada? ──► gera em segundo plano, salva em sounds/lib/…
                                          │ não                    (próximo pedido já reaproveita)
                                          ▼
-                              app usa o pacote fixo ou a síntese
+                              som fica em silêncio até existir
 ```
 
+- **Só sons da ElevenLabs:** o app não tem mais síntese nem pacote fixo de gravações. Um som que ainda não existe fica em silêncio enquanto é gerado e entra suavemente quando fica pronto.
 - **Nunca troca um som por outro de nome diferente** (chuva nunca vira mar). Pedido sem um campo aceita qualquer valor; por isso os planos por palavras-chave (sem IA) também reaproveitam as gravações.
 - **Uma geração por som novo:** dois leitores pedindo o mesmo som ao mesmo tempo geram uma vez só. Se a geração falhar, a mesma descrição só é tentada de novo depois de 6 horas.
 - **No app:** o volume dos arquivos é igualado automaticamente (arquivos mudos são descartados), e se o servidor demorar mais de 2,5 s toca a reserva.
 - **"Som ruim":** no leitor, toque no rótulo do som (topo da tela) e confirme. Com votos de 3 leitores, o som sai do repositório.
-
-Para registrar as gravações do pacote fixo no repositório:
-
-```bash
-bun scripts/import-sound-pack.ts https://SEU-PROJETO.supabase.co/storage/v1/object/public/sounds/manifest.json > pack.sql
-# rode pack.sql no SQL Editor do Supabase
-```
 
 Para ligar a **geração** de sons novos (opcional; sem isso o repositório só reaproveita):
 
@@ -139,12 +103,17 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
 - **Muitas trocas, som mais leve** (`src/core/smooth.ts`): se a cena muda muito em pouco tempo, as transições ficam até 2,5× mais longas, o volume baixa até 30%, camadas recém-chegadas não somem de repente e camadas fracas novas são ignoradas. Quando a leitura acalma, volta ao normal.
 - **Reaproveitamento:** como a descrição de cada som é estável no livro, a segunda vez que ele aparece (nesta ou em outra leitura, neste ou em outro livro) vem do repositório, sem chamar a ElevenLabs. Os sons da próxima página são buscados (ou gerados) com antecedência.
 
+## Biblioteca, capítulos e configurações
+
+- **Biblioteca** (`app/index.tsx`): destaque no topo (continuar lendo), filtro por tema (Mistério, Fantasia, Aconchego, Suspense, Aventura, Meus livros), fileiras por tema e por ambiente sonoro e uma ficha de cada livro. As capas são desenhadas em código (`src/ui/Cover.tsx`) a partir do clima da história.
+- **Capítulos** (`src/core/chapters.ts`): o glossário identifica "Capítulo 1", "CAPÍTULO III", "Parte 2", "Chapter 4"… ou, sem títulos, divide o livro em partes. Escolha um capítulo para ver os termos dele, sugestões de personagens e lugares (só do que já foi lido) e ir direto para ele.
+- **Configurações** (`app/settings.tsx`, botão ⚙ na biblioteca e no leitor): volume do ambiente, suavidade das transições, volume dos sons da história, frequência dos detalhes de ambiente, suavização automática, tema, letra, chave da ElevenLabs e o repositório de sons.
+
 ## Verificações
 
 ```bash
 npm test                          # testes do núcleo (Jest)
 bun scripts/verify-repo.ts        # SQL da biblioteca local (precisa do Bun)
-bun scripts/verify-audio.ts out/  # síntese: níveis, loops, sem estouro; salva WAVs em out/
 bun scripts/verify-functions.ts   # funções do servidor com Supabase/Claude simulados
 ```
 
@@ -154,7 +123,6 @@ O que já foi verificado fora do celular:
 |---|---|
 | Texto, EPUB, glossário, plano de som | 15 testes automáticos (EPUB real gerado com JSZip) |
 | Biblioteca local (SQLite) | 15 checagens com SQLite real |
-| Síntese de áudio | todas as camadas e sons: sem NaN, sem estouro, emenda do loop, nível e caráter espectral |
 | Motor de som | no Web Audio do Chromium, medindo a saída: entrada/saída suaves, sons pontuais, mudo, liberar camadas e suspender |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |
 | Funções do servidor | 21 checagens: login, cache compartilhado, limite diário, entradas inválidas, PDF de outro leitor, PDF apagado após leitura |
@@ -179,7 +147,7 @@ app/                 telas (expo-router)
   glossary/[id].tsx  glossário
   paste.tsx          colar texto
 src/core/            lógica pura, testável: texto, EPUB, palavras-chave, planos, glossário
-src/audio/           síntese (dsp, recipes) e motor (engine); context.ts = celular, context.web.ts = navegador
+src/audio/           motor de som (engine); context.ts = celular, context.web.ts = navegador
 src/state/           SQLite local (repo) e diretor de cena (planos da IA em lotes)
 src/services/        Supabase, IA, importação, sincronização
 src/data/books.ts    histórias de exemplo
