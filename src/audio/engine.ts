@@ -229,6 +229,8 @@ export class AmbientEngine {
   private recentSpots: { id: string; until: number }[] = [];
   private ducks: [number, number][] = [];
   private lastSound = 0;
+  /** o próprio motor suspendeu o áudio por silêncio (não é bloqueio do navegador) */
+  private idleSuspended = false;
   private retryAt = 0;
 
   constructor(private makeCtx: () => CtxLike) {}
@@ -236,7 +238,7 @@ export class AmbientEngine {
   /** Cria o contexto de áudio (chame a partir de um toque do usuário). */
   start(): void {
     if (this.ctx) {
-      if (this.enabled && this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.enabled && this.ctx.state === 'suspended') this.wake();
       return;
     }
     const ctx = this.makeCtx();
@@ -262,6 +264,21 @@ export class AmbientEngine {
     return !!this.ctx;
   }
 
+  /**
+   * O navegador (ou o sistema) não deixou o áudio tocar: há cena para tocar,
+   * o som está ligado, mas o contexto continua suspenso sem ter sido o motor a
+   * suspender. Precisa de um toque da pessoa (chame `start()` nele).
+   */
+  get needsUnlock(): boolean {
+    const ctx = this.ctx;
+    return !!ctx && this.enabled && ctx.state === 'suspended' && !this.idleSuspended && this.lastMix.length > 0;
+  }
+
+  private wake(): void {
+    this.idleSuspended = false;
+    if (this.ctx) void Promise.resolve(this.ctx.resume()).catch(() => undefined);
+  }
+
   /** Volume geral (0 = mudo: suspende o áudio). */
   setVolume(v: number): void {
     this.volume = v;
@@ -269,7 +286,7 @@ export class AmbientEngine {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     rampParam(this.master.gain, this.master.gain.value, v, t, 0.3);
-    if (v > 0 && this.ctx.state === 'suspended') void this.ctx.resume();
+    if (v > 0 && this.ctx.state === 'suspended') this.wake();
   }
 
   /** Conforto acústico: volumes separados, loops e modo foco. */
@@ -287,11 +304,11 @@ export class AmbientEngine {
   }
 
   async pause(): Promise<void> {
-    if (this.ctx && this.ctx.state === 'running') await this.ctx.suspend();
+    if (this.ctx && this.ctx.state === 'running') { this.idleSuspended = true; await this.ctx.suspend(); }
   }
 
   async resume(): Promise<void> {
-    if (this.ctx && this.enabled && this.ctx.state === 'suspended') await this.ctx.resume();
+    if (this.ctx && this.enabled && this.ctx.state === 'suspended') { this.idleSuspended = false; await this.ctx.resume(); }
   }
 
   /** Liga o repositório de sons (arquivos escolhidos pela descrição). */
@@ -372,7 +389,7 @@ export class AmbientEngine {
   /** Toca os efeitos pontuais da cena, cada um no seu momento (com ducking do ambiente). */
   playSpots(spots: Spot[]): void {
     if (!this.ctx || !this.enabled || this.user.spots <= 0 || this.comfort.focus || this.comfort.sfx <= 0) return;
-    if (spots.length && this.ctx.state === 'suspended') void this.ctx.resume();
+    if (spots.length && this.ctx.state === 'suspended') this.wake();
     this.lastSound = this.ctx.currentTime + 12;
     const bus = this.spotBus;
     for (const sp of spots.slice(0, 3)) {
@@ -445,7 +462,7 @@ export class AmbientEngine {
     const ctx = this.ctx!;
     const eff = this.effectiveMix(mix);
     const want = new Map(eff.map((m) => [m.s, m]));
-    if (this.enabled && ctx.state === 'suspended' && eff.length) void ctx.resume();
+    if (this.enabled && ctx.state === 'suspended' && eff.length) this.wake();
     // stems que saem: descem devagar (4 s × preferência)
     this.stems.forEach((s, L) => {
       if (want.has(L) || s.level <= 0) return;
@@ -611,7 +628,7 @@ export class AmbientEngine {
       if (s.src) { try { s.src.stop(); s.src.disconnect(); } catch { /* já parado */ } s.src = null; }
     });
     if (active || (this.details.length && this.nextDetail && this.nextDetail - now < 30)) this.lastSound = now;
-    else if (ctx.state === 'running' && now - this.lastSound > 12) void ctx.suspend();
+    else if (ctx.state === 'running' && now - this.lastSound > 12) { this.idleSuspended = true; void ctx.suspend(); }
   }
 
   private tick(): void {

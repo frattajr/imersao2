@@ -67,8 +67,13 @@ export interface Typography {
 }
 export const DEFAULT_TYPE: Typography = { font: 'literata', lineI: 2, paraI: 2, marginI: 1, justify: true };
 
-/** Páginas (toque/deslize) ou rolagem contínua (o som acompanha o parágrafo visível). */
-export type ReadingLayout = 'pages' | 'scroll';
+/**
+ * Página cheia (vários parágrafos por tela, como um livro), um parágrafo por
+ * tela (mais cinematográfico) ou rolagem contínua (o som acompanha o
+ * parágrafo visível).
+ */
+export type ReadingLayout = 'full' | 'pages' | 'scroll';
+export const LAYOUT_LABEL: Record<ReadingLayout, string> = { full: '📖 Página cheia', pages: '🎬 Um parágrafo', scroll: '📜 Rolagem' };
 
 /* ---------- Som ---------- */
 export const VOLUMES = [0.35, 0.7, 1, 0];
@@ -141,7 +146,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   const [sizeI, setSizeS] = useState(2);
   const [volI, setVolS] = useState(1);
   const [type, setTypeS] = useState<Typography>(DEFAULT_TYPE);
-  const [layout, setLayoutS] = useState<ReadingLayout>('pages');
+  const [layout, setLayoutS] = useState<ReadingLayout>('full');
   const [sound, setSoundS] = useState<SoundPrefs>(DEFAULT_SOUND);
 
   useEffect(() => {
@@ -151,7 +156,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       if (t && t in PALETTES) setThemeS(t as ThemeName);
       if (s !== null) setSizeS(clampI(Number(s), SIZES.length));
       if (v !== null) setVolS(clampI(Number(v), VOLUMES.length));
-      if (l === 'pages' || l === 'scroll') setLayoutS(l);
+      if (l === 'pages' || l === 'scroll' || l === 'full') setLayoutS(l);
       try { if (ty) setTypeS({ ...DEFAULT_TYPE, ...(JSON.parse(ty) as Partial<Typography>) }); } catch { /* corrompido: padrão */ }
       try { if (sp) setSoundS({ ...DEFAULT_SOUND, ...(JSON.parse(sp) as Partial<SoundPrefs>) }); } catch { /* corrompido: padrão */ }
     })();

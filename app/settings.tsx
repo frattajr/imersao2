@@ -12,7 +12,7 @@ import { supabase } from '../src/services/supabase';
 import { Choice, RoundButton } from '../src/ui/components';
 import {
   DETAIL_LEVELS, FADE_LEVELS, FONTS, LEVELS, LINE_HEIGHTS, MARGINS, PALETTES, PARA_SPACING, READING_FONTS, SIZES, THEME_LABEL,
-  usePrefs, VOLUMES, type ReadingFont, type ThemeName,
+  LAYOUT_LABEL, usePrefs, VOLUMES, type ReadingFont, type ReadingLayout, type ThemeName,
 } from '../src/ui/prefs';
 
 const VOLUME_LABEL = ['Baixo', 'Médio', 'Alto', 'Mudo'];
@@ -101,8 +101,8 @@ export default function Settings() {
         <Group title="Tema">
           <Choice value={theme} onChange={setTheme} options={(Object.keys(PALETTES) as ThemeName[]).map((t) => ({ value: t, label: THEME_LABEL[t] }))} />
         </Group>
-        <Group title="Modo de leitura" hint="Páginas: uma por vez, com toque ou deslize. Rolagem: texto contínuo — o som acompanha o parágrafo que está na tela.">
-          <Choice value={layout} onChange={setLayout} options={[{ value: 'pages', label: '📄 Páginas' }, { value: 'scroll', label: '📜 Rolagem' }]} />
+        <Group title="Modo de leitura" hint="Página cheia: como um livro. Um parágrafo: uma cena por tela. Rolagem: texto contínuo. Em todos, o som acompanha o trecho que você está lendo.">
+          <Choice value={layout} onChange={setLayout} options={(Object.keys(LAYOUT_LABEL) as ReadingLayout[]).map((l) => ({ value: l, label: LAYOUT_LABEL[l] }))} />
         </Group>
         <Group title="Fonte">
           <Choice value={type.font} onChange={(f: ReadingFont) => setType({ font: f })}

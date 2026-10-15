@@ -135,4 +135,16 @@ describe('motor de mixagem', () => {
     const duck = (e as unknown as { duckGain: Gain }).duckGain;
     expect(duck.gain.events.some((ev) => ev.v === DUCK_LEVEL)).toBe(true);
   });
+  it('navegador bloqueou o som: pede um toque; pausa do próprio motor não pede', async () => {
+    const { ctx, e } = setup();
+    ctx.state = 'suspended'; // resume() não muda o estado: autoplay bloqueado
+    expect(e.needsUnlock).toBe(false); // nada para tocar ainda
+    e.setMix(mix.slice(0, 1));
+    await flush();
+    expect(e.needsUnlock).toBe(true);
+    ctx.state = 'running';
+    await e.pause();
+    ctx.state = 'suspended';
+    expect(e.needsUnlock).toBe(false);
+  });
 });

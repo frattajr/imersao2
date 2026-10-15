@@ -1,6 +1,8 @@
 /** Painel "Aa": tipografia e tema sem sair da leitura. */
-import { Choice } from '../ui/components';
-import { LINE_HEIGHTS, MARGINS, PALETTES, PARA_SPACING, READING_FONTS, SIZES, THEME_LABEL, usePrefs, type ReadingFont, type ThemeName } from '../ui/prefs';
+import { router } from 'expo-router';
+import { View } from 'react-native';
+import { Choice, RoundButton } from '../ui/components';
+import { LAYOUT_LABEL, LINE_HEIGHTS, MARGINS, PALETTES, PARA_SPACING, READING_FONTS, SIZES, THEME_LABEL, usePrefs, type ReadingFont, type ReadingLayout, type ThemeName } from '../ui/prefs';
 import { Sheet, SheetRow } from './Sheet';
 
 export function TypeSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -29,9 +31,12 @@ export function TypeSheet({ visible, onClose }: { visible: boolean; onClose: () 
       <SheetRow label="Alinhamento">
         <Choice value={type.justify ? 1 : 0} onChange={(v) => setType({ justify: v === 1 })} options={[{ value: 1, label: 'Justificado' }, { value: 0, label: 'À esquerda' }]} />
       </SheetRow>
-      <SheetRow label="Modo de leitura" hint="Na rolagem, o som acompanha o parágrafo que está na tela.">
-        <Choice value={layout} onChange={setLayout} options={[{ value: 'pages', label: '📄 Páginas' }, { value: 'scroll', label: '📜 Rolagem' }]} />
+      <SheetRow label="Modo de leitura" hint="Página cheia: como um livro. Um parágrafo: mais cinematográfico. Rolagem: texto contínuo. Em todos, o som acompanha o trecho que você está lendo.">
+        <Choice value={layout} onChange={setLayout} options={(Object.keys(LAYOUT_LABEL) as ReadingLayout[]).map((l) => ({ value: l, label: LAYOUT_LABEL[l] }))} />
       </SheetRow>
+      <View style={{ alignItems: 'flex-start' }}>
+        <RoundButton label="⚙ Mais configurações" onPress={() => { onClose(); router.push('/settings'); }} />
+      </View>
     </Sheet>
   );
 }

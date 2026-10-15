@@ -36,7 +36,13 @@ App de leitura para iOS e Android: o texto aparece página por página, em letra
 - **Bateria e latência**: stems silenciosos são parados (o buffer fica em cache), o contexto de áudio é suspenso quando nada toca, relógio interno de 0,5 s, consulta ao repositório com limite de 2,5 s e arquivos normalizados uma única vez.
 
 **Leitura** (`app/read/[id].tsx`, `src/reader/`)
-- **Páginas** (toque nas laterais ou deslize) ou **rolagem contínua** — na rolagem, o som acompanha o parágrafo visível (FlatList + `onViewableItemsChanged`, com 0,7 s de permanência antes de trocar, para não mudar a cada rolada).
+- **Três modos de leitura**: 📖 **página cheia** (vários parágrafos por tela, como um livro; `src/core/paginate.ts` estima o que cabe e nunca corta parágrafo), 🎬 **um parágrafo por tela** e 📜 **rolagem contínua**. Na página cheia, o som de cada parágrafo da tela entra no tempo em que a pessoa deve chegar nele, pelo ritmo dela. Na rolagem, o som acompanha o parágrafo visível (`onViewableItemsChanged`, 0,7 s de permanência).
+- **Virar a página**: toque nas laterais, deslize para o lado (ou para cima), ou use setas / PageUp / PageDown / espaço no teclado (web). *Botões de volume* não foram incluídos: precisam de um módulo nativo (ex.: `react-native-volume-manager`) e de um build EAS próprio.
+- **Grifos e notas**: toque longo num parágrafo abre a seleção (escolha as frases); grife em 4 cores, anote, copie, compartilhe, abra uma palavra no dicionário (Dicio) ou traduza o trecho. Toque num grifo para editar. Ficam ancorados no parágrafo + posição do caractere, então sobrevivem a mudanças de fonte e de modo. Tabela `annotations` no SQLite.
+- **Marcadores**: 🏷/🔖 na barra de cima; no Modo Zen aparece uma fita no canto.
+- **☰ Navegar**: barra de progresso arrastável (mostra capítulo e % enquanto arrasta), sumário, lista de marcadores e de grifos/notas com **exportação em Markdown** (compartilhar no celular; copiar na web), e o download do capítulo para ler offline.
+- **🔍 Busca no livro** (sem acento e sem diferenciar maiúsculas): toque num resultado para ir até ele; o trecho pisca em destaque.
+- **"🔇 Toque para ativar o som"**: se o navegador bloquear o áudio (autoplay), aparece um aviso; um toque libera.
 - **Modo Zen**: barras, botões e barra de status somem após 3 s sem toque; um toque no centro traz de volta. Fica um indicador mínimo do capítulo com o tempo restante calculado no **ritmo de leitura da pessoa** (palavras por minuto aprendidas página a página, `src/core/pace.ts`).
 - **Tipografia**: Literata, Merriweather e Atkinson Hyperlegible (Bookerly é exclusiva da Amazon e não pode ser distribuída), tamanho, entrelinha, espaço entre parágrafos, margens e alinhamento; temas Claro, Sépia, Cinza foco, Escuro e Preto OLED (contraste do texto acima de 7:1).
 - **X-Ray** (`src/core/xray.ts`): nomes e termos do texto são tocáveis e abrem uma ficha — primeira e última menção, número de menções e explicação da IA sob demanda — **só com o que já foi lido** (sem spoiler).
@@ -195,7 +201,8 @@ O que já foi verificado fora do celular:
 | Texto, EPUB, glossário, plano de som | 15 testes automáticos (EPUB real gerado com JSZip) |
 | Biblioteca local (SQLite) | 15 checagens com SQLite real |
 | Motor de áudio | testes com contexto de áudio simulado: máx. 4 stems por prioridade, low-pass, curva de potência constante, transições de 2,5–4 s, ducking, modo foco, loops e volumes separados |
-| Leitor | testes de ritmo de leitura (WPM), X-Ray sem spoiler, recapitulação e matriz pós-suavização; no Chromium: Modo Zen, toques, rolagem, tipografia, X-Ray, pacote inicial de stems tocando |
+| Leitor | testes de ritmo de leitura (WPM), X-Ray sem spoiler, recapitulação e matriz pós-suavização; no Chromium: Modo Zen, toques, rolagem, tipografia, X-Ray, pacote inicial de stems tocando, página cheia, deslize, teclado, marcador, grifo com nota, sumário, busca |
+| Anotações | grifos sobrepostos cortam o texto certo, frases com posições exatas, exportação Markdown, busca sem acento, página cheia não passa da altura e títulos de capítulo abrem tela nova |
 | Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
 | Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |

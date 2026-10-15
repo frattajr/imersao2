@@ -6,6 +6,7 @@
  * A interface `SqlDb` é o subconjunto do expo-sqlite que usamos — nos
  * testes ela é implementada com outro SQLite.
  */
+import type { Annotation } from '../core/annotations';
 import type { BookKind, BookMeta, GlossaryEntry, ScenePlan } from '../core/types';
 import { SAMPLE_BOOKS } from '../data/books';
 
@@ -47,6 +48,19 @@ CREATE TABLE IF NOT EXISTS kv (
   k TEXT PRIMARY KEY NOT NULL,
   v TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS annotations (
+  id TEXT PRIMARY KEY NOT NULL,
+  book_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  page INTEGER NOT NULL,
+  start_at INTEGER NOT NULL DEFAULT 0,
+  end_at INTEGER NOT NULL DEFAULT 0,
+  quote TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS annotations_book ON annotations (book_id, page);
 `;
 
 interface BookRow {
@@ -122,6 +136,30 @@ export class Repo {
     await this.db.runAsync('DELETE FROM books WHERE id = ?', [id]);
     await this.db.runAsync('DELETE FROM texts WHERE id = ?', [id]);
     await this.db.runAsync('DELETE FROM plans WHERE book_id = ?', [id]);
+    await this.db.runAsync('DELETE FROM annotations WHERE book_id = ?', [id]);
+  }
+
+  /* ---------- marcadores, grifos e notas ---------- */
+
+  async listAnnotations(bookId: string): Promise<Annotation[]> {
+    const rows = await this.db.getAllAsync<{
+      id: string; book_id: string; kind: string; page: number; start_at: number; end_at: number; quote: string; note: string; color: string; created_at: number;
+    }>('SELECT * FROM annotations WHERE book_id = ? ORDER BY page, start_at', [bookId]);
+    return rows.map((r) => ({
+      id: r.id, bookId: r.book_id, kind: r.kind as Annotation['kind'], page: r.page, start: r.start_at, end: r.end_at,
+      quote: r.quote, note: r.note, color: r.color as Annotation['color'], createdAt: r.created_at,
+    }));
+  }
+
+  async saveAnnotation(a: Annotation): Promise<void> {
+    await this.db.runAsync(
+      'INSERT OR REPLACE INTO annotations (id, book_id, kind, page, start_at, end_at, quote, note, color, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [a.id, a.bookId, a.kind, a.page, a.start, a.end, a.quote, a.note, a.color ?? '', a.createdAt],
+    );
+  }
+
+  async deleteAnnotation(id: string): Promise<void> {
+    await this.db.runAsync('DELETE FROM annotations WHERE id = ?', [id]);
   }
 
   async getPlan(bookId: string, page: number): Promise<ScenePlan | null> {
