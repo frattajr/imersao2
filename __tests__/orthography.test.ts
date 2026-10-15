@@ -39,3 +39,7 @@ describe('grafia de 1943–1971', () => {
     expect(modernize(t)).toContain('Ele pôs o livro sobre a mesa e disse que este era o melhor.');
   });
 });
+
+it('palavras com nome de propriedade de objeto não quebram', () => {
+  expect(modernize('O constructor e o toString do valueOf, hasOwnProperty. Elle disse.', true)).toBe('O constructor e o toString do valueOf, hasOwnProperty. Ele disse.');
+});

@@ -73,12 +73,20 @@ export function chapterTitle(sub: string): string {
   return /^[IVXLC]+$|^\d+$/.test(last) ? `Capítulo ${last}` : last;
 }
 
+/**
+ * Fora do navegador (script do deploy) a Wikimedia exige um User-Agent que
+ * identifique o programa; no navegador o próprio navegador manda o dele
+ * (e cabeçalhos extras forçariam uma verificação de CORS a mais).
+ */
+const inBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+const HEADERS: Record<string, string> = inBrowser ? {} : { 'User-Agent': 'imersao-app/1.0 (https://github.com/frattajr/imersao2; leitura com som ambiente)' };
+
 async function api(f: Fetch, params: Record<string, string>, timeoutMs = 30_000): Promise<unknown> {
   const q = new URLSearchParams({ format: 'json', formatversion: '2', origin: '*', ...params });
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const r = await f(`${API}?${q.toString()}`, { signal: ctl.signal, headers: { 'Api-User-Agent': 'imersao-app (leitura com som ambiente)' } });
+    const r = await f(`${API}?${q.toString()}`, { signal: ctl.signal, headers: HEADERS });
     if (!r.ok) throw new Error(`Wikisource ${r.status}`);
     return await r.json();
   } finally {
@@ -92,15 +100,30 @@ export async function parsePage(f: Fetch, page: string): Promise<string | null> 
   return j.parse?.text ?? null;
 }
 
+/** Título exato da página procurando pelo nome da obra (e autor, se vier). */
+export async function searchTitle(f: Fetch, title: string, author = ''): Promise<string | null> {
+  const j = (await api(f, { action: 'query', list: 'search', srsearch: `intitle:"${title}" ${author}`.trim(), srnamespace: '0', srlimit: '10' })) as
+    { query?: { search?: { title: string }[] } };
+  const hits = (j.query?.search ?? []).map((h) => h.title);
+  const n = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  // a página principal da obra (sem "/capítulo"), de preferência com o título igual
+  return hits.find((h) => n(h) === n(title)) ?? hits.find((h) => !h.includes('/') && n(h).startsWith(n(title))) ?? null;
+}
+
 /**
  * Texto completo de uma obra. Se a página principal for um índice de
  * capítulos, baixa cada capítulo (com o título como parágrafo próprio, para
  * o sumário do leitor). `step` informa o progresso.
  */
 export async function fetchWikisourceBook(
-  f: Fetch, page: string, opts: { maxChapters?: number; step?: (done: number, total: number) => void } = {},
+  f: Fetch, page: string, opts: { maxChapters?: number; author?: string; step?: (done: number, total: number) => void } = {},
 ): Promise<string | null> {
-  const html = await parsePage(f, page);
+  let html = await parsePage(f, page);
+  if (!html) {
+    // título um pouco diferente no Wikisource: procura
+    const found = await searchTitle(f, page, opts.author);
+    if (found) { page = found; html = await parsePage(f, page); }
+  }
   if (!html) return null;
   const links = chapterLinks(html, page).slice(0, opts.maxChapters ?? 150);
   const own = htmlToText(html);

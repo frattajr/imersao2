@@ -55,6 +55,7 @@ async function textOf(a: AcervoEntry, step: ImportStep): Promise<string> {
   } catch { /* sem cópia: Wikisource */ }
   if (a.find.wikisource) {
     const t = await fetchWikisourceBook(fetch, a.find.wikisource, {
+      author: a.author.split(' ').pop(),
       step: (done, total) => step(`Baixando “${a.title}” do Wikisource…`, done / total),
     }).catch(() => null);
     if (t) {

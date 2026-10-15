@@ -59,7 +59,8 @@ async function fromGutenberg(f: Fetch, catalog: GutBook[], a: AcervoEntry): Prom
 
 async function fromWikisource(f: Fetch, a: AcervoEntry): Promise<{ text: string; source: string } | null> {
   if (!a.find.wikisource) return null;
-  const text = await fetchWikisourceBook(f, a.find.wikisource).catch(() => null);
+  const text = await fetchWikisourceBook(f, a.find.wikisource, { author: a.author.split(' ').pop() })
+    .catch((e: unknown) => { console.log(`    Wikisource (${a.find.wikisource}): ${e instanceof Error ? e.message : String(e)}`); return null; });
   return text && text.length > 1500 ? { text, source: `wikisource:${a.find.wikisource}` } : null;
 }
 
@@ -97,15 +98,20 @@ export async function buildAcervo(f: Fetch, out: string, opts: { log?: (m: strin
   const worker = async () => {
     while (next < ACERVO.length && left() > 30_000) {
       const a = ACERVO[next++];
-      const got = (await fromGutenberg(f, catalog, a).catch(() => null)) ?? (await fromWikisource(f, a));
-      if (!got) { log(`  ✗ ${a.title}: texto não encontrado`); continue; }
-      const modernized = looksArchaic(got.text);
-      const text = modernized ? modernize(got.text) : got.text;
-      await writeFile(join(out, 'books', `${a.slug}.txt`), text);
-      const c = await cover(f, a, out).catch(() => undefined);
-      ready.push({ slug: a.slug, source: got.source, chars: text.length, modernized, cover: c });
-      log(`  ✓ ${a.title} (${got.source}, ${Math.round(text.length / 1000)} mil caracteres${modernized ? ', grafia atualizada' : ''}${c ? ', capa' : ''})`);
-      await save();
+      try {
+        const got = (await fromGutenberg(f, catalog, a).catch(() => null)) ?? (await fromWikisource(f, a));
+        if (!got) { log(`  ✗ ${a.title}: texto não encontrado`); continue; }
+        const modernized = looksArchaic(got.text);
+        const text = modernized ? modernize(got.text) : got.text;
+        await writeFile(join(out, 'books', `${a.slug}.txt`), text);
+        const c = await cover(f, a, out).catch(() => undefined);
+        ready.push({ slug: a.slug, source: got.source, chars: text.length, modernized, cover: c });
+        log(`  ✓ ${a.title} (${got.source}, ${Math.round(text.length / 1000)} mil caracteres${modernized ? ', grafia atualizada' : ''}${c ? ', capa' : ''})`);
+        await save();
+      } catch (e) {
+        // uma obra com problema não derruba as outras
+        log(`  ✗ ${a.title}: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   };
   await Promise.all([worker(), worker()]); // gentileza com o Wikisource (cada obra já baixa capítulos em paralelo)

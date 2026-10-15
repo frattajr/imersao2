@@ -11,7 +11,7 @@
  */
 
 /** Palavras inteiras (minúsculas, sem o caso): grafia antiga → atual. */
-const WORDS: Record<string, string> = {
+const WORD_LIST: Record<string, string> = {
   he: 'é', hontem: 'ontem', sahir: 'sair', sahiu: 'saiu', sahia: 'saía', sahi: 'saí', sahida: 'saída',
   cahir: 'cair', cahiu: 'caiu', cahia: 'caía', cahido: 'caído', cahida: 'caída', ahi: 'aí', dahi: 'daí', bahu: 'baú',
   comprehender: 'compreender', comprehendia: 'compreendia', comprehendeu: 'compreendeu', comprehensão: 'compreensão',
@@ -65,6 +65,9 @@ const WORDS: Record<string, string> = {
   rapido: 'rápido', rapida: 'rápida', subito: 'súbito', 
 };
 
+/** Map (e não objeto): "constructor", "toString" etc. não podem casar com propriedades herdadas. */
+const WORDS = new Map(Object.entries(WORD_LIST));
+
 /** contrações com apóstrofo: "d'elle" → "dele", "n'um" → "num" */
 const CONTRACT = /\b([dDnN])['’](este|esta|estes|estas|isto|esse|essa|esses|essas|isso|aquele|aquela|aqueles|aquelas|aquilo|elle|ella|elles|ellas|ele|ela|eles|elas|aqui|ali|alli|ahi|aí|um|uma|uns|umas|outro|outra|outros|outras|onde|aquelle|aquella|aquelles|aquellas)\b/g;
 
@@ -83,7 +86,7 @@ export function looksArchaic(text: string): boolean {
 }
 
 /** Nomes que mantêm a grafia histórica. */
-const KEEP = new Set(['bahia', 'thomas', 'sophia', 'philadelphia', 'smith', 'arthur', 'goethe', 'york', 'byron']);
+const KEEP = new Set(['constructor', 'bahia', 'thomas', 'sophia', 'philadelphia', 'smith', 'arthur', 'goethe', 'york', 'byron']);
 
 /** Regras de letras dentro da palavra (já em minúsculas). */
 function letters(w: string): string {
@@ -109,13 +112,15 @@ const applyCase = (src: string, out: string): string => {
 
 /** Uma palavra na grafia atual. */
 export function modernizeWord(word: string): string {
+  // "camelCase" ou sigla mista: não é palavra portuguesa
+  if (/\p{Ll}\p{Lu}/u.test(word)) return word;
   const low = word.toLowerCase();
   if (KEEP.has(low)) return word;
-  const direct = WORDS[low];
+  const direct = WORDS.get(low);
   if (direct) return applyCase(word, direct);
   const changed = letters(low);
   if (changed === low) return word;
-  return applyCase(word, WORDS[changed] ?? changed);
+  return applyCase(word, WORDS.get(changed) ?? changed);
 }
 
 /**
