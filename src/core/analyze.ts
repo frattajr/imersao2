@@ -2,27 +2,33 @@
  * Plano de som por palavras-chave: funciona sem internet e é o que toca
  * enquanto a IA ainda não respondeu (ou quando ela não está configurada).
  */
-import { norm } from './text';
+import { narration } from './narration';
 import type { Ambience, Layer, Mood, ScenePlan, Spot, Surface } from './types';
 
+/**
+ * Palavras de cada camada, pelo SENTIDO: "a chama" acende a lareira,
+ * "chamou o criado" não; "conversa" não vira vozes de fundo; "olhos
+ * escuros" não é noite. (Metáforas, falas e lembranças já saíram antes, em
+ * `narration`.)
+ */
 const M: Record<Layer, RegExp> = {
-  wind: /vento|ventania|brisa|rajada|assobi/,
-  leaves: /folha|folhag|arvore|bosque|floresta|\bmata\b|galho|trilha|jardim|carvalho|pinheiro/,
-  birds: /passaro|passarinho|pardal|pombo|sabia|amanhec/,
-  rain: /chuv|garoa|goteira|temporal|tempestade|aguaceiro|poca/,
-  thunder: /trov|relampag|\braio|tempestade/,
-  sea: /\bmar\b|onda|praia|oceano|maresia|farol|barco|navio/,
-  water: /riacho|\brio\b|cachoeira|fonte|lago|correnteza|pingav/,
-  fire: /fogo|fogueira|chama|lareira|brasa|crepit/,
-  cafe: /cafeteria|garcom|xicara|espresso|cappuccino|padaria|restaurante|balcao/,
-  crowd: /multidao|festa|mercado|feira|plateia|vozes|conversa|conversav|falavam|risada/,
-  city: /cidade|\brua\b|carro|transito|avenida|metro\b|predio|buzina|onibus|calcada/,
-  train: /\btrem\b|trilhos|vagao|locomotiva|ferrovia|plataforma|estacao/,
-  night: /noite|madrugada|\blua\b|estrela|escur|breu/,
-  cricket: /grilo|cigarra/,
-  clock: /relogio|pendulo|tic-tac/,
-  tavern: /taberna|taverna|estalagem|hospedaria|bodega|caneca|botequim/,
-  drone: /pavor|terror|horror|medo|calafrio|arrepi|sinistr|lugubre|macabr|loucura|cadaver|tumulo|catacumba|cripta/,
+  wind: /\bvento|ventania|brisa|rajada|vendaval/,
+  leaves: /folhagem|folhas (secas|caidas|das arvores|ao vento|farfalh)|\barvores?\b|arvoredo|bosque|floresta|\bmata\b|galhos?\b|trilha|jardim|pomar|carvalho|pinheir|mangueira|coqueir/,
+  birds: /passaro|passarinho|pardal|sabia|gorjei|cantar dos|canto dos|andorinha|bem-te-vi|amanhec/,
+  rain: /chov|chuva|garoa|goteira|temporal|tempestade|aguaceiro|\bpocas?\b|pingos? de chuva/,
+  thunder: /trov|relampag|\braios?\b(?! de sol| de luz)|tempestade/,
+  sea: /\bmar\b|\bondas?\b|praia|oceano|maresia|farol|barco|navio|conves|enseada|rebentacao/,
+  water: /riacho|\brio\b|cachoeira|correnteza|regato|ribeiro|\blago\b|lagoa|\bfonte\b|chafariz|pingav/,
+  fire: /fogueira|lareira|brasas?\b|braseiro|crepit|\b(a|as|uma|das?|nas?|em|pelas?) chamas?\b|labaredas?|\bfogo\b|fogao/,
+  cafe: /cafeteria|garcom|xicaras?|espresso|cappuccino|padaria|restaurante|confeitaria|balcao/,
+  crowd: /multidao|plateia|\bfeira\b|mercado|\bbaile\b|algazarra|burburinho|vozerio|procissao|\bfesta\b|povareu/,
+  city: /cidade|\bruas?\b|carros?\b|transito|avenida|metro\b|predios?\b|buzina|onibus|calcada|\bpraca\b|\blargo\b|bonde|carruage|cocheiro|tilburi/,
+  train: /\btrem\b|trilhos|vagao|locomotiva|ferrovia|plataforma|estacao|comboio/,
+  night: /\bnoite\b|madrugada|\blua\b|luar|estrelas?\b|breu|escuridao|\bo escuro\b|trevas/,
+  cricket: /grilos?\b|cigarras?\b/,
+  clock: /tique-?taque|tic-?tac|pendulo|relogio[^.]{0,25}(batia|bateu|soou|soava|batendo|tiquetaque)/,
+  tavern: /taberna|taverna|estalagem|hospedaria|bodega|caneca|botequim|tasca/,
+  drone: /cadaver|tumulo|catacumba|cripta|necroterio|sepultura|jazigo/,
 };
 
 const LAYER_MOOD: Record<Layer, Mood> = {
@@ -32,18 +38,12 @@ const LAYER_MOOD: Record<Layer, Mood> = {
 };
 
 /**
- * Frases que não descrevem a cena presente: comparação ("como um lobo"),
- * lembrança, sonho, hipótese, negação. Não disparam efeito sonoro.
- */
-const NOT_HERE = /\bcomo (um|uma|se)\b|\bfeito (um|uma)\b|parec|lembr|record|sonh|imagin|\bse (fosse|houvesse)|\bnunca\b|\bnenhum|\bnao (se )?(ouvi|escut|havia|houve)/;
-
-/**
  * Efeito pontual só quando o texto narra o SOM acontecendo (verbo de ação),
  * não quando só menciona a coisa: "o cachorro latiu" toca; "o cachorro do
  * vizinho" não. No máximo um efeito por trecho.
  */
 function keywordSpots(n: string): Spot[] {
-  const sentences = n.split(/(?<=[.!?…;])\s+/).filter((x) => !NOT_HERE.test(x));
+  const sentences = n.split(/(?<=[.!?…;])\s+/).filter(Boolean);
   const t = sentences.join(' ');
   const has = (r: RegExp) => r.test(t);
   /** alguma frase tem o som, sem o que o desmente na mesma frase */
@@ -77,11 +77,12 @@ function keywordSpots(n: string): Spot[] {
   return o.slice(0, 1);
 }
 
+/** Efeito narrado de um texto já filtrado por `narration` (no máximo um). */
+export const keywordSpotsOf = (n: string): Spot[] => keywordSpots(n);
+
 export function analyze(text: string): ScenePlan {
-  const full = norm(text);
-  // lembrança, sonho e comparação não mudam o lugar onde a cena acontece
-  const kept = full.split(/(?<=[.!?…;])\s+/).filter((x) => !NOT_HERE.test(x)).join(' ');
-  const n = kept.length > 20 ? kept : full;
+  // só a narração do presente: sem falas, lembranças, metáforas e nomes próprios
+  const n = narration(text);
   const count: Partial<Record<Layer, number>> = {};
   (Object.keys(M) as Layer[]).forEach((k) => {
     const m = n.match(new RegExp(M[k].source, 'g'));
@@ -90,7 +91,7 @@ export function analyze(text: string): ScenePlan {
   const top = (Object.keys(count) as Layer[]).sort((a, b) => count[b]! - count[a]!).slice(0, 3);
   const ambience: Ambience = {};
   top.forEach((k) => (ambience[k] = Math.min(0.8, 0.4 + 0.15 * count[k]!)));
-  return { mood: top.length ? LAYER_MOOD[top[0]] : 'calm', ambience, spots: keywordSpots(full) };
+  return { mood: top.length ? LAYER_MOOD[top[0]] : 'calm', ambience, spots: keywordSpots(n) };
 }
 
 /** Cor de fundo (muito leve) para cada clima. */

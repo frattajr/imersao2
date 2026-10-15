@@ -42,11 +42,13 @@ import { calibrateCharW, onePerScreen, paginate, screenOf, type PageBox, type Sc
 import { blendAmbience, mergeScreen, mixFromSmoothed } from '../../src/core/plan';
 import { needsRecap, recapLocal, recapWindow } from '../../src/core/recap';
 import { bookProfile, enrichPlan, type AmbientDetail, type BookProfile } from '../../src/core/scenery';
+import { buildSceneMap, scenePlan, type SceneMap } from '../../src/core/narrative';
 import { SceneHold, SceneSmoother } from '../../src/core/smooth';
 import { planDescs, spotDesc } from '../../src/core/sound';
 import { continues, plain } from '../../src/core/text';
 import type { Ambience, BookMeta, GlossaryEntry, Layer, MixStem, Mood, ScenePlan } from '../../src/core/types';
 import { entitiesSoFar, xrayInfo } from '../../src/core/xray';
+import { ACERVO, acervoId } from '../../src/data/acervo';
 import { bundledPlans, isPublicBook } from '../../src/data/books';
 import { AudioSheet } from '../../src/reader/AudioSheet';
 import { NavSheet } from '../../src/reader/NavSheet';
@@ -58,6 +60,7 @@ import { TypeSheet } from '../../src/reader/TypeSheet';
 import { XraySheet } from '../../src/reader/XraySheet';
 import { aiAvailable, explainTerm, fetchRecap } from '../../src/services/ai';
 import { downloadChapter } from '../../src/services/offline';
+import { isGutId, savedGutInfo } from '../../src/services/gutenberg';
 import { activeLibrary } from '../../src/services/sounds';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
@@ -166,6 +169,9 @@ export default function Reader() {
   const profile = useRef<BookProfile>({ looks: {}, tags: [] });
   const smoother = useRef(new SceneSmoother());
   const hold = useRef(new SceneHold());
+  const sceneMap = useRef<SceneMap | null>(null);
+  /** cena que está tocando (mapa de cenas) */
+  const lastScene = useRef<number | null>(null);
   const autoSmooth = useRef(true);
   autoSmooth.current = sound.auto;
   /** tela que o som está tocando agora e se já entrou a primeira vez */
@@ -188,11 +194,14 @@ export default function Reader() {
   useEffect(() => { void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion); }, []);
   const still = reduceMotion || !type.anim;
 
-  const say = useCallback((m: string) => {
+  const say = useCallback((m: string, ms = 2600) => {
     setToast(m);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 2600);
+    toastTimer.current = setTimeout(() => setToast(''), ms);
   }, []);
+  /** tempo lido nesta abertura do livro (para sugerir uma pausa depois de 45 min) */
+  const readMs = useRef(0);
+  const pauseHinted = useRef(false);
 
   /** a pessoa está lendo (virou página, tocou, rolou): o som volta se tinha descido */
   const act = useCallback(() => { lastAct.current = Date.now(); engine.setIdle(false); }, []);
@@ -229,10 +238,14 @@ export default function Reader() {
       try { if (paceRaw) setPace(JSON.parse(paceRaw) as PaceState); } catch { /* ritmo corrompido: padrão */ }
       setBook(b); setPages(p); setGloss(g); setAnns(a); setIdx(start); idxRef.current = start;
       setLayers([{ key: ++keyRef.current, start, dir: 1, leaving: false, offset: 0 }]);
+      // mapa de cenas do livro: o som acompanha a história (lugar, hora, tempo, tensão), não palavras soltas
+      const year = ACERVO.find((x) => acervoId(x.slug) === id)?.year
+        ?? (isGutId(id) ? (await savedGutInfo(id))?.authors[0]?.death_year ?? undefined : undefined);
+      sceneMap.current = buildSceneMap(p, { year: year ?? undefined });
       director.current = new SceneDirector(id, b.title, p, (page) => {
         const s = soundScr.current;
         if (s && page >= s.start && page < s.end) void applyScreen(s);
-      }, { publicBook: isPublicBook(id), bundled: bundledPlans(id) });
+      }, { publicBook: isPublicBook(id), bundled: bundledPlans(id), fallback: (i) => scenePlan(sceneMap.current!, pagesRef.current, i) });
       if (!asked) setAskPreset(true);
       // voltou depois de 48 h: "o que aconteceu até aqui?"
       if (needsRecap(last ? Number(last) : null, Date.now(), start)) {
@@ -295,11 +308,32 @@ export default function Reader() {
       const text = P[range[k]] ?? '';
       return { plan: enrichPlan(r.plan, text, profile.current), words: wordCount(text), fromAi: r.fromAi };
     });
-    const merged = mergeScreen(parts);
+    // mapa de cenas: a tela toca UMA cena — a que ocupa mais texto (sem misturar duas)
+    const byScene = parts.every((p) => p.plan.scene != null);
+    let use = parts;
+    if (byScene) {
+      const words = new Map<number, number>();
+      parts.forEach((p) => words.set(p.plan.scene!, (words.get(p.plan.scene!) ?? 0) + p.words));
+      const top = [...words.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      use = parts.filter((p) => p.plan.scene === top);
+    }
+    const merged = mergeScreen(use);
+    merged.spots = mergeScreen(parts).spots;
     const details: AmbientDetail[] = [];
-    parts.forEach((p) => p.plan.details.forEach((x) => { if (!details.some((y) => y.s === x.s)) details.push(x); }));
-    const held = hold.current.next(merged.ambience);
-    const blended = blendAmbience(prevAmb.current, held.amb, !parts.some((p) => p.fromAi));
+    use.forEach((p) => p.plan.details.forEach((x) => { if (!details.some((y) => y.s === x.s)) details.push(x); }));
+    const scene = byScene ? use[0].plan.scene! : null;
+    const newScene = scene !== null && scene !== lastScene.current;
+    if (newScene) {
+      // cena nova: troca limpa (sem carregar camadas da anterior) e o arco da cena recomeça;
+      // abertura de capítulo ganha um respiro de quase silêncio antes
+      hold.current.reset();
+      engine.markScene({ chapter: lastScene.current !== null && parts.some((p) => p.plan.chapterStart) });
+      lastScene.current = scene;
+    }
+    const tension = use.reduce((a, p) => a + (p.plan.tension ?? 0), 0) / use.length;
+    engine.setTone({ night: !!use[0].plan.night, tension });
+    const held = byScene ? { amb: merged.ambience } : hold.current.next(merged.ambience);
+    const blended = blendAmbience(prevAmb.current, held.amb, !byScene && !parts.some((p) => p.fromAi));
     prevAmb.current = blended;
     const auto = smoother.current.next(blended);
     const sm = autoSmooth.current ? auto : { amb: blended, fade: 1, gain: 1, busy: 0 };
@@ -318,7 +352,7 @@ export default function Reader() {
     // já busca (ou manda gerar) os sons da próxima tela
     const next = P[scr.end];
     if (next) {
-      const nx = enrichPlan(analyze(next), next, profile.current);
+      const nx = enrichPlan(sceneMap.current ? scenePlan(sceneMap.current, P, scr.end) : analyze(next), next, profile.current);
       [...planDescs(nx), ...nx.details.map((x) => spotDesc({ s: x.s, at: 0, w: x.w, v: x.v }))]
         .forEach((x) => void activeLibrary.resolve(x).catch(() => null));
     }
@@ -421,7 +455,15 @@ export default function Reader() {
     }
     lastIdx.current = idx;
     // tempo lido na tela anterior (para a meta diária; pausas longas não contam)
-    if (prev >= 0) logReading(Date.now() - pageSince.current);
+    if (prev >= 0) {
+      const ms = Math.min(Date.now() - pageSince.current, 3 * 60_000);
+      logReading(ms);
+      readMs.current += ms;
+      if (readMs.current > 45 * 60_000 && !pauseHinted.current) {
+        pauseHinted.current = true;
+        say('Você está lendo há uns 45 minutos. Que tal descansar os olhos um pouquinho?', 7000);
+      }
+    }
     pageSince.current = Date.now();
     act();
     engine.clearSpots();
@@ -429,7 +471,7 @@ export default function Reader() {
     const scr = screenAt(idx);
     audioTimer.current = setTimeout(() => void applyScreen(scr), DWELL_MS);
     void getRepo().then((r) => r.saveProgress(id, idx, false)).then(() => syncSoon(8000));
-  }, [idx, pages, book, id, applyScreen, screenAt, words, act]);
+  }, [idx, pages, book, id, applyScreen, screenAt, words, act, say]);
 
   /* parou de ler: sem virar a página por bem mais que o esperado, o som desce quase ao silêncio */
   const paceRef = useRef(pace.wpm);

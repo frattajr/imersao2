@@ -49,6 +49,39 @@ Sons contínuos (chuva, lareira) ajudam a concentrar; sons que mudam (passos, la
 - **Estilos de som** na primeira leitura (e no 🎧): 🌙 Sutil (padrão), 🎬 Cinematográfico, 🌧 Só ambiente e 🔇 Silêncio. O som entra devagar (9 s) ao abrir o livro.
 - Correção: o "Volume geral" das Configurações agora chega ao motor de áudio (antes só era salvo).
 
+**Som que acompanha a história, não palavras soltas** (`src/core/narration.ts`, `src/core/narrative.ts`)
+- **Só a narração do presente muda o som.** Ficam de fora:
+  - falas ("— Lembra do mar? — perguntou ela" não toca mar);
+  - lembranças, sonhos, hipóteses e comparações;
+  - metáforas ("mar de gente", "onda de ciúme", "fogo da paixão", "fonte de renda", "olhos escuros");
+  - nomes próprios ("Rio de Janeiro" é cidade, não rio).
+  - Os gatilhos também leem pelo sentido: "a chama" acende a lareira, "chamou o criado" não; "conversa" não vira vozes de fundo; "medo" não liga um drone.
+- **Mapa de cenas do livro**, calculado ao abrir:
+  - O livro é dividido em cenas: capítulos, separadores, saltos de tempo ("No dia seguinte") e mudanças de lugar **estabelecidas** ("entramos na sala", "cheguei à praia"). Citar um lugar não basta.
+  - Cada cena guarda lugar, hora, tempo (chuva, tempestade, vento) e lareira, e esse estado **persiste** até ser substituído. Se a cena começou junto à lareira, a lareira continua.
+  - O som só troca na mudança de cena. Cada tela toca uma cena só, a que ocupa mais texto.
+- **O ambiente sai do estado da cena** (`bedFor`):
+  - o quarto em noite de chuva tem a chuva abafada lá fora;
+  - mata de dia tem folhas e pássaros, à noite grilos;
+  - uma ferrovia isolada tem vento e trem ao longe, sem gente;
+  - lugar sem som marcante fica quase em silêncio.
+- **Época do livro:** em obras anteriores a 1920, a cidade tem carroças e não carros, e a multidão é sempre um murmúrio sem palavras.
+- **Tensão pelo ritmo do texto** (frases curtas, exclamações, perigo): o ambiente fica mais escuro e próximo, sem subir o volume. Só em pico de tensão, num lugar fechado ou à noite, entra um grave muito baixo.
+
+**Dinâmica para quem lê por horas** (`src/audio/engine.ts`)
+- **Arco da cena:** entra presente, segura 20 s e assenta em ~62% ao longo de 70 s. Depois de 6 min no mesmo lugar, respira em 45%.
+- **Respiro entre capítulos:** 6 s de quase silêncio antes da cena nova, como um corte de cinema.
+- **Agudos macios:** corte suave em 7 kHz no ambiente (5,2 kHz à noite; mais escuro com tensão).
+- **Contra a repetição:**
+  - a cada 2,5–4 min, cada loop troca de "tomada" (outro ponto do arquivo, velocidade ±3%, cruzando em 5 s);
+  - o volume de cada camada oscila devagar (±6%).
+- **Sons que cansam têm limite:**
+  - vozes sempre abafadas (900 Hz, mais baixas);
+  - tique-taque de relógio no máximo 45 s por cena;
+  - drone no máximo 90 s;
+  - efeitos rítmicos (passos, batidas, coração) uma vez por cena.
+- **Sessão longa:** depois de 35 min, o ambiente fica 15% mais baixo e os detalhes ficam mais raros. Aos 45 min de leitura, o leitor sugere uma pausa.
+
 **Leitura** (`app/read/[id].tsx`, `src/reader/`)
 - **Três modos de leitura**: 📖 **página cheia** (padrão), 🎬 **um parágrafo por tela** e 📜 **rolagem contínua**.
 - **Página cheia feita para celular**: o texto ocupa a tela inteira — só um cabeçalho fino (capítulo) e um rodapé fino (progresso) ficam no Modo Zen; as barras aparecem **por cima** do texto. `src/core/paginate.ts` estima o que cabe e o leitor **calibra a estimativa com a medida real** do texto na tela (`calibrateCharW`), então as páginas ficam cheias.
@@ -247,6 +280,7 @@ O que já foi verificado fora do celular:
 | Acervo | todas as obras em domínio público e com sinopse; busca no Gutenberg pela grafia antiga; Wikisource capítulo por capítulo, sem navegação nem notas; grafia antiga → atual sem mexer em texto moderno; no Chromium: fileiras, ficha e leitura de um clássico com grafia atualizada |
 | Imersão | efeito só com o som narrado (menção, lembrança e comparação não tocam), um som por tela, permanência mínima de cena, loop sem emenda, no máximo um efeito a cada 40 s, pausa por inatividade; no Chromium (390×844): estilo de som na primeira leitura, página cheia com abertura de capítulo e parágrafos inteiros, toque nas laterais e no texto, arrasto que acompanha o dedo, toque longo, X-Ray sem virar a página, rolagem por parágrafo |
 | Catálogo | duração, busca sem acento e pela grafia antiga, filtros, volumes repetidos, resumo em inglês detectado, trecho de abertura, perfil sonoro, recomendações, gostos, sequência de dias, coleções só com obras que existem, desambiguação do Wikisource; no Chromium: gostos na primeira abertura, fileiras, selos, ficha com sinopse em português e prévia do som, Quero ler, busca com filtros |
+| Contexto e dinâmica | narração sem falas, lembranças, metáforas e nomes próprios; nenhum som por palavra solta ("chamou", "olhos escuros", "onda de ciúme", "Rio de Janeiro"); cenas que persistem, salto de tempo e mudança de lugar abrem cena nova, abertura de capítulo, época do livro, tensão pelo ritmo, ambiente de cada lugar e hora; arco da cena, respiro de capítulo, tom à noite e com tensão, vozes abafadas, relógio com limite, efeito rítmico uma vez por cena, troca de tomada do loop |
 | Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
 | Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |

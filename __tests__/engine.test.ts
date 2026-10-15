@@ -197,3 +197,78 @@ describe('loops e presença', () => {
     expect(started.length).toBe(2);
   });
 });
+
+describe('dinâmica para leitura longa', () => {
+  const tick = (e: AmbientEngine) => (e as unknown as { tick: () => void }).tick();
+
+  it('arco da cena: entra presente e assenta; capítulo começa com respiro', async () => {
+    const { e, ctx } = setup();
+    e.setMix([{ s: 'rain', gain: 0.5, priority: 1 }]);
+    await flush();
+    e.markScene();
+    expect(e.presenceLevel).toBe(1);
+    ctx.currentTime = 200; tick(e);
+    expect(e.presenceLevel).toBeCloseTo(0.6, 1);
+    e.markScene({ chapter: true });
+    expect(e.presenceLevel).toBeLessThan(0.1);
+    ctx.currentTime = 210; tick(e);
+    expect(e.presenceLevel).toBe(1);
+  });
+
+  it('tom: agudos macios, mais escuro à noite e com tensão', () => {
+    const { e } = setup();
+    e.setTone({ night: false, tension: 0 });
+    const day = e.toneFrequency;
+    e.setTone({ night: true, tension: 0 });
+    const night = e.toneFrequency;
+    e.setTone({ night: true, tension: 1 });
+    expect(day).toBeLessThanOrEqual(7000);
+    expect(night).toBeLessThan(day);
+    expect(e.toneFrequency).toBeLessThan(night);
+    expect(e.toneFrequency).toBeGreaterThanOrEqual(2200);
+  });
+
+  it('vozes sempre abafadas; tique-taque sai sozinho depois de 45 s', async () => {
+    const { e, ctx, stems } = setup();
+    e.setMix([{ s: 'crowd', gain: 0.5, priority: 1 }, { s: 'clock', gain: 0.3, priority: 2 }]);
+    await flush();
+    expect(stems.get('crowd')!.filter.frequency.target).toBeLessThanOrEqual(900);
+    ctx.currentTime = 50; tick(e);
+    expect(stems.get('clock')!.level).toBe(0);
+    // a mesma cena pede o relógio de novo: continua fora
+    e.setMix([{ s: 'crowd', gain: 0.5, priority: 1 }, { s: 'clock', gain: 0.3, priority: 2 }]);
+    expect(stems.get('clock')!.level).toBe(0);
+    // cena nova: pode voltar
+    e.markScene();
+    e.setMix([{ s: 'crowd', gain: 0.5, priority: 1 }, { s: 'clock', gain: 0.3, priority: 2 }]);
+    expect(stems.get('clock')!.level).toBeGreaterThan(0);
+  });
+
+  it('efeito rítmico só uma vez por cena', async () => {
+    const { e, ctx } = setup();
+    let n = 0;
+    const orig = ctx.createBufferSource;
+    ctx.createBufferSource = () => { const s = orig(); const st = s.start.bind(s); s.start = () => { if (!s.loop) n++; st(); }; return s; };
+    e.playSpots([{ s: 'steps', at: 1, w: 0.4 }]);
+    await flush();
+    ctx.currentTime = 60;
+    e.playSpots([{ s: 'steps', at: 1, w: 0.4 }]);
+    await flush();
+    expect(n).toBe(1);
+    e.markScene();
+    ctx.currentTime = 120;
+    e.playSpots([{ s: 'steps', at: 1, w: 0.4 }]);
+    await flush();
+    expect(n).toBe(2);
+  });
+
+  it('contra a repetição: o loop troca de tomada de tempos em tempos', async () => {
+    const { e, ctx, stems } = setup();
+    e.setMix([{ s: 'rain', gain: 0.5, priority: 1 }]);
+    await flush();
+    const first = stems.get('rain')!.src;
+    ctx.currentTime = 300; tick(e);
+    expect(stems.get('rain')!.src).not.toBe(first);
+    expect(stems.get('rain')!.src?.started).toBe(true);
+  });
+});

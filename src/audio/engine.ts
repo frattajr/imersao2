@@ -109,6 +109,29 @@ const LOOP_XFADE = 2;
 /** Respiro: depois deste tempo na mesma cena o ambiente desce devagar até este nível. */
 const BREATHE_AFTER = 6 * 60;
 const BREATHE_LEVEL = 0.45;
+/**
+ * Arco da cena: entra presente, segura 20 s e assenta em ~62% ao longo de
+ * 70 s — fica no fundo, quase imperceptível, até a próxima cena.
+ */
+const ARC_HOLD = 20;
+const ARC_SETTLE = 70;
+const ARC_LEVEL = 0.62;
+/** Respiro entre capítulos: quase silêncio por alguns segundos antes da cena nova. */
+const CHAPTER_BREATH = 6;
+/** Sessão longa: depois disso, ambiente um pouco mais baixo e detalhes mais raros. */
+const LONG_SESSION = 35 * 60;
+/** Agudos macios: corte suave no ambiente (a faixa que mais cansa o ouvido); à noite, mais escuro. */
+const TONE_DAY = 7000;
+const TONE_NIGHT = 5200;
+const TONE_MIN = 2200;
+/** Sons que cansam quando ficam muito tempo: tocam no máximo isso por cena (segundos). */
+const CAP_SECONDS: Partial<Record<Layer, number>> = { clock: 45, drone: 90 };
+/** Efeitos rítmicos: no máximo uma vez por cena. */
+const RHYTHMIC = new Set<string>(['steps', 'heartbeat', 'knock', 'hooves', 'drip', 'chains', 'bark']);
+/** Troca de "tomada" do loop (mesmo arquivo, outro ponto e velocidade levemente diferente): a cada 2,5–4 min. */
+const TAKE_MIN = 150;
+const TAKE_SPREAD = 90;
+const TAKE_XFADE = 5;
 /** Saída pelo alto-falante do celular: corta graves que ele não reproduz e agudos que viram chiado. */
 const SPEAKER_HP = 140;
 const SPEAKER_LP = 8000;
@@ -153,6 +176,15 @@ interface StemState {
   loading: boolean;
   /** duração da entrada quando o arquivo terminar de carregar (abrir o livro) */
   entrance?: number;
+  /** ganho da fonte atual (troca de tomada e variação lenta de volume) */
+  srcGain: GainLike | null;
+  buf: BufferLike | null;
+  nextTake: number;
+  nextDrift: number;
+  /** desde quando toca (para os sons com limite de tempo); -1 = ainda não */
+  since: number;
+  /** passou do limite nesta cena */
+  blocked: boolean;
 }
 
 const valueAt = (r: Ramp, t: number) =>
@@ -273,6 +305,14 @@ export class AmbientEngine {
   private lastSpotAt = -1e9;
   /** transição de entrada pedida para a próxima matriz (abrir o livro: entra devagar) */
   private entranceSec: number | null = null;
+  /** filtro de tom do ambiente (agudos macios, noite, tensão) */
+  private ambTone: FilterLike | null = null;
+  private toneHz = TONE_DAY;
+  private chapterUntil = 0;
+  private sessionStart = 0;
+  private idleAt = 0;
+  /** efeitos rítmicos que já tocaram nesta cena */
+  private sceneSpots = new Set<string>();
   private details: AmbientDetail[] = [];
   private nextDetail = 0;
   private lastDetail = '';
@@ -317,7 +357,14 @@ export class AmbientEngine {
     this.duckGain = ctx.createGain();
     this.duckGain.connect(this.master);
     this.ambBus = ctx.createGain();
-    this.ambBus.connect(this.duckGain);
+    if (ctx.createBiquadFilter) {
+      this.ambTone = ctx.createBiquadFilter();
+      this.ambTone.type = 'lowpass';
+      this.ambTone.frequency.value = TONE_DAY;
+      this.ambTone.Q.value = 0.5;
+      this.ambBus.connect(this.ambTone);
+      this.ambTone.connect(this.duckGain);
+    } else this.ambBus.connect(this.duckGain);
     this.fxBus = ctx.createGain();
     if (ctx.createBiquadFilter) {
       const f = ctx.createBiquadFilter();
@@ -387,7 +434,47 @@ export class AmbientEngine {
   setIdle(idle: boolean): void {
     if (this.idle === idle) return;
     this.idle = idle;
+    const now = this.ctx?.currentTime ?? 0;
+    // voltou depois de uma pausa longa (10 min): conta como sessão nova
+    if (idle) this.idleAt = now;
+    else if (this.idleAt && now - this.idleAt > 600) this.sessionStart = now;
     this.updatePresence(idle ? 8 : 2.5);
+  }
+
+  /**
+   * Começou uma cena nova (mapa de cenas): o arco recomeça (entra presente e
+   * assenta), os limites de tempo e os efeitos rítmicos zeram. Abertura de
+   * capítulo: alguns segundos de quase silêncio antes, como um corte de cena.
+   */
+  markScene(opts: { chapter?: boolean } = {}): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    this.sceneSince = now;
+    this.sceneSpots.clear();
+    this.stems.forEach((s) => { s.blocked = false; s.since = s.level > 0 ? now : -1; });
+    if (opts.chapter) this.chapterUntil = now + CHAPTER_BREATH;
+    this.updatePresence(opts.chapter ? 2.5 : 4);
+  }
+
+  /**
+   * Tom do ambiente: agudos sempre macios; à noite, mais escuro; com tensão,
+   * mais escuro e "próximo" (o volume não sobe).
+   */
+  setTone(p: { night?: boolean; tension?: number }): void {
+    const t = Math.max(0, Math.min(1, p.tension ?? 0));
+    const hz = Math.round(Math.max(TONE_MIN, (p.night ? TONE_NIGHT : TONE_DAY) * (1 - 0.45 * t)) / 50) * 50;
+    if (!this.ctx || !this.ambTone || Math.abs(hz - this.toneHz) < 100) { this.toneHz = hz; return; }
+    const now = this.ctx.currentTime, f = this.ambTone.frequency;
+    f.cancelScheduledValues(now);
+    f.setValueAtTime(this.toneHz, now);
+    f.linearRampToValueAtTime(Math.sqrt(this.toneHz * hz), now + 3);
+    f.linearRampToValueAtTime(hz, now + 6);
+    this.toneHz = hz;
+  }
+
+  /** Frequência atual do filtro de tom (testes). */
+  get toneFrequency(): number {
+    return this.toneHz;
   }
 
   /** Nível de presença atual (para testes e para o painel). */
@@ -484,12 +571,15 @@ export class AmbientEngine {
     if (!this.ctx || !this.enabled || this.user.spots <= 0 || this.comfort.focus || this.comfort.sfx <= 0) return;
     // no máximo um efeito a cada 40 s: evento raro chama atenção para a história, frequente vira ruído
     const nowT = this.ctx.currentTime;
-    if (!spots.length || nowT - this.lastSpotAt < SPOT_MIN_GAP || this.idle) return;
+    // efeitos rítmicos (passos, batidas, coração…) uma vez por cena
+    const fresh = spots.filter((sp) => !(RHYTHMIC.has(sp.s) && this.sceneSpots.has(sp.s)));
+    if (!fresh.length || nowT - this.lastSpotAt < SPOT_MIN_GAP || this.idle) return;
     this.lastSpotAt = nowT;
+    fresh.slice(0, 1).forEach((sp) => this.sceneSpots.add(sp.s));
     if (this.ctx.state === 'suspended') this.wake();
     this.lastSound = this.ctx.currentTime + 12;
     const bus = this.spotBus;
-    for (const sp of spots.slice(0, 1)) {
+    for (const sp of fresh.slice(0, 1)) {
       const reps = Math.max(1, Math.min(5, Math.round(sp.rep ?? 1)));
       const gap = sp.gap ?? 5;
       const t0 = this.ctx.currentTime + (sp.at ?? 2);
@@ -562,19 +652,36 @@ export class AmbientEngine {
   /** Presença: 1 normal; respiro depois de minutos na mesma cena; ~0 quando a pessoa parou de ler. */
   private updatePresence(dur: number): void {
     if (!this.ctx) return;
-    const breathing = this.comfort.breathe !== false && this.sceneKey !== '' && this.ctx.currentTime - this.sceneSince > BREATHE_AFTER;
-    const target = this.idle ? 0.04 : breathing ? BREATHE_LEVEL : 1;
+    const now = this.ctx.currentTime;
+    const since = now - this.sceneSince;
+    const settle = this.comfort.breathe !== false && this.sceneKey !== '';
+    // arco da cena: presente na entrada, assenta em ~62% e, depois de minutos no mesmo lugar, respira em 45%
+    let level = 1;
+    if (settle) {
+      level = since < ARC_HOLD ? 1 : since < ARC_HOLD + ARC_SETTLE ? 1 - (1 - ARC_LEVEL) * ((since - ARC_HOLD) / ARC_SETTLE) : ARC_LEVEL;
+      if (since > BREATHE_AFTER) level = Math.min(level, BREATHE_LEVEL);
+    }
+    if (this.sessionStart && now - this.sessionStart > LONG_SESSION) level *= 0.85;
+    level = Math.round(level * 20) / 20;
+    const target = this.idle ? 0.04 : now < this.chapterUntil ? 0.08 : level;
     if (Math.abs(target - this.presence) < 0.01) return;
+    // saindo do silêncio (capítulo, pausa) volta em poucos segundos; assentar é lento
+    const d = target > this.presence && (this.presence <= 0.1) ? 6 : dur;
     this.presence = target;
-    rampParam(this.presenceGain.gain, this.presenceGain.gain.value, target, this.ctx.currentTime, dur);
+    rampParam(this.presenceGain.gain, this.presenceGain.gain.value, target, now, d);
   }
 
   /** Matriz efetiva: aplica loops/foco e o limite de stems por prioridade. */
   private effectiveMix(mix: MixStem[]): MixStem[] {
     if (!this.comfort.loops) return [];
     const focus = this.comfort.focus;
-    return normalizeMix(focus ? mix.filter((m) => m.priority <= 2) : mix, focus ? FOCUS_MAX_STEMS : MAX_STEMS)
-      .map((m) => (focus ? { ...m, lowpass: Math.min(m.lowpass ?? OPEN_LP, FOCUS_LP) } : m));
+    return normalizeMix((focus ? mix.filter((m) => m.priority <= 2) : mix).filter((m) => !this.stems.get(m.s)?.blocked), focus ? FOCUS_MAX_STEMS : MAX_STEMS)
+      .map((m) => {
+        // vozes disputam com a leitura: sempre murmúrio distante e abafado, sem palavras
+        if (m.s === 'crowd') m = { ...m, gain: m.gain * 0.6, lowpass: Math.min(m.lowpass ?? OPEN_LP, 900) };
+        if (m.s === 'cafe') m = { ...m, gain: m.gain * 0.8, lowpass: Math.min(m.lowpass ?? OPEN_LP, 1400) };
+        return focus ? { ...m, lowpass: Math.min(m.lowpass ?? OPEN_LP, FOCUS_LP) } : m;
+      });
   }
 
   private applyMix(mix: MixStem[]): void {
@@ -587,6 +694,7 @@ export class AmbientEngine {
     if (key && key !== this.sceneKey) { this.sceneKey = key; this.sceneSince = ctx.currentTime; this.updatePresence(4); }
     const entrance = this.entranceSec;
     this.entranceSec = null;
+    if (eff.length && !this.sessionStart) this.sessionStart = ctx.currentTime;
     // stems que saem: descem devagar (4 s × preferência)
     this.stems.forEach((s, L) => {
       if (want.has(L) || s.level <= 0) return;
@@ -598,6 +706,7 @@ export class AmbientEngine {
       const s = this.stems.get(m.s) ?? this.createStem(m.s);
       const level = m.gain * this.sceneGain;
       const entering = level > valueAt(s.ramp, ctx.currentTime) / STEM_GAIN + 0.01;
+      if (s.level <= 0 || s.since < 0) s.since = ctx.currentTime;
       s.level = level;
       s.priority = m.priority;
       const dur = entering && entrance ? entrance : fadeSeconds(entering, this.fade, this.user.fade);
@@ -621,7 +730,10 @@ export class AmbientEngine {
       filter.Q.value = 0.5; // corte suave, sem ressonância
       filter.connect(g);
     }
-    const s: StemState = { gain: g, filter, lowpass: OPEN_LP, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, priority: 3, libId: null, loading: false };
+    const s: StemState = {
+      gain: g, filter, lowpass: OPEN_LP, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, priority: 3, libId: null, loading: false,
+      srcGain: null, buf: null, nextTake: 0, nextDrift: 0, since: -1, blocked: false,
+    };
     this.stems.set(L, s);
     return s;
   }
@@ -651,12 +763,13 @@ export class AmbientEngine {
       const buf = hit ? await this.loopBuffer(hit.url) : null;
       if (!this.ctx || !buf || !hit || this.stems.get(L) !== s) return;
       s.libId = hit.id;
-      const src = this.ctx.createBufferSource();
-      src.buffer = buf;
-      src.loop = true;
-      src.connect(s.filter ?? s.gain);
-      src.start(this.ctx.currentTime + 0.02, Math.random() * Math.max(0, buf.duration - 1));
+      s.buf = buf;
+      const now = this.ctx.currentTime;
+      const { src, g } = this.startTake(s, buf, 1);
       s.src = src;
+      s.srcGain = g;
+      s.nextTake = now + TAKE_MIN + Math.random() * TAKE_SPREAD;
+      s.nextDrift = now + 20 + Math.random() * 20;
       this.rampStem(s, s.level * STEM_GAIN, s.entrance ?? fadeSeconds(true, this.fade, this.user.fade));
       s.entrance = undefined;
     } finally {
@@ -719,6 +832,53 @@ export class AmbientEngine {
     }
   }
 
+  /** Uma "tomada" do loop: ponto de início aleatório e, quando dá, velocidade levemente diferente. */
+  private startTake(s: StemState, buf: BufferLike, gain: number): { src: SourceLike; g: GainLike } {
+    const ctx = this.ctx!;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    g.connect(s.filter ?? s.gain);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    if (src.playbackRate) src.playbackRate.value = 0.97 + Math.random() * 0.06;
+    src.connect(g);
+    src.start(ctx.currentTime + 0.02, Math.random() * Math.max(0, buf.duration - 1));
+    return { src, g };
+  }
+
+  /**
+   * Contra a repetição numa leitura longa: de tempos em tempos o loop troca
+   * de tomada (cruzando 5 s), e o volume de cada camada oscila devagar (±6%),
+   * como o vento e a chuva de verdade. Sons com limite de tempo saem sozinhos.
+   */
+  private tickStems(now: number): void {
+    this.stems.forEach((s, L) => {
+      if (s.level <= 0 || !s.src || !s.buf || !s.srcGain) return;
+      const cap = CAP_SECONDS[L];
+      if (cap && s.since >= 0 && now - s.since > cap) {
+        s.blocked = true;
+        s.level = 0;
+        this.rampStem(s, 0, 8);
+        return;
+      }
+      if (now >= s.nextTake) {
+        const old = s.src, oldG = s.srcGain;
+        const { src, g } = this.startTake(s, s.buf, 0);
+        rampParam(g.gain, 0, 1, now, TAKE_XFADE);
+        rampParam(oldG.gain, oldG.gain.value, 0, now, TAKE_XFADE);
+        setTimeout(() => { try { old.stop(); old.disconnect(); oldG.disconnect(); } catch { /* já parado */ } }, (TAKE_XFADE + 1) * 1000);
+        s.src = src;
+        s.srcGain = g;
+        s.nextTake = now + TAKE_MIN + Math.random() * TAKE_SPREAD;
+        s.nextDrift = now + TAKE_XFADE + 15;
+      } else if (now >= s.nextDrift) {
+        rampParam(s.srcGain.gain, s.srcGain.gain.value, 0.94 + Math.random() * 0.12, now, 15);
+        s.nextDrift = now + 20 + Math.random() * 25;
+      }
+    });
+  }
+
   /** Versão do arquivo preparada para loop sem emenda (guardada em cache). */
   private async loopBuffer(url: string): Promise<BufferLike | null> {
     const key = 'loop:' + url;
@@ -744,7 +904,8 @@ export class AmbientEngine {
     if (!this.details.length || !this.nextDetail || now < this.nextDetail) return;
     if (this.user.detailRate <= 0 || this.comfort.focus || this.comfort.sfx <= 0) { this.nextDetail = 0; return; }
     // intervalo longo e irregular; mais longo ainda quando a cena está agitada
-    this.nextDetail = now + ((35 + Math.random() * 50) * this.fade) / this.user.detailRate;
+    const long = this.sessionStart && now - this.sessionStart > LONG_SESSION ? 2 : 1;
+    this.nextDetail = now + ((35 + Math.random() * 50) * this.fade * long) / this.user.detailRate;
     if (this.idle) return;
     const pool = this.details.length > 1 ? this.details.filter((d) => d.s !== this.lastDetail) : this.details;
     const d = pool[Math.floor(Math.random() * pool.length)];
@@ -775,7 +936,7 @@ export class AmbientEngine {
     let active = false;
     this.stems.forEach((s) => {
       if (s.level > 0 || now < s.ramp.t1 + 2) { active = true; return; }
-      if (s.src) { try { s.src.stop(); s.src.disconnect(); } catch { /* já parado */ } s.src = null; }
+      if (s.src) { try { s.src.stop(); s.src.disconnect(); s.srcGain?.disconnect(); } catch { /* já parado */ } s.src = null; s.srcGain = null; }
     });
     if (active || (this.details.length && this.nextDetail && this.nextDetail - now < 30)) this.lastSound = now;
     else if (ctx.state === 'running' && now - this.lastSound > 12) { this.idleSuspended = true; void ctx.suspend(); }
@@ -787,7 +948,8 @@ export class AmbientEngine {
     this.reap();
     if (!this.enabled || ctx.state !== 'running') return;
     const now = ctx.currentTime;
-    this.updatePresence(40); // respiro: desce em 40 s, quase sem perceber
+    this.updatePresence(40); // arco e respiro: descem devagar, quase sem perceber
+    this.tickStems(now);
     this.tickDetails(now);
     if (now > this.retryAt) { this.retryAt = now + 20; this.retryMissing(); }
   }

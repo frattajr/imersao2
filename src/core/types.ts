@@ -62,6 +62,11 @@ export interface ScenePlan {
   looks?: Partial<Record<Layer, SoundVariant>>;
   /** matriz de mixagem (IA ou plano calibrado); `ambience` é derivado dela */
   mix?: MixStem[];
+  /** mapa de cenas (src/core/narrative.ts): cena da página, abertura de capítulo, tensão 0–1, noite */
+  scene?: number;
+  chapterStart?: boolean;
+  tension?: number;
+  night?: boolean;
 }
 
 export interface GlossaryEntry {

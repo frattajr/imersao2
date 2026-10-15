@@ -5,7 +5,8 @@
  *  3. servidor, em lotes de 8 páginas, um pouco antes de você chegar lá —
  *     para livros públicos (exemplos, Project Gutenberg) só o cache global,
  *     sem chamar a IA; a IA só roda para textos da própria pessoa;
- *  4. palavras-chave, enquanto nada disso chegou.
+ *  4. mapa de cenas do livro (src/core/narrative.ts), enquanto nada disso
+ *     chegou — ou sempre, nos livros públicos sem plano pré-calculado.
  */
 import { analyze } from '../core/analyze';
 import type { Ambience, ScenePlan } from '../core/types';
@@ -23,7 +24,7 @@ export class SceneDirector {
 
   constructor(
     private bookId: string, private title: string, private pages: string[], private onPlan: (page: number) => void,
-    private opts: { publicBook?: boolean; bundled?: (ScenePlan | null)[] } = {},
+    private opts: { publicBook?: boolean; bundled?: (ScenePlan | null)[]; fallback?: (i: number) => ScenePlan } = {},
   ) {}
 
   /** Plano disponível agora (IA se já chegou; senão palavras-chave). */
@@ -37,7 +38,8 @@ export class SceneDirector {
     }
     this.prefetch(i);
     if (p) return { plan: p, fromAi: true, pending: false };
-    return { plan: analyze(this.pages[i] ?? ''), fromAi: false, pending: !this.disabled && this.waiting.has(Math.floor(i / BATCH)) };
+    const local = this.opts.fallback ? this.opts.fallback(i) : analyze(this.pages[i] ?? '');
+    return { plan: local, fromAi: false, pending: !this.disabled && this.waiting.has(Math.floor(i / BATCH)) };
   }
 
   private prefetch(i: number): void {
