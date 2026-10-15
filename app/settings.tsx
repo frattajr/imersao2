@@ -7,7 +7,9 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GOALS } from '../src/core/catalog';
 import { localSounds } from '../src/services/localSounds';
+import { getGoal, setGoal } from '../src/state/userLists';
 import { supabase } from '../src/services/supabase';
 import { Choice, RoundButton } from '../src/ui/components';
 import { OutputRow, PresetRow } from '../src/reader/PresetSheet';
@@ -48,6 +50,8 @@ function TypePreview() {
 
 export default function Settings() {
   const { c, volI, setVol, sound, setSound } = usePrefs();
+  const [goal, setGoalS] = useState(15);
+  useEffect(() => { void getGoal().then(setGoalS); }, []);
   const insets = useSafeAreaInsets();
   const [key, setKey] = useState('');
   const [count, setCount] = useState(0);
@@ -111,6 +115,10 @@ export default function Settings() {
         </Group>
 
         <Text style={[st.section, { color: c.mut }]}>LEITURA</Text>
+        <Group title="Meta diária" hint="Minutos de leitura por dia. A sequência de dias aparece na biblioteca.">
+          <Choice value={goal} onChange={(v) => { setGoalS(v); void setGoal(v); }} accessibilityLabel="Meta diária"
+            options={GOALS.map((g) => ({ value: g, label: `${g} min` }))} />
+        </Group>
         <Group title="Texto e tela">
           <TypeRows />
         </Group>
@@ -126,6 +134,12 @@ export default function Settings() {
         </Group>
         <Group title={`Repositório de sons (${count})`} hint="Veja, ouça e teste os sons já criados, ou crie um novo descrevendo o som.">
           <RoundButton label="Abrir repositório de sons" onPress={() => router.push('/lab')} />
+        </Group>
+        <Text style={[st.section, { color: c.mut }]}>FONTES E CRÉDITOS</Text>
+        <Group title="De onde vêm os livros">
+          <Text style={[st.hint, { color: c.mut, marginTop: 0 }]}>
+            Os clássicos são obras em domínio público. Os textos vêm do Project Gutenberg (gutenberg.org) e do Wikisource em português (pt.wikisource.org), passam por limpeza e têm a grafia atualizada pelo app. As capas do acervo vêm da Open Library (openlibrary.org). As traduções de Poe e Dickens e as sinopses foram escritas para o Imersão.
+          </Text>
         </Group>
       </ScrollView>
     </View>

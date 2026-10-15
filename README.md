@@ -188,7 +188,15 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
 
 ## Biblioteca, capítulos e configurações
 
-- **Biblioteca** (`app/index.tsx`): destaque no topo (continuar lendo), filtro por tema (Mistério, Fantasia, Aconchego, Suspense, Aventura, Meus livros), fileiras por tema e por ambiente sonoro e uma ficha de cada livro. As capas são desenhadas em código (`src/ui/Cover.tsx`) a partir do clima da história.
+- **Biblioteca** (`app/index.tsx`, `src/ui/library.tsx`, `src/core/catalog.ts`): todos os livros (exemplos sonorizados, acervo curado, clássicos em domínio público e os da pessoa) num formato só.
+  - **Fileiras pessoais**: continuar lendo, Quero ler, **Para você** (pelos gostos escolhidos na primeira abertura e pelo que já leu), **"Porque você leu…"**, lidos e meus livros.
+  - **Fileiras editoriais** (`src/data/collections.ts`): **coleção do mês** (troca sozinha), clássicos brasileiros e portugueses, **com som calibrado**, **leituras de até 15 minutos** (no ritmo da pessoa), **frequentes no vestibular**, uma fileira por **clima sonoro** (chuva, mar, noite, lareira, natureza, cidade) e "experimente o som em 1 minuto". Fileira editorial só aparece com 3 livros ou mais.
+  - **Capas com selos**: 🎧 som calibrado, duração no ritmo de leitura da pessoa, ✓ baixado.
+  - **Ficha**: sinopse sempre em português (resumo automático em inglês vira o começo da obra), duração, tipo de som e climas, **prévia do clima** (10 s, baixinho), ＋ Quero ler e livros parecidos.
+  - **Meta diária e sequência de dias**: o leitor conta os minutos lidos (pausas longas não contam); meta de 10, 15, 30 ou 60 min nas Configurações.
+  - **Só aparece o que abre agora**: no navegador sem servidor, os clássicos copiados no deploy; volumes repetidos viram uma obra; gramáticas e livros de história ficam só na busca.
+- **Busca** (`app/search.tsx`, 🔍): tudo junto (inclusive os livros da pessoa), sem acento e pela grafia antiga, com filtros de **duração**, **origem** (Brasil/Portugal), **época** e **clima do som**.
+- **Deploy**: o acervo e a cópia do Gutenberg gravam, para cada obra, os climas que dominam o texto, o tamanho e o começo do texto (`soundProfile`, `openingExcerpt`).
 - **Capítulos** (`src/core/chapters.ts`): o glossário identifica "Capítulo 1", "CAPÍTULO III", "Parte 2", "Chapter 4"… ou, sem títulos, divide o livro em partes. Escolha um capítulo para ver os termos dele, sugestões de personagens e lugares (só do que já foi lido) e ir direto para ele.
 - **Configurações** (`app/settings.tsx`, botão ⚙ na biblioteca e no leitor): volume do ambiente, suavidade das transições, volume dos sons da história, frequência dos detalhes de ambiente, suavização automática, tema, letra, chave da ElevenLabs e o repositório de sons.
 
@@ -238,6 +246,7 @@ O que já foi verificado fora do celular:
 | Anotações | grifos sobrepostos cortam o texto certo, frases com posições exatas, exportação Markdown, busca sem acento, página cheia não passa da altura e títulos de capítulo abrem tela nova |
 | Acervo | todas as obras em domínio público e com sinopse; busca no Gutenberg pela grafia antiga; Wikisource capítulo por capítulo, sem navegação nem notas; grafia antiga → atual sem mexer em texto moderno; no Chromium: fileiras, ficha e leitura de um clássico com grafia atualizada |
 | Imersão | efeito só com o som narrado (menção, lembrança e comparação não tocam), um som por tela, permanência mínima de cena, loop sem emenda, no máximo um efeito a cada 40 s, pausa por inatividade; no Chromium (390×844): estilo de som na primeira leitura, página cheia com abertura de capítulo e parágrafos inteiros, toque nas laterais e no texto, arrasto que acompanha o dedo, toque longo, X-Ray sem virar a página, rolagem por parágrafo |
+| Catálogo | duração, busca sem acento e pela grafia antiga, filtros, volumes repetidos, resumo em inglês detectado, trecho de abertura, perfil sonoro, recomendações, gostos, sequência de dias, coleções só com obras que existem, desambiguação do Wikisource; no Chromium: gostos na primeira abertura, fileiras, selos, ficha com sinopse em português e prévia do som, Quero ler, busca com filtros |
 | Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
 | Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |

@@ -4,6 +4,7 @@
  * catálogo oficial em CSV e busca local. Usado pelo app e pelo script que
  * monta a cópia do catálogo no deploy (scripts/build-gutenberg.ts).
  */
+import { looksEnglish } from './catalog';
 import { modernize } from './orthography';
 import { norm } from './text';
 import type { Mood } from './types';
@@ -75,10 +76,14 @@ const SUBJECT_PT: [RegExp, string][] = [
 ];
 const subjectPt = (x: string) => SUBJECT_PT.find(([r]) => r.test(x))?.[1] ?? x;
 
-/** Resumo para a ficha: o do catálogo, se houver; senão os assuntos. */
-export function synopsisOf(b: GutBook): string {
-  const s = b.summaries?.find(Boolean);
-  if (s) return s.replace(/\s*\(This is an automatically generated summary\.\)\s*$/i, '').trim();
+/**
+ * Resumo para a ficha, sempre em português: o do catálogo se estiver em
+ * português; senão o começo da obra (copiado no deploy); senão os assuntos.
+ */
+export function synopsisOf(b: GutBook, excerpt?: string): string {
+  const s = b.summaries?.find(Boolean)?.replace(/\s*\(This is an automatically generated summary\.\)\s*$/i, '').trim();
+  if (s && !looksEnglish(s)) return s;
+  if (excerpt) return `Começa assim: “${excerpt}”`;
   const subj = b.subjects.map((x) => subjectPt(x.replace(/ -- \d.*$/, '').replace(/ -- .*$/, (m) => (/history/i.test(m) ? m : ''))))
     .map((x) => x.replace(/ -- .*$/, '')).filter((x, i, a) => a.indexOf(x) === i).slice(0, 3);
   return `Clássico em domínio público${b.authors[0]?.death_year ? ` (autor falecido em ${b.authors[0].death_year})` : ''}.` +

@@ -32,6 +32,7 @@ function Root() {
         <Stack.Screen name="lab" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="catalog" />
+        <Stack.Screen name="search" />
         <Stack.Screen name="paste" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="glossary/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>

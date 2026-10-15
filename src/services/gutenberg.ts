@@ -10,7 +10,7 @@ import { Platform } from 'react-native';
 import { parseEpubBytes } from '../core/epub';
 import { modernize } from '../core/orthography';
 import { chunk } from '../core/text';
-import type { BookMeta } from '../core/types';
+import type { BookMeta, Layer } from '../core/types';
 import { authorName, bookId, cleanGutenbergText, cleanTitle, displayTitle, readable, searchBooks, type GutBook, type GutPage } from '../core/gutenberg';
 
 export * from '../core/gutenberg';
@@ -51,8 +51,22 @@ async function fetchT(url: string, ms: number, init?: RequestInit): Promise<Resp
   }
 }
 
-interface Snapshot { generatedAt: string; source: string; books: GutBook[]; texts: number[] }
+export interface GutMeta { words: number; layers: Layer[]; excerpt: string }
+interface Snapshot { generatedAt: string; source: string; books: GutBook[]; texts: number[]; meta?: Record<string, GutMeta> }
 let snapshot: Promise<Snapshot | null> | null = null;
+/** livros com texto copiado no deploy (abrem na hora, inclusive no navegador) */
+let readyIds = new Set<number>();
+let metaById: Record<string, GutMeta> = {};
+
+/** Dados da vitrine copiados no deploy (tamanho, climas, começo do texto). */
+export const gutMeta = (id: number): GutMeta | undefined => metaById[String(id)];
+
+/**
+ * Dá para abrir agora? No celular sempre (baixa direto do Gutenberg). No
+ * navegador, só os copiados no deploy — a não ser que o servidor esteja
+ * configurado (ele baixa no lugar do navegador).
+ */
+export const canOpenNow = (id: number) => Platform.OS !== 'web' || !!supabase || readyIds.has(id);
 
 /** Catálogo copiado no deploy (ou null se não houver). Carrega uma vez por sessão. */
 export function loadSnapshot(): Promise<Snapshot | null> {
@@ -62,7 +76,10 @@ export function loadSnapshot(): Promise<Snapshot | null> {
         const r = await fetchT(`${mirrorBase()}/catalog.json`, 15_000);
         if (!r.ok) return null;
         const s = (await r.json()) as Snapshot;
-        return Array.isArray(s.books) && s.books.length ? { ...s, texts: s.texts ?? [] } : null;
+        if (!Array.isArray(s.books) || !s.books.length) return null;
+        readyIds = new Set(s.texts ?? []);
+        metaById = s.meta ?? {};
+        return { ...s, texts: s.texts ?? [] };
       } catch {
         return null;
       }
@@ -92,14 +109,20 @@ async function liveCatalog(opts: { page?: number; search?: string }): Promise<Gu
  * Uma página do catálogo. Usa a cópia do deploy (busca local, instantânea);
  * se não houver cópia, consulta o Gutendex ao vivo.
  */
-export async function fetchCatalog(opts: { page?: number; search?: string } = {}): Promise<GutPage> {
+export async function fetchCatalog(opts: { page?: number; search?: string; openOnly?: boolean } = {}): Promise<GutPage> {
   const snap = await loadSnapshot();
   if (snap) {
-    const all = searchBooks(byPopularity(snap), opts.search ?? '');
+    const all = searchBooks(byPopularity(snap), opts.search ?? '').filter((b) => !opts.openOnly || canOpenNow(b.id));
     const p = Math.max(1, opts.page ?? 1);
     return { count: all.length, next: p * PAGE < all.length ? String(p + 1) : null, previous: p > 1 ? String(p - 1) : null, results: all.slice((p - 1) * PAGE, p * PAGE) };
   }
   return liveCatalog(opts);
+}
+
+/** Todos os livros em português da cópia do deploy (busca da biblioteca); sem cópia, os mais baixados. */
+export async function allPortuguese(): Promise<GutBook[]> {
+  const snap = await loadSnapshot();
+  return snap ? byPopularity(snap) : popularPortuguese();
 }
 
 /** Livros mais baixados em português (para as fileiras da tela inicial). */

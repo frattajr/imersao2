@@ -62,6 +62,7 @@ import { activeLibrary } from '../../src/services/sounds';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
 import { onJump } from '../../src/state/jump';
+import { flushReading, logReading } from '../../src/state/userLists';
 import { SceneDirector } from '../../src/state/scene';
 import { ProgressBar, RoundButton } from '../../src/ui/components';
 import { BASE_FONT, FONTS, LINE_HEIGHTS, MARGINS, PARA_SPACING, READING_FONTS, SIZES, usePrefs } from '../../src/ui/prefs';
@@ -255,6 +256,8 @@ export default function Reader() {
     const t = setInterval(() => setLocked(engine.needsUnlock), 1000);
     return () => {
       clearInterval(t);
+      logReading(Date.now() - pageSince.current);
+      void flushReading();
       if (audioTimer.current) clearTimeout(audioTimer.current);
       engine.setIdle(false);
       engine.clearSpots();
@@ -417,6 +420,8 @@ export default function Reader() {
       });
     }
     lastIdx.current = idx;
+    // tempo lido na tela anterior (para a meta diária; pausas longas não contam)
+    if (prev >= 0) logReading(Date.now() - pageSince.current);
     pageSince.current = Date.now();
     act();
     engine.clearSpots();

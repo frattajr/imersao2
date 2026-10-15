@@ -14,7 +14,9 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { openingExcerpt, soundProfile } from '../src/core/catalog';
 import { modernize } from '../src/core/orthography';
+import type { Layer } from '../src/core/types';
 import { booksFromCatalogCsv, cleanGutenbergText, readable, type GutBook, type GutPage } from '../src/core/gutenberg';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -57,11 +59,13 @@ export async function buildMirror(
   const byId = new Map<number, GutBook>();
   const sources: string[] = [];
   const texts: number[] = [];
+  /** para a vitrine: tamanho, climas e o começo do texto (sinopse em português) */
+  const meta: Record<number, { words: number; layers: Layer[]; excerpt: string }> = {};
 
   const sorted = () => [...byId.values()].sort((a, b) => b.download_count - a.download_count);
   const save = async () => {
     if (!byId.size) return null;
-    const catalog = { generatedAt: new Date().toISOString(), source: sources.join(' + '), books: sorted(), texts: [...texts].sort((a, b) => a - b) };
+    const catalog = { generatedAt: new Date().toISOString(), source: sources.join(' + '), books: sorted(), texts: [...texts].sort((a, b) => a - b), meta };
     await writeFile(join(out, 'catalog.json'), JSON.stringify(catalog));
     return catalog;
   };
@@ -111,6 +115,7 @@ export async function buildMirror(
         if (text.length > 500) {
           await writeFile(join(out, 'books', `${b.id}.txt`), text);
           texts.push(b.id);
+          meta[b.id] = { ...soundProfile(text), excerpt: openingExcerpt(text) };
           if (texts.length % 10 === 0) { log(`  ${texts.length} textos copiados.`); await save(); }
           break;
         }

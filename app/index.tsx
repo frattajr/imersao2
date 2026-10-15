@@ -1,210 +1,78 @@
 /**
- * Biblioteca no estilo das plataformas de streaming: destaque no topo,
- * filtro por tema, fileiras horizontais de capas (continuar lendo, meus
- * livros, cada tema, cada ambiente sonoro) e uma ficha com detalhes do livro.
+ * Biblioteca no estilo das plataformas de streaming, feita para descobrir
+ * leituras com som:
+ *
+ * - destaque no topo; sequência de dias e meta diária;
+ * - fileiras pessoais (continuar lendo, Quero ler, Para você, "porque você
+ *   leu…") e editoriais (coleção do mês, clássicos brasileiros e
+ *   portugueses, som calibrado, leituras curtas, vestibular, climas);
+ * - capas com selos (som calibrado, duração no ritmo da pessoa, baixado);
+ * - ficha com prévia do som; busca única com filtros (🔍);
+ * - só aparecem livros que abrem agora, fileiras com pelo menos 3 livros.
  */
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { router } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { analyze, LAYER_LABEL } from '../src/core/analyze';
-import { detectChapters } from '../src/core/chapters';
-import { norm } from '../src/core/text';
-import type { BookMeta, Layer, Mood } from '../src/core/types';
-import { ACERVO, ACERVO_KINDS, acervoId, isAcervoId, type AcervoEntry } from '../src/data/acervo';
-import { GENRES, SAMPLE_BOOKS, type Genre } from '../src/data/books';
-import { acervoCover, loadAcervo, openAcervoBook, type AcervoReady } from '../src/services/acervo';
-import {
-  authorName, bookId, category, CATEGORY_MOOD, coverUrl, displayTitle, GUT_CATEGORIES, isGutId, openGutenbergBook, popularPortuguese,
-  savedGutInfo, synopsisOf, type GutBook,
-} from '../src/services/gutenberg';
+import { CLIMATES, dayKey, forYou, minutesToRead, recommend, streakOf } from '../src/core/catalog';
+import { monthlyCollection, VESTIBULAR } from '../src/data/collections';
 import { pickAndImport } from '../src/services/importer';
-import { deleteRemote, downloadText, onSynced, syncSoon } from '../src/services/sync';
-import { getRepo } from '../src/state/db';
+import {
+  BookSheet, BusyModal, pctOf, Poster, TastesModal, useBookActions, useLibrary, type Item,
+} from '../src/ui/library';
 import { Cover } from '../src/ui/Cover';
 import { ProgressBar, RoundButton } from '../src/ui/components';
 import { FONTS, usePrefs } from '../src/ui/prefs';
 
-const MINE = 'Meus livros';
-const CLASSICS = 'Clássicos';
-type Shelf = Genre | typeof MINE | typeof CLASSICS;
-
-interface Item {
-  id: string;
-  title: string;
-  author: string;
-  emoji: string;
-  mood: Mood;
-  genre: Shelf;
-  synopsis: string;
-  pages: number;
-  chapters: number;
-  layers: Layer[];
-  meta?: BookMeta;
-  sample: boolean;
-  /** capa real (Project Gutenberg) */
-  image?: string;
-  /** livro do catálogo do Project Gutenberg */
-  gut?: GutBook;
-  /** crédito (obras em domínio público traduzidas) */
-  credit?: string;
-  /** obra do acervo curado em português */
-  acervo?: AcervoEntry;
-}
-
-function acervoItem(a: AcervoEntry, ready?: AcervoReady, meta?: BookMeta): Item {
-  return {
-    id: acervoId(a.slug), title: a.title, author: a.author, emoji: a.emoji, mood: a.mood, genre: CLASSICS, synopsis: a.synopsis,
-    pages: meta?.n ?? 0, chapters: 0, layers: [], meta, sample: false, image: acervoCover(ready), acervo: a,
-    credit: `${a.origin === 'BR' ? '🇧🇷 Brasil' : '🇵🇹 Portugal'} · ${a.year} · domínio público${ready?.modernized ? ' · grafia atualizada' : ''}`,
-  };
-}
-
-const titleKey = (t: string) => norm(displayTitle(t)).replace(/[^a-z0-9]/g, '');
-const ACERVO_TITLES = new Set(ACERVO.map((a) => titleKey(a.title)));
-
-function gutItem(b: GutBook, meta?: BookMeta): Item {
-  const cat = category(b);
-  return {
-    id: bookId(b), title: displayTitle(b.title), author: authorName(b), emoji: '📜', mood: CATEGORY_MOOD[cat], genre: CLASSICS,
-    synopsis: synopsisOf(b), pages: meta?.n ?? 0, chapters: 0, layers: [], meta, sample: false, image: coverUrl(b), gut: b,
-  };
-}
-
-const pctOf = (b?: BookMeta | null) => (!b ? 0 : b.done ? 100 : b.n && b.idx > 0 ? Math.round(((b.idx + 1) / b.n) * 100) : 0);
-
-/** Camadas que mais aparecem no livro (para "Ao som do mar", etiquetas da ficha). */
-function topLayers(pages: string[]): Layer[] {
-  const count = new Map<Layer, number>();
-  pages.forEach((p) => (Object.keys(analyze(p).ambience) as Layer[]).forEach((L) => count.set(L, (count.get(L) ?? 0) + 1)));
-  return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([L]) => L);
-}
-
-const LAYER_MOOD: Partial<Record<Layer, Mood>> = { sea: 'sea', rain: 'rain', fire: 'fire', leaves: 'forest', birds: 'forest', night: 'night', city: 'city', train: 'tension', cafe: 'warm' };
-
-const SAMPLE_ITEMS: Item[] = SAMPLE_BOOKS.map((s) => ({
-  id: s.id, title: s.title, author: s.author, emoji: s.emoji, mood: s.mood, genre: s.genre, synopsis: s.synopsis,
-  pages: s.pages.length, chapters: detectChapters(s.pages).length, layers: topLayers(s.pages), sample: true, credit: s.credit,
-}));
-
-/** Fileiras por ambiente sonoro: só aparecem se tiverem pelo menos 2 livros. */
-const SOUND_ROWS: { title: string; has: Layer[] }[] = [
-  { title: '🌧 Para ler ao som da chuva', has: ['rain', 'thunder'] },
-  { title: '🌊 Ao som do mar', has: ['sea'] },
-  { title: '🔥 Junto à lareira', has: ['fire'] },
-  { title: '🌲 Na natureza', has: ['leaves', 'birds', 'water', 'cricket'] },
-  { title: '🌙 Histórias da noite', has: ['night', 'cricket'] },
-];
+type Shelf = 'Todos' | 'Quero ler' | 'Brasil' | 'Portugal' | 'Curtos' | 'Meus livros';
+const SHELVES: Shelf[] = ['Todos', 'Quero ler', 'Brasil', 'Portugal', 'Curtos', 'Meus livros'];
+/** fileira editorial só aparece com pelo menos isso */
+const MIN_ROW = 3;
 
 export default function Library() {
   const { c } = usePrefs();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [books, setBooks] = useState<BookMeta[]>([]);
-  const [mine, setMine] = useState<Item[]>([]);
-  const [shelf, setShelf] = useState<Shelf | 'Todos'>('Todos');
+  const lib = useLibrary();
+  const { busy, setBusy, read, glossary, remove } = useBookActions(lib.reload);
+  const [shelf, setShelf] = useState<Shelf>('Todos');
   const [detail, setDetail] = useState<Item | null>(null);
-  const [busy, setBusy] = useState<{ msg: string; pct: number | null; error?: boolean } | null>(null);
-  const [gut, setGut] = useState<GutBook[]>([]);
-  const [gutState, setGutState] = useState<'loading' | 'ok' | 'error'>('loading');
 
-  const loadClassics = useCallback(() => {
-    setGutState('loading');
-    popularPortuguese().then((b) => { setGut(b); setGutState(b.length ? 'ok' : 'error'); }).catch(() => setGutState('error'));
-  }, []);
-  useEffect(() => { loadClassics(); }, [loadClassics]);
-  /** acervo curado: o que o deploy já deixou pronto (texto e capa) */
-  const [ready, setReady] = useState<Map<string, AcervoReady>>(new Map());
-  useEffect(() => { void loadAcervo().then(setReady); }, []);
+  const { wpm, catalog, everything, mine, samples, acervo, literature, wish } = lib;
+  const byItemId = useMemo(() => new Map(everything.map((i) => [i.id, i])), [everything]);
+  const wishItems = useMemo(() => wish.map((id) => byItemId.get(id)).filter((x): x is Item => !!x), [wish, byItemId]);
+  const reading = useMemo(() => everything.filter((i) => i.meta && !i.meta.done && pctOf(i.meta) > 0)
+    .sort((a, b) => (b.meta!.updatedAt ?? 0) - (a.meta!.updatedAt ?? 0)), [everything]);
+  const finished = useMemo(() => everything.filter((i) => i.meta?.done), [everything]);
+  const isShort = (i: Item) => !!i.words && minutesToRead(i.words, wpm) <= 15;
 
-  const load = useCallback(async () => {
-    const repo = await getRepo();
-    const list = await repo.listBooks();
-    setBooks(list);
-    // livros da pessoa: clima e sons calculados do próprio texto
-    const own = list.filter((b) => b.kind !== 'builtin');
-    const items = await Promise.all(own.map(async (b): Promise<Item> => {
-      const pages = (await repo.getPages(b.id)) ?? [];
-      const sample = pages.slice(0, 40);
-      const layers = topLayers(sample);
-      const g = isGutId(b.id) ? await savedGutInfo(b.id) : null;
-      const a = isAcervoId(b.id) ? ACERVO.find((x) => acervoId(x.slug) === b.id) : undefined;
-      if (a) return { ...acervoItem(a, undefined, b), genre: MINE, pages: b.n || pages.length, chapters: pages.length ? detectChapters(pages).length : 0, layers };
-      return {
-        id: b.id, title: b.title, author: b.sub || 'Meu livro', emoji: b.emoji, genre: MINE, meta: b, sample: false,
-        image: isGutId(b.id) ? coverUrl(Number(b.id.slice(4))) : undefined, gut: g ?? undefined,
-        mood: analyze(sample.join('\n')).mood ?? LAYER_MOOD[layers[0]] ?? 'calm',
-        synopsis: (pages.find((p) => p.length > 80) ?? pages[0] ?? '').slice(0, 220),
-        pages: b.n || pages.length, chapters: pages.length ? detectChapters(pages).length : 0, layers,
-      };
-    }));
-    setMine(items);
-  }, []);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
-  useEffect(() => onSynced(() => void load()), [load]);
+  /* recomendações: pelo que leu (ou está lendo) e pelos gostos */
+  const seeds = useMemo(() => [...reading.slice(0, 3), ...finished.slice(0, 3), ...wishItems.slice(0, 3)], [reading, finished, wishItems]);
+  const exclude = useMemo(() => new Set([...seeds.map((s) => s.id), ...finished.map((f) => f.id)]), [seeds, finished]);
+  const forMe = useMemo(() => forYou(catalog, lib.tastes?.themes ?? [], seeds, exclude) as Item[], [catalog, lib.tastes, seeds, exclude]);
+  const because = useMemo(() => {
+    const ref = finished[0] ?? reading[0];
+    return ref ? { ref, items: recommend(catalog, [ref], new Set([ref.id, ...exclude])) as Item[] } : null;
+  }, [finished, reading, catalog, exclude]);
 
-  const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
-  // Gutenberg sem repetir o que já está no acervo curado
-  const classics = useMemo(() => gut.filter((b) => !ACERVO_TITLES.has(titleKey(b.title))).map((b) => gutItem(b, byId.get(bookId(b)))), [gut, byId]);
-  // com a cópia do deploy carregada, mostra só o que abre na hora (as outras obras ficam para quando a fonte estiver disponível)
-  const acervo = useMemo(() => ACERVO.filter((a) => !ready.size || ready.has(a.slug)).map((a) => acervoItem(a, ready.get(a.slug), byId.get(acervoId(a.slug))))
-    // prontos no deploy primeiro (abrem na hora)
-    .sort((x, y) => Number(ready.has(y.acervo!.slug)) - Number(ready.has(x.acervo!.slug))), [ready, byId]);
-  // a capa vem do acervo também para quem já baixou
-  const mineView = useMemo(() => mine.map((m) => (m.acervo ? { ...m, image: acervoCover(ready.get(m.acervo.slug)) } : m)), [mine, ready]);
-  const all = useMemo(() => [...mineView, ...SAMPLE_ITEMS.map((s) => ({ ...s, meta: byId.get(s.id) }))], [mineView, byId]);
-  const reading = useMemo(() => all.filter((i) => i.meta && !i.meta.done && pctOf(i.meta) > 0)
-    .sort((a, b) => (b.meta!.updatedAt ?? 0) - (a.meta!.updatedAt ?? 0)), [all]);
-  // primeira vez: abre com um clássico já sonorizado (não precisa de chave nem upload)
-  const hero = reading[0] ?? all.find((i) => i.id === 'sample-poe-coracao') ?? all[0];
+  /* fileiras editoriais */
+  const month = monthlyCollection();
+  const pick = (ids: string[]) => ids.map((id) => byItemId.get(id)).filter((x): x is Item => !!x && x.openable);
+  const monthItems = useMemo(() => pick(month.ids), [byItemId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vestItems = useMemo(() => pick(VESTIBULAR.ids), [byItemId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const calibrated = samples.filter((s) => s.calibrated);
+  const tryouts = samples.filter((s) => !s.calibrated);
+  // curtos que não são os contos de teste; os sem som calibrado primeiro (os calibrados já têm fileira)
+  const shorts = useMemo(() => catalog.filter((i) => isShort(i) && !tryouts.includes(i))
+    .sort((a, b) => Number(a.calibrated) - Number(b.calibrated)), [catalog, tryouts, wpm]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const open = async (it: Item) => {
-    setDetail(null);
-    const repo = await getRepo();
-    if (it.sample) {
-      const s = SAMPLE_BOOKS.find((x) => x.id === it.id)!;
-      await repo.addBook({ id: s.id, title: s.title, kind: 'builtin', sub: s.sub, emoji: s.emoji });
-    } else if (it.acervo && !(await repo.hasText(it.id))) {
-      // acervo curado: texto da cópia do deploy (ou do Wikisource), na grafia atual
-      try {
-        setBusy({ msg: `Baixando “${it.title}”…`, pct: null });
-        await openAcervoBook(it.acervo, (msg, pct) => setBusy({ msg, pct }));
-        setBusy(null);
-        void load();
-      } catch (e) {
-        setBusy({ msg: e instanceof Error ? e.message : 'Não consegui baixar este livro.', pct: null, error: true });
-        return;
-      }
-    } else if (it.gut && !(await repo.hasText(it.id))) {
-      // clássico do Project Gutenberg: baixa uma vez e guarda na biblioteca
-      try {
-        setBusy({ msg: `Baixando “${it.title}”…`, pct: null });
-        await openGutenbergBook(it.gut, (msg, pct) => setBusy({ msg, pct }));
-        setBusy(null);
-        void load();
-      } catch (e) {
-        setBusy({ msg: e instanceof Error ? e.message : 'Não consegui baixar este livro.', pct: null, error: true });
-        return;
-      }
-    } else if (!(await repo.hasText(it.id))) {
-      setBusy({ msg: `Baixando “${it.title}”…`, pct: null });
-      const pages = await downloadText(it.id);
-      if (!pages) { setBusy({ msg: 'Não consegui baixar este livro agora. Verifique a conexão.', pct: null, error: true }); return; }
-      setBusy(null);
-    }
-    router.push(`/read/${encodeURIComponent(it.id)}`);
-  };
+  /* destaque: o que está lendo; senão o primeiro da coleção do mês com som calibrado */
+  const hero = reading[0] ?? monthItems.find((i) => i.calibrated) ?? calibrated[0] ?? catalog[0];
 
-  const openGlossary = async (it: Item) => {
-    if ((it.gut || it.acervo) && !it.meta) return void open(it); // ainda não baixado: baixa e abre a leitura
-    setDetail(null);
-    if (it.sample) {
-      const s = SAMPLE_BOOKS.find((x) => x.id === it.id)!;
-      await (await getRepo()).addBook({ id: s.id, title: s.title, kind: 'builtin', sub: s.sub, emoji: s.emoji });
-    }
-    router.push({ pathname: '/glossary/[id]', params: { id: it.id, at: String(it.meta?.idx ?? 0) } });
-  };
+  /* meta diária e sequência */
+  const today = lib.days[dayKey(new Date())] ?? 0;
+  const streak = streakOf(lib.days, new Date());
 
   const importBook = async () => {
     try {
@@ -216,33 +84,20 @@ export default function Library() {
     }
   };
 
-  const remove = (it: Item) => {
-    const go = async () => { setDetail(null); await (await getRepo()).deleteBook(it.id); void deleteRemote(it.id); syncSoon(); void load(); };
-    if (Platform.OS === 'web') { if (globalThis.confirm?.(`Remover “${it.title}” da biblioteca?`)) void go(); return; }
-    Alert.alert('Remover da biblioteca?', `“${it.title}” e o progresso serão apagados deste aparelho e da nuvem.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Remover', style: 'destructive', onPress: () => void go() },
-    ]);
-  };
-
   const posterW = Math.min(150, Math.max(112, (width - 32) / 3.2));
   const wide = Math.min(width, 900);
 
-  const Poster = ({ it, w = posterW }: { it: Item; w?: number }) => (
-    <Pressable onPress={() => setDetail(it)} accessibilityRole="button" accessibilityLabel={`${it.title}, ${it.genre}`}
-      style={({ pressed }) => ({ width: w, gap: 6, transform: [{ scale: pressed ? 0.97 : 1 }] })}>
-      <Cover id={it.id} title={it.title} author={it.author} emoji={it.emoji} mood={it.mood} width={w} image={it.image} />
-      {pctOf(it.meta) > 0 && pctOf(it.meta) < 100 ? <ProgressBar pct={pctOf(it.meta)} height={3} /> : null}
-    </Pressable>
-  );
-
-  const Row = ({ title, items, lead }: { title: string; items: Item[]; lead?: React.ReactNode }) =>
-    items.length || lead ? (
-      <View style={{ gap: 10 }}>
-        <Text style={[st.rowTitle, { color: c.fg }]}>{title}</Text>
+  const Row = ({ title, sub, items, lead, min = MIN_ROW, more }: { title: string; sub?: string; items: Item[]; lead?: React.ReactNode; min?: number; more?: React.ReactNode }) =>
+    items.length >= min || lead ? (
+      <View style={{ gap: 8 }}>
+        <View style={{ paddingHorizontal: 16, gap: 2 }}>
+          <Text style={[st.rowTitle, { color: c.fg }]}>{title}</Text>
+          {sub ? <Text style={[st.rowSub, { color: c.mut }]}>{sub}</Text> : null}
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rowList}>
           {lead}
-          {items.map((it) => <Poster key={it.id} it={it} />)}
+          {items.map((it) => <Poster key={it.id} it={it} w={posterW} wpm={wpm} onPress={setDetail} />)}
+          {more}
         </ScrollView>
       </View>
     ) : null;
@@ -259,23 +114,20 @@ export default function Library() {
       </Pressable>
     </>
   );
-
-  const shelves: (Shelf | 'Todos')[] = ['Todos', CLASSICS, ...GENRES, MINE];
-  const filtered = shelf === 'Todos' ? [] : shelf === CLASSICS ? [...acervo, ...classics] : shelf === MINE ? mineView : all.filter((i) => i.genre === shelf);
   const SeeAll = (
-    <Pressable onPress={() => router.push('/catalog')} accessibilityRole="button" style={[st.add, { width: posterW, height: posterW * 1.5, borderColor: c.btn }]}>
+    <Pressable onPress={() => router.push('/search')} accessibilityRole="button" style={[st.add, { width: posterW, height: posterW * 1.5, borderColor: c.btn }]}>
       <Text style={{ fontSize: 30 }}>🔎</Text>
-      <Text style={[st.addText, { color: c.fg }]}>Ver o catálogo completo</Text>
+      <Text style={[st.addText, { color: c.fg }]}>Buscar em todos os clássicos</Text>
     </Pressable>
   );
-  const gutNote = gutState === 'loading'
-    ? <Text style={[st.note, { color: c.mut }]}>Carregando clássicos do Project Gutenberg…</Text>
-    : gutState === 'error' ? (
-      <View style={{ paddingHorizontal: 16, gap: 8, alignItems: 'flex-start' }}>
-        <Text style={[st.empty, { color: c.mut }]}>Não consegui carregar os clássicos do Project Gutenberg agora.</Text>
-        <RoundButton label="↻ Tentar de novo" onPress={loadClassics} />
-      </View>
-    ) : null;
+
+  const grid: Item[] = shelf === 'Quero ler' ? wishItems
+    : shelf === 'Brasil' ? catalog.filter((i) => i.origin === 'BR')
+    : shelf === 'Portugal' ? catalog.filter((i) => i.origin === 'PT')
+    : shelf === 'Curtos' ? catalog.filter(isShort)
+    : shelf === 'Meus livros' ? mine : [];
+
+  const related = useMemo(() => (detail ? recommend(catalog, [detail], new Set([detail.id]), 8) as Item[] : []), [detail, catalog]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.ov }}>
@@ -283,19 +135,22 @@ export default function Library() {
         {/* destaque */}
         {hero && (
           <View style={{ width: '100%', alignItems: 'center' }}>
-            <View style={{ width: wide, height: Math.min(520, wide * 1.15) }}>
-              <Cover id={hero.id} title={hero.title} emoji={hero.emoji} mood={hero.mood} width={wide} aspect={Math.min(520, wide * 1.15) / wide} showTitle={false} />
+            <View style={{ width: wide, height: Math.min(500, wide * 1.1) }}>
+              <Cover id={hero.id} title={hero.title} emoji={hero.emoji} mood={hero.mood} width={wide} aspect={Math.min(500, wide * 1.1) / wide} showTitle={false} />
               <LinearGradient colors={['rgba(0,0,0,0.45)', 'transparent', 'transparent', c.ov]} locations={[0, 0.22, 0.45, 1]} style={StyleSheet.absoluteFill} />
               <View style={[st.top, { paddingTop: insets.top + 12 }]}>
                 <Text style={st.brand}>Imersão</Text>
-                <RoundButton label="⚙" accessibilityLabel="Configurações" onPress={() => router.push('/settings')} style={st.gear} />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <RoundButton label="🔍" accessibilityLabel="Buscar livros" onPress={() => router.push('/search')} style={st.gear} />
+                  <RoundButton label="⚙" accessibilityLabel="Configurações" onPress={() => router.push('/settings')} style={st.gear} />
+                </View>
               </View>
               <View style={st.heroText}>
-                <Text style={st.heroKicker}>{reading[0] ? 'CONTINUAR LENDO' : 'EM DESTAQUE'} · {hero.genre.toUpperCase()}</Text>
+                <Text style={st.heroKicker}>{reading[0] ? 'CONTINUAR LENDO' : hero.calibrated ? 'EM DESTAQUE · 🎧 SOM CALIBRADO' : 'EM DESTAQUE'}</Text>
                 <Text style={st.heroTitle} numberOfLines={2}>{hero.title}</Text>
                 <Text style={st.heroSyn} numberOfLines={3}>{hero.synopsis}</Text>
                 <View style={st.heroBtns}>
-                  <Pressable onPress={() => void open(hero)} accessibilityRole="button" style={({ pressed }) => [st.play, { opacity: pressed ? 0.85 : 1 }]}>
+                  <Pressable onPress={() => read(hero)} accessibilityRole="button" style={({ pressed }) => [st.play, { opacity: pressed ? 0.85 : 1 }]}>
                     <Text style={st.playText}>▶ {pctOf(hero.meta) > 0 ? 'Continuar' : 'Ler agora'}</Text>
                   </Pressable>
                   <Pressable onPress={() => setDetail(hero)} accessibilityRole="button" style={({ pressed }) => [st.info, { opacity: pressed ? 0.85 : 1 }]}>
@@ -309,114 +164,80 @@ export default function Library() {
         )}
 
         <View style={[st.body, { maxWidth: 1100 }]}>
-          {/* temas */}
+          {/* meta diária e sequência de dias */}
+          <Pressable onPress={() => router.push('/settings')} accessibilityRole="button"
+            accessibilityLabel={`${streak} dias seguidos de leitura; hoje ${Math.round(today)} de ${lib.goal} minutos`}
+            style={[st.goal, { backgroundColor: c.card }]}>
+            <Text style={[st.goalTitle, { color: c.fg }]}>
+              {streak > 0 ? `🔥 ${streak} ${streak === 1 ? 'dia' : 'dias'} seguidos` : '📖 Comece uma sequência hoje'}
+            </Text>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[st.goalSub, { color: c.mut }]}>Hoje: {Math.round(today)} de {lib.goal} min</Text>
+              <ProgressBar pct={Math.min(100, (today / lib.goal) * 100)} height={4} />
+            </View>
+          </Pressable>
+
+          {/* estantes */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chips}>
-            {shelves.map((g) => (
+            {SHELVES.map((g) => (
               <Pressable key={g} onPress={() => setShelf(g)} accessibilityRole="button" accessibilityState={{ selected: shelf === g }}
                 style={[st.chip, { backgroundColor: shelf === g ? c.fg : c.btn }]}>
-                <Text style={[st.chipText, { color: shelf === g ? c.bg : c.fg }]}>{g}</Text>
+                <Text style={[st.chipText, { color: shelf === g ? c.bg : c.fg }]}>{g}{g === 'Quero ler' && wish.length ? ` (${wish.length})` : ''}</Text>
               </Pressable>
             ))}
           </ScrollView>
 
           {shelf === 'Todos' ? (
             <>
-              <Row title="Continuar lendo" items={reading} />
-              <Row title="Meus livros" items={mineView} lead={AddCards} />
-              <Row title="🇧🇷 Clássicos brasileiros" items={acervo.filter((i) => i.acervo!.origin === 'BR')} />
-              <Row title="🇵🇹 Clássicos portugueses" items={acervo.filter((i) => i.acervo!.origin === 'PT')} />
-              {ACERVO_KINDS.filter((k) => k !== 'Romance').map((k) => {
-                const items = acervo.filter((i) => i.acervo!.kind === k);
-                return items.length >= 2 ? <Row key={k} title={`Em português · ${k}`} items={items} /> : null;
-              })}
-              {gutNote}
-              <Row title="📜 Mais clássicos (Project Gutenberg)" items={classics.slice(0, 20)} lead={undefined} />
-              {GUT_CATEGORIES.filter((g) => g !== 'Outros').map((g) => {
-                const items = classics.filter((i) => i.gut && category(i.gut) === g);
-                return items.length >= 2 ? <Row key={g} title={`Clássicos · ${g}`} items={items} /> : null;
-              })}
-              {classics.length > 0 && (
-                <Pressable onPress={() => router.push('/catalog')} accessibilityRole="button" style={[st.more, { backgroundColor: c.btn }]}>
-                  <Text style={[st.chipText, { color: c.fg }]}>🔎 Buscar no catálogo do Project Gutenberg</Text>
-                </Pressable>
+              <Row title="Continuar lendo" items={reading} min={1} />
+              {mine.length > 0 && <Row title="Meus livros" items={mine} lead={AddCards} />}
+              <Row title="Quero ler" items={wishItems} min={1} />
+              <Row title="Para você" sub="Pelos seus gostos e pelo que você leu" items={forMe} />
+              {because && <Row title={`Porque você leu “${because.ref.title}”`} items={because.items} />}
+              <Row title={month.title} sub={month.subtitle} items={monthItems} />
+              <Row title="🇧🇷 Clássicos brasileiros" sub="Texto revisado e na grafia atual" items={acervo.filter((i) => i.origin === 'BR')} />
+              <Row title="🎧 Com som calibrado" sub="Cada cena com a mixagem ajustada à mão" items={calibrated} min={1} />
+              <Row title="⏱ Leituras de até 15 minutos" sub="No seu ritmo de leitura" items={shorts} />
+              <Row title={VESTIBULAR.title} sub={VESTIBULAR.subtitle} items={vestItems} />
+              <Row title="🇵🇹 Clássicos portugueses" items={acervo.filter((i) => i.origin === 'PT')} />
+              {CLIMATES.map((cl) => (
+                <Row key={cl.key} title={cl.row} items={catalog.filter((i) => i.layers.some((L) => cl.layers.includes(L)))} />
+              ))}
+              <Row title="✨ Experimente o som em 1 minuto" sub="Contos curtos escritos para o app" items={tryouts} />
+              <Row title="📜 Mais clássicos em domínio público" items={literature.slice(0, 20)} more={SeeAll} />
+              {lib.gutState === 'loading' && <Text style={[st.note, { color: c.mut }]}>Carregando mais clássicos…</Text>}
+              {lib.gutState === 'error' && (
+                <View style={{ paddingHorizontal: 16, gap: 8, alignItems: 'flex-start' }}>
+                  <Text style={[st.note, { color: c.mut, paddingHorizontal: 0 }]}>Não consegui carregar mais clássicos agora.</Text>
+                  <RoundButton label="↻ Tentar de novo" onPress={lib.loadGut} />
+                </View>
               )}
-              {GENRES.map((g) => <Row key={g} title={g} items={all.filter((i) => i.genre === g)} />)}
-              {SOUND_ROWS.map((r) => {
-                const items = all.filter((i) => i.layers.some((L) => r.has.includes(L)));
-                return items.length >= 2 ? <Row key={r.title} title={r.title} items={items} /> : null;
-              })}
+              <Row title="✓ Lidos" items={finished} min={1} />
+              {mine.length === 0 && <Row title="Meus livros" items={[]} lead={AddCards} />}
             </>
           ) : (
             <View style={st.grid}>
-              {shelf === MINE && AddCards}
-              {shelf === CLASSICS && gutNote}
-              {filtered.map((it) => <Poster key={it.id} it={it} />)}
-              {shelf === CLASSICS && classics.length > 0 && SeeAll}
-              {!filtered.length && shelf !== MINE && shelf !== CLASSICS && <Text style={[st.empty, { color: c.mut }]}>Nenhum livro neste tema ainda.</Text>}
+              {shelf === 'Meus livros' && AddCards}
+              {grid.map((it) => <Poster key={it.id} it={it} w={posterW} wpm={wpm} onPress={setDetail} />)}
+              {!grid.length && shelf !== 'Meus livros' && (
+                <Text style={[st.empty, { color: c.mut }]}>
+                  {shelf === 'Quero ler' ? 'Toque em “＋ Quero ler” na ficha de um livro para guardar aqui.' : 'Nenhum livro aqui ainda.'}
+                </Text>
+              )}
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* ficha do livro */}
-      <Modal visible={!!detail} transparent animationType="fade" onRequestClose={() => setDetail(null)}>
-        <Pressable style={st.backdrop} onPress={() => setDetail(null)} accessibilityLabel="Fechar" />
-        {detail && (
-          <View style={[st.sheet, { backgroundColor: c.bg, paddingBottom: insets.bottom + 20 }]}>
-            <ScrollView contentContainerStyle={{ gap: 14 }}>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
-                <Cover id={detail.id} title={detail.title} author={detail.author} emoji={detail.emoji} mood={detail.mood} width={124} image={detail.image} />
-                <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={[st.dTitle, { color: c.fg }]}>{detail.title}</Text>
-                  <Text style={[st.dMeta, { color: c.mut }]}>{detail.author}</Text>
-                  <Text style={[st.dMeta, { color: c.mut }]}>
-                    {detail.acervo && !detail.pages
-                      ? `${detail.acervo.kind} · ${detail.acervo.year}`
-                      : detail.gut && !detail.pages
-                      ? `${category(detail.gut)} · Project Gutenberg · domínio público`
-                      : `${detail.genre} · ${detail.pages} páginas${detail.chapters > 1 ? ` · ${detail.chapters} capítulos` : ''}`}
-                  </Text>
-                  {detail.gut ? <Text style={[st.dMeta, { color: c.mut }]}>{detail.gut.download_count.toLocaleString('pt-BR')} downloads</Text> : null}
-                  {pctOf(detail.meta) > 0 && <Text style={[st.dMeta, { color: c.fg }]}>{detail.meta?.done ? 'Concluído ✓' : `${pctOf(detail.meta)}% lido`}</Text>}
-                </View>
-              </View>
-              <Text style={[st.dSyn, { color: c.fg }]}>{detail.synopsis}</Text>
-              {detail.credit ? <Text style={[st.dMeta, { color: c.mut }]}>{detail.credit}{SAMPLE_BOOKS.find((b) => b.id === detail.id)?.plans ? ' · 🎧 sonorização calibrada' : ''}</Text> : null}
-              {detail.acervo ? (
-                <View style={st.tags}>
-                  {detail.acervo.tags.map((t) => (
-                    <View key={t} style={[st.tag, { backgroundColor: c.btn }]}><Text style={[st.tagText, { color: c.fg }]}>{t}</Text></View>
-                  ))}
-                </View>
-              ) : null}
-              {detail.layers.length > 0 && (
-                <View style={st.tags}>
-                  <Text style={[st.dMeta, { color: c.mut }]}>Ambiente sonoro:</Text>
-                  {detail.layers.map((L) => (
-                    <View key={L} style={[st.tag, { backgroundColor: c.btn }]}><Text style={[st.tagText, { color: c.fg }]}>{LAYER_LABEL[L]}</Text></View>
-                  ))}
-                </View>
-              )}
-              <View style={st.dBtns}>
-                <RoundButton big label={`▶ ${pctOf(detail.meta) > 0 && !detail.meta?.done ? 'Continuar' : (detail.gut || detail.acervo) && !detail.meta ? 'Baixar e ler' : 'Ler'}`} onPress={() => void open(detail)} />
-                {((!detail.gut && !detail.acervo) || detail.meta) && <RoundButton label="📝 Glossário e capítulos" onPress={() => void openGlossary(detail)} />}
-                {!detail.sample && ((!detail.gut && !detail.acervo) || detail.meta) && <RoundButton label="Remover" onPress={() => remove(detail)} />}
-              </View>
-            </ScrollView>
-          </View>
-        )}
-      </Modal>
-
-      <Modal visible={!!busy} transparent animationType="fade" onRequestClose={() => setBusy(null)}>
-        <View style={[st.modal, { backgroundColor: c.ov }]}>
-          <Text style={[st.h2, { color: c.fg }]}>{busy?.error ? 'Não deu certo' : 'Abrindo livro'}</Text>
-          <Text style={[st.lead, { color: c.mut }]}>{busy?.msg}</Text>
-          {!busy?.error && (busy?.pct == null
-            ? <ActivityIndicator color={c.fg} />
-            : <View style={{ width: 280 }}><ProgressBar pct={busy.pct * 100} height={6} /></View>)}
-          {busy?.error && <RoundButton label="Voltar" onPress={() => setBusy(null)} />}
-        </View>
-      </Modal>
+      <BookSheet item={detail} wpm={wpm} wished={!!detail && wish.includes(detail.id)} related={related}
+        onClose={() => setDetail(null)}
+        onRead={(it) => { setDetail(null); read(it); }}
+        onGlossary={(it) => { setDetail(null); void glossary(it); }}
+        onRemove={(it) => remove(it, () => setDetail(null))}
+        onWish={(it) => void lib.flipWish(it.id)}
+        onPick={setDetail} />
+      <TastesModal visible={!!lib.tastes && !lib.tastes.asked && !detail && !busy} onDone={(t) => void lib.saveTastes(t)} />
+      <BusyModal busy={busy} onClose={() => setBusy(null)} />
     </View>
   );
 }
@@ -426,36 +247,27 @@ const st = StyleSheet.create({
   brand: { fontFamily: FONTS.serifMedium, fontSize: 26, color: '#fff', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 },
   gear: { backgroundColor: 'rgba(0,0,0,0.35)' },
   heroText: { position: 'absolute', left: 16, right: 16, bottom: 20, gap: 8 },
-  heroKicker: { fontFamily: FONTS.uiBold, fontSize: 12, letterSpacing: 1.5, color: 'rgba(255,255,255,0.8)' },
+  heroKicker: { fontFamily: FONTS.uiBold, fontSize: 12, letterSpacing: 1.5, color: 'rgba(255,255,255,0.85)' },
   heroTitle: { fontFamily: FONTS.serifMedium, fontSize: 36, lineHeight: 42, color: '#fff', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 10 },
-  heroSyn: { fontFamily: FONTS.ui, fontSize: 15, lineHeight: 21, color: 'rgba(255,255,255,0.88)', maxWidth: 520, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
+  heroSyn: { fontFamily: FONTS.ui, fontSize: 15, lineHeight: 21, color: 'rgba(255,255,255,0.9)', maxWidth: 520, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
   heroBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
   play: { backgroundColor: '#fff', height: 46, paddingHorizontal: 22, borderRadius: 8, justifyContent: 'center' },
   playText: { fontFamily: FONTS.uiBold, fontSize: 16, color: '#111' },
   info: { backgroundColor: 'rgba(255,255,255,0.22)', height: 46, paddingHorizontal: 18, borderRadius: 8, justifyContent: 'center' },
   infoText: { fontFamily: FONTS.uiBold, fontSize: 16, color: '#fff' },
   body: { width: '100%', alignSelf: 'center', gap: 22, paddingTop: 14 },
+  goal: { marginHorizontal: 16, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  goalTitle: { fontFamily: FONTS.uiBold, fontSize: 15 },
+  goalSub: { fontFamily: FONTS.ui, fontSize: 13 },
   chips: { gap: 8, paddingHorizontal: 16 },
   chip: { minHeight: 36, paddingHorizontal: 16, borderRadius: 99, justifyContent: 'center' },
   chipText: { fontFamily: FONTS.uiBold, fontSize: 14 },
   note: { fontFamily: FONTS.ui, fontSize: 14, paddingHorizontal: 16 },
-  more: { marginHorizontal: 16, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  rowTitle: { fontFamily: FONTS.uiBold, fontSize: 18, paddingHorizontal: 16 },
+  rowTitle: { fontFamily: FONTS.uiBold, fontSize: 18 },
+  rowSub: { fontFamily: FONTS.ui, fontSize: 13 },
   rowList: { gap: 10, paddingHorizontal: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16 },
-  empty: { fontFamily: FONTS.ui, fontSize: 15 },
+  empty: { fontFamily: FONTS.ui, fontSize: 15, lineHeight: 22 },
   add: { borderWidth: 2, borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 10 },
   addText: { fontFamily: FONTS.uiBold, fontSize: 13.5, textAlign: 'center' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '85%', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, maxWidth: 640, alignSelf: 'center', width: '100%' },
-  dTitle: { fontFamily: FONTS.serifMedium, fontSize: 24, lineHeight: 29 },
-  dMeta: { fontFamily: FONTS.ui, fontSize: 14 },
-  dSyn: { fontFamily: FONTS.serif, fontSize: 16.5, lineHeight: 25 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
-  tag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
-  tagText: { fontFamily: FONTS.ui, fontSize: 13 },
-  dBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
-  modal: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, padding: 30 },
-  h2: { fontFamily: FONTS.serifMedium, fontSize: 28 },
-  lead: { fontFamily: FONTS.ui, fontSize: 16.5, lineHeight: 25, textAlign: 'center', maxWidth: 440 },
 });

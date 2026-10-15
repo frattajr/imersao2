@@ -13,7 +13,10 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { soundProfile } from '../src/core/catalog';
 import { booksFromCatalogCsv, cleanGutenbergText, findInCatalog, type GutBook } from '../src/core/gutenberg';
+import { norm } from '../src/core/text';
+import type { Layer } from '../src/core/types';
 import { looksArchaic, modernize } from '../src/core/orthography';
 import { fetchWikisourceBook } from '../src/core/wikisource';
 import { ACERVO, type AcervoEntry } from '../src/data/acervo';
@@ -31,6 +34,9 @@ export interface AcervoReady {
   modernized: boolean;
   /** caminho relativo da capa (covers/<slug>.jpg) */
   cover?: string;
+  /** climas sonoros que dominam a obra e tamanho em palavras (vitrine, filtros e duração) */
+  layers: Layer[];
+  words: number;
 }
 
 async function get(f: Fetch, url: string, timeoutMs: number, tries = 2): Promise<Response | null> {
@@ -59,7 +65,7 @@ async function fromGutenberg(f: Fetch, catalog: GutBook[], a: AcervoEntry): Prom
 
 async function fromWikisource(f: Fetch, a: AcervoEntry): Promise<{ text: string; source: string } | null> {
   if (!a.find.wikisource) return null;
-  const text = await fetchWikisourceBook(f, a.find.wikisource, { author: a.author.split(' ').pop() })
+  const text = await fetchWikisourceBook(f, a.find.wikisource, { author: a.author.split(' ').pop(), authorFull: a.author, log: (m) => console.log(`    ${m}`) })
     .catch((e: unknown) => { console.log(`    Wikisource (${a.find.wikisource}): ${e instanceof Error ? e.message : String(e)}`); return null; });
   return text && text.length > 1500 ? { text, source: `wikisource:${a.find.wikisource}` } : null;
 }
@@ -100,12 +106,18 @@ export async function buildAcervo(f: Fetch, out: string, opts: { log?: (m: strin
       const a = ACERVO[next++];
       try {
         const got = (await fromGutenberg(f, catalog, a).catch(() => null)) ?? (await fromWikisource(f, a));
-        if (!got) { log(`  ✗ ${a.title}: texto não encontrado`); continue; }
+        if (!got) {
+        // pistas para corrigir a busca: o que o catálogo tem desse autor
+        const sur = norm(a.author.split(' ').pop() ?? '');
+        const same = catalog.filter((b) => b.authors.some((x) => norm(x.name).includes(sur))).map((b) => `"${b.title.slice(0, 60)}" (${b.id})`).slice(0, 12);
+        log(`  ✗ ${a.title}: texto não encontrado${same.length ? `. No catálogo, do mesmo autor: ${same.join('; ')}` : ''}`);
+        continue;
+      }
         const modernized = looksArchaic(got.text);
         const text = modernized ? modernize(got.text) : got.text;
         await writeFile(join(out, 'books', `${a.slug}.txt`), text);
         const c = await cover(f, a, out).catch(() => undefined);
-        ready.push({ slug: a.slug, source: got.source, chars: text.length, modernized, cover: c });
+        ready.push({ slug: a.slug, source: got.source, chars: text.length, modernized, cover: c, ...soundProfile(text) });
         log(`  ✓ ${a.title} (${got.source}, ${Math.round(text.length / 1000)} mil caracteres${modernized ? ', grafia atualizada' : ''}${c ? ', capa' : ''})`);
         await save();
       } catch (e) {

@@ -1,5 +1,5 @@
 import { findInCatalog, type GutBook } from '../src/core/gutenberg';
-import { chapterLinks, chapterTitle, decodeEntities, fetchWikisourceBook, htmlToText } from '../src/core/wikisource';
+import { chapterLinks, chapterTitle, decodeEntities, disambiguationLinks, fetchWikisourceBook, htmlToText } from '../src/core/wikisource';
 import { ACERVO, acervoId, isAcervoId } from '../src/data/acervo';
 
 const gb = (id: number, title: string, author: string): GutBook => ({
@@ -72,5 +72,22 @@ describe('Wikisource', () => {
     expect(paras[2]).toBe('Capítulo II');
     expect(paras.filter((p) => p === 'Capítulo II')).toHaveLength(1);
     expect(steps.sort()).toEqual([1, 2]);
+  });
+
+  it('desambiguação: "Senhora" leva a "Senhora (José de Alencar)"', async () => {
+    const dis = '<p>Senhora pode referir-se a:</p><ul><li><a href="/wiki/Senhora_(Jos%C3%A9_de_Alencar)">Senhora (José de Alencar)</a></li><li><a href="/wiki/Senhora_(poema)">poema</a></li></ul>';
+    expect(disambiguationLinks(dis, 'Senhora')).toEqual(['Senhora (José de Alencar)', 'Senhora (poema)']);
+    const pages: Record<string, string> = {
+      Senhora: dis,
+      'Senhora (José de Alencar)': `<p>${'Há anos raiou no céu fluminense uma nova estrela. '.repeat(40)}</p>`,
+    };
+    const f = async (url: string) => {
+      const u = new URL(url).searchParams;
+      if (u.get('list') === 'search') return new Response(JSON.stringify({ query: { search: [] } }));
+      const page = u.get('page')!;
+      return new Response(JSON.stringify(pages[page] ? { parse: { text: pages[page] } } : { error: { code: 'missingtitle' } }));
+    };
+    const text = await fetchWikisourceBook(f as never, 'Senhora', { author: 'Alencar' });
+    expect(text?.startsWith('Há anos raiou')).toBe(true);
   });
 });

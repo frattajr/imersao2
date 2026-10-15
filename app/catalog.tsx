@@ -1,13 +1,15 @@
 /**
- * Catálogo completo do Project Gutenberg em português (via Gutendex):
- * busca por título ou autor, capas reais e "carregar mais".
+ * Catálogo completo dos clássicos em português em domínio público (cópia do
+ * deploy ou consulta ao vivo): busca por título ou autor, capas e "carregar
+ * mais". Mostra só o que abre agora (no navegador sem servidor, os livros
+ * copiados no deploy). A busca da biblioteca (🔍) junta tudo com filtros.
  */
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  authorName, bookId, category, CATEGORY_MOOD, displayTitle as cleanTitle, coverUrl, fetchCatalog, openGutenbergBook, synopsisOf, type GutBook,
+  authorName, bookId, canOpenNow, category, CATEGORY_MOOD, displayTitle as cleanTitle, coverUrl, fetchCatalog, gutMeta, openGutenbergBook, synopsisOf, type GutBook,
 } from '../src/services/gutenberg';
 import { Cover } from '../src/ui/Cover';
 import { ProgressBar, RoundButton } from '../src/ui/components';
@@ -24,6 +26,8 @@ export default function Catalog() {
   const [total, setTotal] = useState(0);
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [pick, setPick] = useState<GutBook | null>(null);
+  /** neste navegador (sem servidor) só abrem os livros copiados no deploy */
+  const limited = !canOpenNow(-1);
   const [busy, setBusy] = useState<{ msg: string; pct: number | null; error?: boolean } | null>(null);
   const reqId = useRef(0);
 
@@ -31,9 +35,10 @@ export default function Catalog() {
     const my = ++reqId.current;
     setState('loading');
     try {
-      const r = await fetchCatalog({ page: p, search: q.trim() || undefined });
+      const r = await fetchCatalog({ page: p, search: q.trim() || undefined, openOnly: true });
       if (my !== reqId.current) return; // chegou uma busca mais nova
-      setBooks((cur) => (p === 1 ? r.results : [...cur, ...r.results]));
+      const open = r.results.filter((b) => canOpenNow(b.id));
+      setBooks((cur) => (p === 1 ? open : [...cur, ...open]));
       setHasMore(!!r.next);
       setTotal(r.count);
       setPage(p);
@@ -71,12 +76,17 @@ export default function Catalog() {
           <RoundButton label="←" accessibilityLabel="Voltar" onPress={() => router.back()} />
           <View style={{ flex: 1 }}>
             <Text style={[st.h1, { color: c.fg }]}>Clássicos</Text>
-            <Text style={[st.sub, { color: c.mut }]}>Project Gutenberg · livros em português em domínio público</Text>
+            <Text style={[st.sub, { color: c.mut }]}>Livros em português em domínio público, na grafia atual</Text>
           </View>
         </View>
         <TextInput value={query} onChangeText={setQuery} placeholder="Buscar por título ou autor (ex.: Machado, Eça, Camões)"
           placeholderTextColor={c.mut} style={[st.input, { color: c.fg, backgroundColor: c.card }]} autoCorrect={false} returnKeyType="search" />
         {state === 'ok' && <Text style={[st.sub, { color: c.mut }]}>{total.toLocaleString('pt-BR')} {total === 1 ? 'livro' : 'livros'}</Text>}
+        {limited && (
+          <Text style={[st.sub, { color: c.mut }]}>
+            No navegador aparecem só os livros já preparados para abrir na hora. No app do celular, todos abrem.
+          </Text>
+        )}
         {state === 'error' && <Text style={[st.sub, { color: c.mut }]}>Não consegui falar com o catálogo agora. Verifique a conexão.</Text>}
 
         <View style={st.grid}>
@@ -103,10 +113,10 @@ export default function Catalog() {
                 <View style={{ flex: 1, gap: 6 }}>
                   <Text style={[st.dTitle, { color: c.fg }]}>{cleanTitle(pick.title)}</Text>
                   <Text style={[st.sub, { color: c.mut }]}>{authorName(pick)}</Text>
-                  <Text style={[st.sub, { color: c.mut }]}>{category(pick)} · {pick.download_count.toLocaleString('pt-BR')} downloads</Text>
+                  <Text style={[st.sub, { color: c.mut }]}>{category(pick)} · domínio público</Text>
                 </View>
               </View>
-              <Text style={[st.syn, { color: c.fg }]}>{synopsisOf(pick)}</Text>
+              <Text style={[st.syn, { color: c.fg }]}>{synopsisOf(pick, gutMeta(pick.id)?.excerpt)}</Text>
               <RoundButton big label="▶ Baixar e ler" onPress={() => void read(pick)} />
             </ScrollView>
           </View>

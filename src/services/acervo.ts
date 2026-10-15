@@ -7,7 +7,7 @@
  */
 import { modernize } from '../core/orthography';
 import { chunk } from '../core/text';
-import type { BookMeta } from '../core/types';
+import type { BookMeta, Layer } from '../core/types';
 import { fetchWikisourceBook } from '../core/wikisource';
 import { acervoId, type AcervoEntry } from '../data/acervo';
 import { getRepo } from '../state/db';
@@ -15,7 +15,7 @@ import { mirrorBase } from './gutenberg';
 import type { ImportStep } from './importer';
 import { syncSoon } from './sync';
 
-export interface AcervoReady { slug: string; source: string; chars: number; modernized: boolean; cover?: string }
+export interface AcervoReady { slug: string; source: string; chars: number; modernized: boolean; cover?: string; layers?: Layer[]; words?: number }
 
 /** Pasta do acervo publicada ao lado da cópia do Gutenberg. */
 export const acervoBase = () => mirrorBase().replace(/\/gutenberg$/, '') + '/acervo';
@@ -55,7 +55,7 @@ async function textOf(a: AcervoEntry, step: ImportStep): Promise<string> {
   } catch { /* sem cópia: Wikisource */ }
   if (a.find.wikisource) {
     const t = await fetchWikisourceBook(fetch, a.find.wikisource, {
-      author: a.author.split(' ').pop(),
+      author: a.author.split(' ').pop(), authorFull: a.author,
       step: (done, total) => step(`Baixando “${a.title}” do Wikisource…`, done / total),
     }).catch(() => null);
     if (t) {

@@ -100,34 +100,74 @@ export async function parsePage(f: Fetch, page: string): Promise<string | null> 
   return j.parse?.text ?? null;
 }
 
-/** Título exato da página procurando pelo nome da obra (e autor, se vier). */
-export async function searchTitle(f: Fetch, title: string, author = ''): Promise<string | null> {
+/** Páginas da obra procurando pelo nome (e autor, se vier): a principal (sem "/capítulo") primeiro. */
+export async function searchTitles(f: Fetch, title: string, author = ''): Promise<string[]> {
   const j = (await api(f, { action: 'query', list: 'search', srsearch: `intitle:"${title}" ${author}`.trim(), srnamespace: '0', srlimit: '10' })) as
     { query?: { search?: { title: string }[] } };
-  const hits = (j.query?.search ?? []).map((h) => h.title);
+  const hits = (j.query?.search ?? []).map((h) => h.title).filter((h) => !h.includes('/'));
   const n = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  // a página principal da obra (sem "/capítulo"), de preferência com o título igual
-  return hits.find((h) => n(h) === n(title)) ?? hits.find((h) => !h.includes('/') && n(h).startsWith(n(title))) ?? null;
+  return hits.filter((h) => n(h).startsWith(n(title))).sort((a, b) => Number(n(b) === n(title)) - Number(n(a) === n(title)));
+}
+
+/** Título exato da página procurando pelo nome da obra (e autor, se vier). */
+export async function searchTitle(f: Fetch, title: string, author = ''): Promise<string | null> {
+  return (await searchTitles(f, title, author))[0] ?? null;
 }
 
 /**
- * Texto completo de uma obra. Se a página principal for um índice de
- * capítulos, baixa cada capítulo (com o título como parágrafo próprio, para
- * o sumário do leitor). `step` informa o progresso.
+ * Página de desambiguação ("Senhora" → várias obras com esse nome): links
+ * do tipo "Senhora (José de Alencar)". Exportada para teste.
  */
-export async function fetchWikisourceBook(
-  f: Fetch, page: string, opts: { maxChapters?: number; author?: string; step?: (done: number, total: number) => void } = {},
-): Promise<string | null> {
-  let html = await parsePage(f, page);
-  if (!html) {
-    // título um pouco diferente no Wikisource: procura
-    const found = await searchTitle(f, page, opts.author);
-    if (found) { page = found; html = await parsePage(f, page); }
+export function disambiguationLinks(html: string, page: string): string[] {
+  const out: string[] = [];
+  const re = /href="\/wiki\/([^"#?]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    let t: string;
+    try { t = decodeURIComponent(m[1]).replace(/_/g, ' '); } catch { continue; }
+    if (t.startsWith(`${page} (`) && !t.includes('/') && !out.includes(t)) out.push(t);
   }
-  if (!html) return null;
+  return out;
+}
+
+export async function fetchWikisourceBook(
+  f: Fetch, page: string,
+  opts: { maxChapters?: number; author?: string; authorFull?: string; step?: (done: number, total: number) => void; log?: (m: string) => void } = {},
+): Promise<string | null> {
+  // candidatos: o título dado, "Título (Autor)", os da desambiguação e os da busca
+  const cands: string[] = [page];
+  if (opts.authorFull) cands.push(`${page} (${opts.authorFull})`);
+  const tried = new Set<string>();
+  let searched = false;
+  for (let k = 0; k < cands.length && tried.size < 8; k++) {
+    const p = cands[k];
+    if (tried.has(p)) continue;
+    tried.add(p);
+    const html = await parsePage(f, p).catch(() => null);
+    if (html) {
+      const text = await readWork(f, p, html, opts);
+      if (text) return text;
+      disambiguationLinks(html, page).forEach((x) => { if (!cands.includes(x)) cands.push(x); });
+    }
+    if (k === cands.length - 1 && !searched) {
+      searched = true;
+      const hits = await searchTitles(f, page, opts.author).catch(() => [] as string[]);
+      hits.forEach((x) => { if (!cands.includes(x)) cands.push(x); });
+    }
+  }
+  opts.log?.(`Wikisource: nada aproveitável em ${[...tried].map((t) => `"${t}"`).join(', ')}`);
+  return null;
+}
+
+/** Texto de uma página de obra: os capítulos (subpáginas) ou o próprio texto. */
+async function readWork(
+  f: Fetch, page: string, html: string,
+  opts: { maxChapters?: number; step?: (done: number, total: number) => void; log?: (m: string) => void },
+): Promise<string | null> {
   const links = chapterLinks(html, page).slice(0, opts.maxChapters ?? 150);
   const own = htmlToText(html);
-  if (links.length < 2) return own.length > 500 ? own : null;
+  opts.log?.(`Wikisource "${page}": ${links.length} capítulos, ${own.length} caracteres na página`);
+  if (links.length < 2) return own.length > 1500 ? own : null;
   const parts: string[] = new Array(links.length).fill('');
   let next = 0, done = 0;
   const worker = async () => {
@@ -145,5 +185,5 @@ export async function fetchWikisourceBook(
   };
   await Promise.all([worker(), worker(), worker()]);
   const all = parts.filter(Boolean).join('\n');
-  return all.length > 500 ? all : own.length > 500 ? own : null;
+  return all.length > 500 ? all : own.length > 1500 ? own : null;
 }
