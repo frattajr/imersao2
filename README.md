@@ -242,6 +242,86 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
 - **Muitas trocas, som mais leve** (`src/core/smooth.ts`): se a cena muda muito em pouco tempo, as transições ficam até 2,5× mais longas, o volume baixa até 30%, camadas recém-chegadas não somem de repente e camadas fracas novas são ignoradas. Quando a leitura acalma, volta ao normal.
 - **Reaproveitamento:** como a descrição de cada som é estável no livro, a segunda vez que ele aparece (nesta ou em outra leitura, neste ou em outro livro) vem do repositório, sem chamar a ElevenLabs. Os sons da próxima página são buscados (ou gerados) com antecedência.
 
+## Jornada do leitor (gamificação)
+
+Pensada para **quem está começando** e para criar **constância sem culpa**. Código: `src/core/journey.ts` (regras puras e testadas), `src/state/journey.ts` (estado no aparelho), `app/journey.tsx` (tela) e `src/ui/journey.tsx` (faixa, resumo, metas).
+
+**Metas pequenas e semana flexível**
+- Meta de **5, 10 (padrão), 15, 30 ou 60 minutos por dia**.
+- **Dias por semana** (3 a 7, padrão 4): não precisa ser todo dia.
+- Um dia conta na sequência com **30 s de leitura**, então um conto de 1 minuto já vale.
+
+**Sequência com dias de descanso**
+- A pessoa começa com **1 dia de descanso guardado** e ganha mais 1 a cada 7 dias seguidos (no máximo 2).
+- Se faltar um dia, o descanso é usado sozinho e a sequência continua.
+- O recorde fica guardado.
+- Voltar depois de uma pausa vira a conquista **"De volta"**. Nunca há mensagem de culpa.
+
+**Pontos e níveis de leitor**
+- Pontos:
+  - 1 por minuto lido;
+  - +10 por capítulo, +25 por livro;
+  - +5 pela meta do dia, +15 pela semana cumprida;
+  - +20 pelo desafio da semana, +30 pelos primeiros passos.
+- 12 níveis com nome. A subida é rápida no começo, para dar vitórias cedo:
+  - Primeiras páginas, Leitor curioso, Leitor de cabeceira, Leitor constante, Leitor assíduo, Leitor voraz;
+  - Devorador de histórias, Rato de biblioteca, Leitor imerso, Guardião das histórias, Mestre leitor, Lenda da biblioteca.
+
+**Primeiros passos**: 7 tarefas que ensinam o app.
+1. Escolher o som.
+2. Ler 5 minutos.
+3. Terminar um conto.
+4. Grifar uma frase.
+5. Cumprir a meta do dia.
+6. Ler em 3 dias diferentes.
+7. Começar um clássico.
+
+Ao completar: +30 pontos e um dia de descanso.
+
+**Desafio da semana**: um por semana, sorteado pela data (igual a semana toda) entre 7 opções:
+- 3 dias de leitura;
+- terminar um capítulo ou conto;
+- 60 minutos na semana;
+- 3 grifos;
+- 20 minutos com som;
+- um livro novo;
+- 2 noites lendo depois das 21h.
+
+**22 conquistas** em quatro grupos:
+- **Constância**: primeiros passos, meta cumprida, 3, 7 e 30 dias seguidos, semana redonda, de volta.
+- **Leitura**: primeira página, primeiro capítulo, primeiro livro, estante cheia (5 livros), clássico na bagagem, maratona (30 min num dia), 10 mil palavras.
+- **Imersão** (ligadas ao som): ao som da chuva e maresia (10 min com o clima tocando), explorador de climas (4 climas), coruja (depois das 22h), madrugador (antes das 8h).
+- **Curiosidade**: frase favorita, leitor anotador (3 notas), quem é quem (glossário).
+
+**Onde aparece**
+- **Biblioteca**:
+  - faixa com o anel da meta do dia, a sequência, o nível e o próximo passo; um toque abre a Jornada;
+  - na volta de uma leitura, o cartão **"Boa leitura!"**, uma vez, com minutos, pontos, meta e conquistas novas.
+- **Leitor**: avisos discretos, um depois do outro, que nunca interrompem a página:
+  - "Meta do dia cumprida · 4 dias seguidos";
+  - "Conquista: …";
+  - "Desafio da semana concluído".
+
+  A tela **Fim** mostra os pontos da leitura, o nível e as conquistas.
+- **Tela Jornada**:
+  - nível;
+  - o dia: anel, quanto falta e "Continuar" o último livro ou "Leituras curtas";
+  - a constância: sequência, recorde, calendário da semana e dias de descanso;
+  - primeiros passos e desafio da semana;
+  - **sugestão de meta**: sobe um degrau se cumpriu a meta em 6 dos últimos 7 dias; desce um se leu mas quase nunca cumpriu (dá para dispensar);
+  - conquistas, com a ficha de cada uma;
+  - números, metas e lembrete.
+
+**Lembrete diário** (`src/services/reminders.ts`, `expo-notifications`, só no celular):
+- um horário à escolha: 8h, 12h, 19h ou 21h;
+- o lembrete fica agendado só para os próximos 3 dias: se a pessoa parar de abrir o app, os avisos param sozinhos;
+- não toca no dia em que a meta já foi cumprida;
+- o texto convida, citando o livro do momento e a meta, e nunca cobra.
+
+**Quem já usava o app** começa com o que já fez: minutos, dias com leitura, metas cumpridas e livros terminados viram pontos.
+
+Ainda não há ranking entre pessoas (comparação desanima quem está começando). Também não há sincronização da jornada com a nuvem: fica para a versão com login.
+
 ## Biblioteca, capítulos e configurações
 
 - **Biblioteca** (`app/index.tsx`, `src/ui/library.tsx`, `src/core/catalog.ts`): todos os livros (exemplos sonorizados, acervo curado, clássicos em domínio público e os da pessoa) num formato só.
@@ -249,7 +329,7 @@ Ao abrir um livro, o app lê o texto inteiro e monta o **perfil sonoro** dele (`
   - **Fileiras editoriais** (`src/data/collections.ts`): **coleção do mês** (troca sozinha), clássicos brasileiros e portugueses, **com som calibrado**, **leituras de até 15 minutos** (no ritmo da pessoa), **frequentes no vestibular**, uma fileira por **clima sonoro** (chuva, mar, noite, lareira, natureza, cidade) e "experimente o som em 1 minuto". Fileira editorial só aparece com 3 livros ou mais.
   - **Capas tipográficas** com uma linha embaixo: duração no ritmo de leitura da pessoa e o fone de som calibrado; % lido quando já começou.
   - **Ficha**: sinopse sempre em português (resumo automático em inglês vira o começo da obra), duração, tipo de som e climas, **prévia do clima** (10 s, baixinho), Quero ler e livros parecidos.
-  - **Meta diária e sequência de dias**: o leitor conta os minutos lidos (pausas longas não contam); meta de 10, 15, 30 ou 60 min nas Configurações.
+  - **Meta diária e sequência de dias**: o leitor conta os minutos lidos (pausas longas não contam); metas e lembrete na Jornada e nas Configurações (ver "Jornada do leitor").
   - **Só aparece o que abre agora**: no navegador sem servidor, os clássicos copiados no deploy; volumes repetidos viram uma obra; gramáticas e livros de história ficam só na busca.
 - **Busca** (`app/search.tsx`): tudo junto (inclusive os livros da pessoa), sem acento e pela grafia antiga, com filtros de **duração**, **origem** (Brasil/Portugal), **época** e **clima do som**.
 - **Deploy**: o acervo e a cópia do Gutenberg gravam, para cada obra, os climas que dominam o texto, o tamanho e o começo do texto (`soundProfile`, `openingExcerpt`).
@@ -305,6 +385,7 @@ O que já foi verificado fora do celular:
 | Catálogo | duração, busca sem acento e pela grafia antiga, filtros, volumes repetidos, resumo em inglês detectado, trecho de abertura, perfil sonoro, recomendações, gostos, sequência de dias, coleções só com obras que existem, desambiguação do Wikisource; no Chromium: gostos na primeira abertura, fileiras, selos, ficha com sinopse em português e prévia do som, Quero ler, busca com filtros |
 | Contexto e dinâmica | narração sem falas, lembranças, metáforas e nomes próprios; nenhum som por palavra solta ("chamou", "olhos escuros", "onda de ciúme", "Rio de Janeiro"); cenas que persistem, salto de tempo e mudança de lugar abrem cena nova, abertura de capítulo, época do livro, tensão pelo ritmo, ambiente de cada lugar e hora; arco da cena, respiro de capítulo, tom à noite e com tensão, vozes abafadas, relógio com limite, efeito rítmico uma vez por cena, troca de tomada do loop |
 | Visual | escuro e modo parágrafo como padrão; contraste de texto, destaque e capas em todos os temas; vitrine sem livros repetidos, fileiras pessoais que repetem, limite de fileiras de clima; no Chromium (390×844): nenhum emoji na vitrine, nenhuma capa repetida, abre no parágrafo, seta vira uma tela, marcador, painéis Som e Texto, troca para página cheia e volta, toque longo, a escolha continua ao reabrir, ajustes finos nas Configurações |
+| Jornada | 21 testes: níveis, pontos, limite de 3 min por trecho, sequência ligada por dias de descanso (uso automático, só quando cobre a falta toda, ganho a cada 7 dias, máx. 2), "De volta", semana começando na segunda, meta da semana uma vez, desafio fixo por semana e pago uma vez, os 7 primeiros passos, conquistas de imersão (som ligado, hora do dia), maratona, conquistas sem repetir, resumo da leitura, sugestão de meta; no Chromium: faixa na biblioteca, conto curto até o Fim com pontos e conquistas, avisos no leitor, "Boa leitura!", sequência de 1 dia, tela Jornada, ficha da conquista, "Leituras curtas" depois de terminar, grifo dando "Frase favorita" |
 | Importação | testes de reflow: cabeçalhos/rodapés repetidos, paginação, hifenização, EPUB (marcadores e notas), Gutenberg |
 | Obras iniciais | planos calibrados válidos para todas as páginas das 3 obras |
 | Repositório de sons | 18 testes (semelhança, chave, geração única, limite, normalização de volume) + 14 checagens da função `sound-resolve` + funções SQL num PostgreSQL 16 |
@@ -319,6 +400,7 @@ O que já foi verificado fora do celular:
 - `createBiquadFilter` (low-pass) no `react-native-audio-api`: se a versão instalada não tiver, o motor segue sem o filtro;
 - tocar com a tela bloqueada (iOS e Android);
 - leitura de arquivos pelo `expo-file-system` (há um plano B com `fetch`);
+- `expo-notifications` (lembrete diário): permissão no iOS/Android 13+, canal no Android e o horário dos avisos;
 - `react-native-svg` (ícones) é nativo: o app de desenvolvimento precisa de um build novo (`npm run build:dev:ios` / `:android`); no Expo Go já vem incluído;
 - geração de sons pela API da ElevenLabs com uma chave real (o formato do pedido segue a documentação, mas só foi testado com a API simulada).
 

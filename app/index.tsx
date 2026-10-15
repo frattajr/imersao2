@@ -16,7 +16,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CLIMATES, dayKey, forYou, minutesToRead, recommend, shelfRows, streakOf, type ShelfRow } from '../src/core/catalog';
+import { CLIMATES, forYou, minutesToRead, recommend, shelfRows, type ShelfRow } from '../src/core/catalog';
 import { monthlyCollection, VESTIBULAR } from '../src/data/collections';
 import { pickAndImport } from '../src/services/importer';
 import {
@@ -25,6 +25,7 @@ import {
 import { Cover } from '../src/ui/Cover';
 import { Icon } from '../src/ui/Icon';
 import { IconButton, ProgressBar, RoundButton } from '../src/ui/components';
+import { JourneyStrip, LastSessionCard, useJourney } from '../src/ui/journey';
 import { FONTS, usePrefs } from '../src/ui/prefs';
 
 type Shelf = 'Todos' | 'Quero ler' | 'Brasil' | 'Portugal' | 'Curtos' | 'Meus livros';
@@ -78,9 +79,8 @@ export default function Library() {
   /* destaque: o que está lendo; senão o primeiro da coleção do mês com som calibrado */
   const hero = reading[0] ?? monthItems.find((i) => i.calibrated) ?? calibrated[0] ?? catalog[0];
 
-  /* meta diária e sequência */
-  const today = lib.days[dayKey(new Date())] ?? 0;
-  const streak = streakOf(lib.days, new Date());
+  /* jornada: meta do dia, sequência, nível e resumo da última leitura */
+  const journey = useJourney();
 
   const importBook = async () => {
     try {
@@ -156,7 +156,6 @@ export default function Library() {
   );
 
   const heroPct = pctOf(hero?.meta);
-  const goalPct = Math.min(100, (today / lib.goal) * 100);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -174,16 +173,11 @@ export default function Library() {
             </View>
           </View>
 
-          {/* meta diária e sequência de dias, numa linha */}
-          <Pressable onPress={() => router.push('/settings')} accessibilityRole="button"
-            accessibilityLabel={`${streak} dias seguidos de leitura; hoje ${Math.round(today)} de ${lib.goal} minutos`}
-            style={st.goal}>
-            <Icon name={streak > 0 ? 'flame' : 'clock'} size={16} color={streak > 0 ? c.accent : c.mut} />
-            <Text style={[st.goalText, { color: c.mut }]}>
-              {streak > 0 ? `${streak} ${streak === 1 ? 'dia' : 'dias'} seguidos · ` : ''}hoje {Math.round(today)} de {lib.goal} min
-            </Text>
-            <View style={{ width: 64 }}><ProgressBar pct={goalPct} height={3} /></View>
-          </Pressable>
+          {/* jornada: resumo da última leitura (uma vez) e a faixa do dia */}
+          <View style={{ gap: 12, marginTop: -6 }}>
+            <LastSessionCard j={journey} />
+            <JourneyStrip j={journey} />
+          </View>
 
           {/* destaque */}
           {hero && (
@@ -264,8 +258,6 @@ const st = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
   hello: { fontFamily: FONTS.ui, fontSize: 13.5 },
   brand: { fontFamily: FONTS.serifMedium, fontSize: 27, lineHeight: 32 },
-  goal: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginTop: -8 },
-  goalText: { fontFamily: FONTS.ui, fontSize: 13, flexShrink: 1 },
   hero: { marginHorizontal: 16, borderRadius: 20, padding: 14, flexDirection: 'row', gap: 16, borderWidth: 1, alignItems: 'center' },
   kicker: { fontFamily: FONTS.uiBold, fontSize: 11, letterSpacing: 1.3 },
   heroTitle: { fontFamily: FONTS.serifMedium, fontSize: 22, lineHeight: 27 },

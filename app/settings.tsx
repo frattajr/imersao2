@@ -7,16 +7,15 @@ import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GOALS } from '../src/core/catalog';
 import { LEVEL_LABEL } from '../src/reader/AudioSheet';
 import { OutputRow, PresetRow } from '../src/reader/PresetSheet';
 import { SheetRow } from '../src/reader/Sheet';
 import { TypeRows } from '../src/reader/TypeSheet';
 import { localSounds } from '../src/services/localSounds';
 import { supabase } from '../src/services/supabase';
-import { getGoal, setGoal } from '../src/state/userLists';
 import { IconButton, RoundButton, Segmented, ToggleRow } from '../src/ui/components';
 import { Icon } from '../src/ui/Icon';
+import { GoalsRows, useJourney } from '../src/ui/journey';
 import {
   BASE_FONT, DETAIL_LEVELS, FADE_LEVELS, FONTS, LEVELS, LINE_HEIGHTS, MARGINS, PARA_SPACING, READING_FONTS, SIZES, usePrefs, VOLUMES,
 } from '../src/ui/prefs';
@@ -69,8 +68,7 @@ function TypePreview() {
 
 export default function Settings() {
   const { c, volI, setVol, sound, setSound } = usePrefs();
-  const [goal, setGoalS] = useState(15);
-  useEffect(() => { void getGoal().then(setGoalS); }, []);
+  const journey = useJourney();
   const insets = useSafeAreaInsets();
   const [key, setKey] = useState('');
   const [count, setCount] = useState(0);
@@ -109,11 +107,11 @@ export default function Settings() {
           </SheetRow>
         </Section>
 
-        <Section title="Meta diária">
-          <SheetRow label="Minutos por dia" hint="A sequência de dias aparece na biblioteca.">
-            <Segmented value={goal} onChange={(v) => { setGoalS(v); void setGoal(v); }} accessibilityLabel="Meta diária"
-              options={GOALS.map((g) => ({ value: g, label: `${g} min` }))} />
-          </SheetRow>
+        <Section title="Metas e lembrete">
+          <GoalsRows j={journey} />
+          <View style={{ alignItems: 'flex-start' }}>
+            <RoundButton variant="ghost" icon="trophy" label="Ver sua jornada" onPress={() => router.push('/journey')} />
+          </View>
         </Section>
 
         <Collapsible title="Ajustes finos do som" hint="Volumes separados, transições, detalhes e respiro.">

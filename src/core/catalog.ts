@@ -269,7 +269,7 @@ export function streakOf(days: ReadingDays, today: Date): number {
   return n;
 }
 
-export const GOALS = [10, 15, 30, 60];
+export const GOALS = [5, 10, 15, 30, 60];
 
 /** Uma fileira da vitrine. `personal` (continuar, Quero ler, lidos…) pode repetir livros; as editoriais não. */
 export interface ShelfRow<T extends { id: string }> {

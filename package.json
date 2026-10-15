@@ -39,6 +39,7 @@
     "expo-keep-awake": "~15.0.0",
     "expo-linear-gradient": "~15.0.0",
     "expo-linking": "~8.0.0",
+    "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.0",
     "expo-splash-screen": "~31.0.0",
     "expo-sqlite": "~16.0.0",

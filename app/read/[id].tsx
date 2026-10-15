@@ -20,6 +20,9 @@
  *   somem sozinhas; ficam só um cabeçalho e um rodapé finos.
  * - X-Ray sem spoiler; recapitulação depois de 48 h; estilo de som na
  *   primeira leitura.
+ * - Jornada do leitor: cada tela lida, capítulo, livro terminado, grifo e
+ *   termo do glossário contam; meta do dia, conquistas e desafio da semana
+ *   aparecem num aviso discreto (nunca interrompem a leitura).
  */
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
@@ -49,7 +52,7 @@ import { planDescs, spotDesc } from '../../src/core/sound';
 import { continues, plain } from '../../src/core/text';
 import type { Ambience, BookMeta, GlossaryEntry, Layer, MixStem, Mood, ScenePlan } from '../../src/core/types';
 import { entitiesSoFar, xrayInfo } from '../../src/core/xray';
-import { ACERVO, acervoId } from '../../src/data/acervo';
+import { ACERVO, acervoId, isAcervoId } from '../../src/data/acervo';
 import { bundledPlans, isPublicBook } from '../../src/data/books';
 import { AudioSheet } from '../../src/reader/AudioSheet';
 import { NavSheet } from '../../src/reader/NavSheet';
@@ -66,7 +69,9 @@ import { activeLibrary } from '../../src/services/sounds';
 import { syncSoon } from '../../src/services/sync';
 import { getRepo } from '../../src/state/db';
 import { onJump } from '../../src/state/jump';
-import { flushReading, logReading } from '../../src/state/userLists';
+import { BADGES, levelOf, MAX_READ_MS, streakOf, type JourneyResult } from '../../src/core/journey';
+import { flushJourney, loadJourney, track } from '../../src/state/journey';
+import { syncReminders } from '../../src/services/reminders';
 import { SceneDirector } from '../../src/state/scene';
 import { IconButton, ProgressBar, RoundButton } from '../../src/ui/components';
 import { Icon } from '../../src/ui/Icon';
@@ -127,7 +132,7 @@ export default function Reader() {
   useKeepAwake();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = decodeURIComponent(String(rawId));
-  const { c, sizeI, type, layout, sound } = usePrefs();
+  const { c, sizeI, type, layout, sound, volI } = usePrefs();
   const insets = useSafeAreaInsets();
 
   const [book, setBook] = useState<BookMeta | null>(null);
@@ -208,6 +213,39 @@ export default function Reader() {
   /** tempo lido nesta abertura do livro (para sugerir uma pausa depois de 45 min) */
   const readMs = useRef(0);
   const pauseHinted = useRef(false);
+  /** som ligado (para as conquistas de imersão) e se o livro é um clássico */
+  const soundOn = useRef(true);
+  soundOn.current = volI !== 3 && sound.preset !== 'silencio';
+  const classic = isAcervoId(id) || isGutId(id);
+  /** livro terminado: o tempo na tela "Fim" não conta como leitura */
+  const finishedRef = useRef(false);
+  /** resumo mostrado na tela "Fim" */
+  const [endInfo, setEndInfo] = useState<{ points: number; badges: string[]; streak: number; level: string } | null>(null);
+
+  /** Celebra sem atrapalhar: avisos curtos, um depois do outro. */
+  const celebrate = useCallback((r: JourneyResult) => {
+    const msgs: string[] = [];
+    const streak = streakOf(r.days, r.state.rest, new Date());
+    if (r.comeback) msgs.push('Que bom te ver de volta!');
+    if (r.goalReached) msgs.push(`Meta do dia cumprida · ${streak} ${streak === 1 ? 'dia seguido' : 'dias seguidos'}`);
+    if (r.stepsCompleted) msgs.push('Primeiros passos concluídos! Você ganhou um dia de descanso');
+    if (r.challenge) msgs.push(`Desafio da semana concluído: ${r.challenge.title}`);
+    if (r.weekReached) msgs.push('Meta da semana cumprida');
+    const skip = new Set(['goal', 'steps', 'comeback']);
+    const names = r.unlocked.filter((b) => !skip.has(b.id)).map((b) => b.title);
+    if (names.length) msgs.push(`Conquista: ${names.join(' · ')}`);
+    msgs.forEach((m, i) => setTimeout(() => say(m, 3200), i * 3500));
+    // meta cumprida: o lembrete de hoje não precisa mais tocar
+    if (r.goalReached) void loadJourney().then((j) => syncReminders({ goal: j.goal, minutesToday: j.goal, book: j.state.session?.title })).catch(() => undefined);
+  }, [say]);
+  /** Tela lida: tempo (parada longa não conta), palavras e o som que tocava. */
+  const logRead = useCallback((ms: number, words = 0) => {
+    if (!(ms > 500)) return Promise.resolve(null);
+    return track({
+      type: 'read', ms, words, bookId: id, classic, sound: soundOn.current,
+      layers: lastMix.current.filter((m) => m.gain > 0).map((m) => m.s as Layer),
+    }).catch(() => null);
+  }, [id, classic]);
 
   /** a pessoa está lendo (virou página, tocou, rolou): o som volta se tinha descido */
   const act = useCallback(() => { lastAct.current = Date.now(); engine.setIdle(false); }, []);
@@ -254,6 +292,7 @@ export default function Reader() {
         if (s && page >= s.start && page < s.end) void applyScreen(s);
       }, { publicBook: isPublicBook(id), bundled: bundledPlans(id), fallback: (i) => scenePlan(sceneMap.current!, pagesRef.current, i) });
       if (!asked) setAskPreset(true);
+      void track({ type: 'session-start', bookId: id, title: b.title }).catch(() => undefined);
       const seen = Number(hints ?? 0);
       if (seen < 3) { setHint(true); void repo.kvSet('reader:hints', String(seen + 1)); }
       // voltou depois de 48 h: "o que aconteceu até aqui?"
@@ -278,14 +317,15 @@ export default function Reader() {
     const t = setInterval(() => setLocked(engine.needsUnlock), 1000);
     return () => {
       clearInterval(t);
-      logReading(Date.now() - pageSince.current);
-      void flushReading();
+      void logRead(finishedRef.current ? 0 : Date.now() - pageSince.current)
+        .then(() => track({ type: 'session-end' })).then(() => flushJourney()).catch(() => undefined);
       if (audioTimer.current) clearTimeout(audioTimer.current);
       engine.setIdle(false);
       engine.clearSpots();
       engine.setMix([]);
       engine.setDetails([]);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const tintTo = useCallback((m: Mood) => {
@@ -447,15 +487,18 @@ export default function Reader() {
   }, [full, box, cal, calKey]);
   useEffect(() => { measured.current.clear(); }, [calKey]);
 
-  /* ---------- a cada tela: ritmo, progresso e som ---------- */
+  const chapters = useMemo(() => (pages ? detectChapters(pages) : []), [pages]);
+
+  /* ---------- a cada tela: ritmo, progresso, jornada e som ---------- */
   const lastIdx = useRef(-1);
   useEffect(() => {
     if (!pages || !book) return;
     // ritmo de leitura: só conta avanço de uma tela por vez
     const prev = lastIdx.current;
     const prevScr = prev >= 0 ? screenAt(prev) : null;
-    if (prevScr && idx > prev && idx === prevScr.end) {
-      const w = words.slice(prevScr.start, prevScr.end).reduce((a, b) => a + b, 0);
+    const forward = !!prevScr && idx > prev && idx === prevScr.end;
+    const w = forward ? words.slice(prevScr!.start, prevScr!.end).reduce((a, b) => a + b, 0) : 0;
+    if (forward) {
       setPace((p) => {
         const n = recordPage(p, w, Date.now() - pageSince.current);
         if (n !== p) void getRepo().then((r) => r.kvSet('pace', JSON.stringify(n)));
@@ -465,8 +508,13 @@ export default function Reader() {
     lastIdx.current = idx;
     // tempo lido na tela anterior (para a meta diária; pausas longas não contam)
     if (prev >= 0) {
-      const ms = Math.min(Date.now() - pageSince.current, 3 * 60_000);
-      logReading(ms);
+      const ms = Math.min(Date.now() - pageSince.current, MAX_READ_MS);
+      // jornada: a tela lida e, se acabou de passar de um capítulo para o outro, o capítulo
+      const doneChapter = forward && chapters.length > 1 && chapterAt(chapters, prev) < chapterAt(chapters, idx);
+      void logRead(ms, w).then(async (r) => {
+        if (r) celebrate(r);
+        if (doneChapter) celebrate(await track({ type: 'chapter' }));
+      }).catch(() => undefined);
       readMs.current += ms;
       if (readMs.current > 45 * 60_000 && !pauseHinted.current) {
         pauseHinted.current = true;
@@ -480,7 +528,7 @@ export default function Reader() {
     const scr = screenAt(idx);
     audioTimer.current = setTimeout(() => void applyScreen(scr), DWELL_MS);
     void getRepo().then((r) => r.saveProgress(id, idx, false)).then(() => syncSoon(8000));
-  }, [idx, pages, book, id, applyScreen, screenAt, words, act, say]);
+  }, [idx, pages, book, id, applyScreen, screenAt, words, act, say, chapters, logRead, celebrate]);
 
   /* parou de ler: sem virar a página por bem mais que o esperado, o som desce quase ao silêncio */
   const paceRef = useRef(pace.wpm);
@@ -515,12 +563,28 @@ export default function Reader() {
   const finish = useCallback(() => {
     if (!pages) return;
     setFinished(true);
+    finishedRef.current = true;
+    // a última tela e o livro terminado contam na jornada; o resumo aparece na tela "Fim"
+    const scr = screenAt(idxRef.current);
+    const w = words.slice(scr.start, scr.end).reduce((a, b) => a + b, 0);
+    const ms = Date.now() - pageSince.current;
+    pageSince.current = Date.now();
+    void (async () => {
+      const r1 = await logRead(ms, w);
+      const r2 = await track({ type: 'finish', bookId: id, classic });
+      const badges = [...(r1?.unlocked ?? []), ...r2.unlocked].map((b) => b.id);
+      setEndInfo({
+        points: Math.round(r2.state.session?.points ?? (r1?.pointsGained ?? 0) + r2.pointsGained), badges: [...new Set([...(r2.state.session?.badges ?? []), ...badges])],
+        streak: streakOf(r2.days, r2.state.rest, new Date()), level: levelOf(r2.state.points).name,
+      });
+      if (r1) celebrate(r1);
+    })().catch(() => undefined);
     if (audioTimer.current) clearTimeout(audioTimer.current);
     engine.clearSpots();
     engine.setMix([]);
     engine.setDetails([]);
     void getRepo().then((r) => r.saveProgress(id, pages.length - 1, true)).then(() => syncSoon(1000));
-  }, [pages, id]);
+  }, [pages, id, screenAt, words, logRead, classic, celebrate]);
 
   const go = useCallback((d: number, offset = 0) => {
     if (!pages || busyRef.current || finished) return;
@@ -654,7 +718,6 @@ export default function Reader() {
   }, [pages]);
 
   /* ---------- dados derivados ---------- */
-  const chapters = useMemo(() => (pages ? detectChapters(pages) : []), [pages]);
   const chapterLabel = useCallback((p: number) => chapters[chapterAt(chapters, p)]?.title ?? book?.title ?? '', [chapters, book]);
   const terms = useMemo(() => {
     if (!pages) return [];
@@ -893,6 +956,7 @@ export default function Reader() {
 
       <PresetSheet visible={askPreset && !recap} onDone={() => {
         setAskPreset(false);
+        void track({ type: 'preset' }).catch(() => undefined);
         engine.start();
         act();
         void getRepo().then((r) => r.kvSet('sound:asked', '1'));
@@ -934,6 +998,7 @@ export default function Reader() {
           setAnns((as) => [...as.filter((x) => x.id !== a.id), a].sort((x, y) => x.page - y.page || x.start - y.start));
           void getRepo().then((r) => r.saveAnnotation(a));
           setSel(null);
+          if (!prev) void track({ type: 'highlight', note: !!a.note }).then((r) => setTimeout(() => celebrate(r), 2800)).catch(() => undefined);
           say(a.note ? 'Nota salva' : 'Trecho grifado');
         }}
         onDelete={(hid) => {
@@ -949,15 +1014,33 @@ export default function Reader() {
           setGloss(next);
           void getRepo().then((r) => r.setGloss(id, next)).then(() => syncSoon());
           setXray(null);
+          void track({ type: 'glossary' }).then(celebrate).catch(() => undefined);
         }} />
 
       {finished && (
         <View style={[StyleSheet.absoluteFill, st.end, { backgroundColor: c.bg }]}>
           <Text style={[st.endTitle, { color: c.fg }]}>Fim</Text>
-          <Text style={[st.topSub, { color: c.mut, fontSize: 17 }]}>Você concluiu “{book.title}”.</Text>
+          <Text style={[st.topSub, { color: c.mut, fontSize: 17, textAlign: 'center' }]}>Você concluiu “{book.title}”.</Text>
+          {endInfo ? (
+            <View style={[st.endCard, { backgroundColor: c.surface, borderColor: c.line }]}>
+              <Text style={[st.endPts, { color: c.accent }]}>+{endInfo.points} pontos de leitura</Text>
+              <Text style={[st.endLine, { color: c.mut }]}>
+                {endInfo.level}{endInfo.streak > 0 ? ` · ${endInfo.streak} ${endInfo.streak === 1 ? 'dia seguido' : 'dias seguidos'}` : ''}
+              </Text>
+              {endInfo.badges.map((bid) => {
+                const b = BADGES.find((x) => x.id === bid);
+                return b ? (
+                  <View key={bid} style={st.endBadge}>
+                    <Icon name={b.icon as never} size={16} color={c.accent} />
+                    <Text style={[st.endLine, { color: c.fg }]}>{b.title}</Text>
+                  </View>
+                ) : null;
+              })}
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
             <RoundButton big icon="retry" label="Ler de novo" onPress={() => {
-              setFinished(false); played.current.clear(); hold.current.reset(); idxRef.current = 0; setIdx(0); setFit(1);
+              setFinished(false); finishedRef.current = false; pageSince.current = Date.now(); played.current.clear(); hold.current.reset(); idxRef.current = 0; setIdx(0); setFit(1);
               setLayers([{ key: ++keyRef.current, start: 0, dir: 1, leaving: false, offset: 0 }]);
               listRef.current?.scrollToOffset({ offset: 0, animated: false });
             }} />
@@ -1004,4 +1087,8 @@ const st = StyleSheet.create({
   recapKicker: { fontFamily: FONTS.uiBold, fontSize: 12, letterSpacing: 1.4 },
   end: { alignItems: 'center', justifyContent: 'center', gap: 14, zIndex: 10 },
   endTitle: { fontFamily: FONTS.serifMedium, fontSize: 48 },
+  endCard: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 20, paddingVertical: 14, gap: 8, alignItems: 'center', minWidth: 260, marginTop: 4 },
+  endPts: { fontFamily: FONTS.uiBold, fontSize: 17 },
+  endLine: { fontFamily: FONTS.ui, fontSize: 14 },
+  endBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { Icon, type IconName } from './Icon';
 import { FONTS, usePrefs } from './prefs';
 
@@ -66,6 +67,26 @@ export function ProgressBar({ pct, height = 4 }: { pct: number; height?: number 
   return (
     <View style={{ height, borderRadius: height, backgroundColor: c.btn, overflow: 'hidden' }}>
       <View style={{ height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: c.accent, opacity: 0.85, borderRadius: height }} />
+    </View>
+  );
+}
+
+/** Anel de progresso (meta do dia), com o conteúdo no meio. */
+export function ProgressRing({ pct, size = 64, stroke = 6, children }: { pct: number; size?: number; stroke?: number; children?: ReactNode }) {
+  const { c } = usePrefs();
+  const r = (size - stroke) / 2;
+  const len = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(1, pct));
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill as object} pointerEvents="none">
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={c.btn} strokeWidth={stroke} fill="none" />
+        {p > 0 ? (
+          <Circle cx={size / 2} cy={size / 2} r={r} stroke={c.accent} strokeWidth={stroke} fill="none" strokeLinecap="round"
+            strokeDasharray={`${len * p} ${len}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        ) : null}
+      </Svg>
+      {children}
     </View>
   );
 }

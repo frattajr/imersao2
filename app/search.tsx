@@ -4,7 +4,7 @@
  * antiga. Filtros por duração (no ritmo da pessoa), origem, época e clima
  * sonoro. Só mostra o que abre agora.
  */
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,7 +44,9 @@ export default function Search() {
   const { width } = useWindowDimensions();
   const lib = useLibrary({ fullGut: true });
   const { busy, setBusy, read, glossary, remove } = useBookActions(lib.reload);
-  const [f, setF] = useState<Filters>({});
+  // ?d=curto (atalho da Jornada: leituras curtas para fechar o dia)
+  const { d } = useLocalSearchParams<{ d?: string }>();
+  const [f, setF] = useState<Filters>(() => (d ? { duration: d as Filters['duration'] } : {}));
   const [shown, setShown] = useState(PAGE);
   const [detail, setDetail] = useState<Item | null>(null);
 

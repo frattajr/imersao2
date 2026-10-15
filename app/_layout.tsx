@@ -15,8 +15,11 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { bootAudio } from '../src/audio';
+import { syncReminders } from '../src/services/reminders';
 import { ensureSession } from '../src/services/supabase';
 import { syncNow } from '../src/services/sync';
+import { dayKey } from '../src/core/catalog';
+import { loadJourney, track } from '../src/state/journey';
 import { PrefsProvider, usePrefs } from '../src/ui/prefs';
 
 void SplashScreen.preventAutoHideAsync();
@@ -33,6 +36,7 @@ function Root() {
         <Stack.Screen name="settings" />
         <Stack.Screen name="catalog" />
         <Stack.Screen name="search" />
+        <Stack.Screen name="journey" />
         <Stack.Screen name="paste" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="glossary/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
@@ -49,7 +53,15 @@ export default function Layout() {
   useEffect(() => {
     bootAudio();
     void ensureSession().then(() => syncNow());
-    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') void syncNow(); });
+    // jornada: acerta a sequência do dia (dias de descanso) e reagenda o lembrete
+    const openDay = () => void track({ type: 'open' })
+      .then(async (r) => {
+        const { goal } = await loadJourney();
+        await syncReminders({ goal, minutesToday: r.days[dayKey(new Date())] ?? 0, book: r.state.last?.title });
+      })
+      .catch(() => undefined);
+    openDay();
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') { void syncNow(); openDay(); } });
     return () => sub.remove();
   }, []);
 
