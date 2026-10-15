@@ -4,7 +4,7 @@
  * limitados a faixas seguras.
  */
 import { sanitizeVariant, type SoundVariant } from '../../supabase/functions/_shared/sound-library';
-import { LAYERS, MOODS, SPOTS, type Ambience, type Layer, type Mood, type ScenePlan, type Spot, type Surface } from './types';
+import { LAYERS, MOODS, SPOTS, type Ambience, type Layer, type MixStem, type Mood, type ScenePlan, type Spot, type StemPriority, type Surface } from './types';
 
 const SURFACES: Surface[] = ['wood', 'gravel', 'stone', 'grass', 'snow', 'metal'];
 
@@ -29,20 +29,68 @@ export function sanitizeSpot(o: unknown): Spot | null {
   return sp;
 }
 
+/** No máximo 4 stems ao mesmo tempo (bateria e clareza). */
+export const MAX_STEMS = 4;
+
+/** Uma linha da matriz de mixagem vinda da IA; null se inválida. */
+export function sanitizeStem(o: unknown): MixStem | null {
+  if (!o || typeof o !== 'object') return null;
+  const x = o as Record<string, unknown>;
+  if (!LAYERS.includes(x.s as Layer)) return null;
+  const gain = clamp(x.gain, 0, 1, 0);
+  if (gain < 0.05) return null;
+  const st: MixStem = { s: x.s as Layer, gain, priority: Math.round(clamp(x.priority, 1, 3, 2)) as StemPriority };
+  if (x.lowpass !== undefined && x.lowpass !== null) {
+    const lp = clamp(x.lowpass, 200, 20000, 20000);
+    if (lp < 18000) st.lowpass = Math.round(lp);
+  }
+  return st;
+}
+
+/** Ordena por prioridade (1 primeiro) e volume; descarta repetidos e o excesso. */
+export function normalizeMix(stems: MixStem[], max = MAX_STEMS): MixStem[] {
+  const seen = new Set<Layer>();
+  return [...stems]
+    .sort((a, b) => a.priority - b.priority || b.gain - a.gain)
+    .filter((st) => !seen.has(st.s) && seen.add(st.s))
+    .slice(0, max);
+}
+
+export const mixToAmbience = (mix: MixStem[]): Ambience =>
+  Object.fromEntries(mix.map((m) => [m.s, m.gain])) as Ambience;
+
+/** Matriz a partir do ambiente simples (planos antigos e palavras-chave): o mais alto é essencial. */
+export function ambienceToMix(amb: Ambience): MixStem[] {
+  return (Object.entries(amb) as [Layer, number][])
+    .filter(([, g]) => g > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([s, gain], i) => ({ s, gain, priority: (i === 0 ? 1 : i === 1 ? 2 : 3) as StemPriority }));
+}
+
 export function sanitizePlan(o: unknown): ScenePlan | null {
   if (!o || typeof o !== 'object') return null;
   const x = o as Record<string, unknown>;
-  const A = (x.ambience && typeof x.ambience === 'object' ? x.ambience : {}) as Record<string, unknown>;
-  const amb: Ambience = {};
-  LAYERS.forEach((k) => {
-    const v = Number(A[k]);
-    if (v >= 0.1) amb[k] = Math.min(1, v);
-  });
-  const ambience = Object.fromEntries(
-    Object.entries(amb).sort((a, b) => (b[1] as number) - (a[1] as number)).slice(0, 3),
-  ) as Ambience;
+  let mix: MixStem[] | undefined;
+  let ambience: Ambience;
+  if (Array.isArray(x.mix)) {
+    // formato novo: matriz de mixagem
+    mix = normalizeMix(x.mix.map(sanitizeStem).filter((s): s is MixStem => !!s));
+    ambience = mixToAmbience(mix);
+  } else {
+    // formato antigo: { ambience: { rain: 0.5 } }
+    const A = (x.ambience && typeof x.ambience === 'object' ? x.ambience : {}) as Record<string, unknown>;
+    const amb: Ambience = {};
+    LAYERS.forEach((k) => {
+      const v = Number(A[k]);
+      if (v >= 0.1) amb[k] = Math.min(1, v);
+    });
+    ambience = Object.fromEntries(
+      Object.entries(amb).sort((a, b) => (b[1] as number) - (a[1] as number)).slice(0, 3),
+    ) as Ambience;
+  }
   const spots = (Array.isArray(x.spots) ? x.spots : []).map(sanitizeSpot).filter((s): s is Spot => !!s).slice(0, 2);
   const plan: ScenePlan = { mood: MOODS.includes(x.mood as Mood) ? (x.mood as Mood) : null, ambience, spots };
+  if (mix) plan.mix = mix;
   const L = (x.looks && typeof x.looks === 'object' ? x.looks : {}) as Record<string, unknown>;
   const looks: Partial<Record<Layer, SoundVariant>> = {};
   (Object.keys(ambience) as Layer[]).forEach((k) => {
@@ -72,4 +120,16 @@ export function blendAmbience(prev: Ambience, next: Ambience, carry: boolean): A
     if (k in prev && Math.abs((m[k] ?? 0) - (prev[k] ?? 0)) < 0.12) m[k] = prev[k];
   });
   return m;
+}
+
+/**
+ * Matriz final depois da suavização: mantém prioridade e low-pass do plano,
+ * usa os volumes suavizados e inclui (como textura) as camadas que a
+ * suavização segurou da cena anterior.
+ */
+export function mixFromSmoothed(planMix: MixStem[] | undefined, amb: Ambience): MixStem[] {
+  const base = new Map((planMix ?? ambienceToMix(amb)).map((m) => [m.s, m]));
+  return normalizeMix((Object.entries(amb) as [Layer, number][])
+    .filter(([, g]) => g > 0)
+    .map(([s, gain]) => ({ ...(base.get(s) ?? { s, priority: 3 as StemPriority }), s, gain })));
 }

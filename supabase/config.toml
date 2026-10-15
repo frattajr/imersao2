@@ -19,3 +19,6 @@ verify_jwt = true
 
 [functions.gutenberg]
 verify_jwt = true
+
+[functions.recap]
+verify_jwt = true

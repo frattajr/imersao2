@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient, type User } from 'npm:@supabase/supa
 
 export const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-precompute-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -36,6 +36,16 @@ export async function withinDailyLimit(uid: string): Promise<boolean> {
   const limit = Number(Deno.env.get('AI_DAILY_LIMIT') ?? 300);
   const { data, error } = await admin().rpc('bump_ai_usage', { p_owner: uid, p_limit: limit });
   return !error && data === true;
+}
+
+/**
+ * Chamada de pré-cálculo (scripts/precompute-public.ts): traz o segredo
+ * PRECOMPUTE_SECRET no cabeçalho. Pode chamar a IA para livros públicos e
+ * não conta no limite diário de ninguém.
+ */
+export function isPrecompute(req: Request): boolean {
+  const secret = Deno.env.get('PRECOMPUTE_SECRET');
+  return !!secret && secret.length >= 16 && req.headers.get('x-precompute-secret') === secret;
 }
 
 export async function cacheGet<T>(key: string): Promise<T | null> {

@@ -1,4 +1,5 @@
-import type { Mood } from '../core/types';
+import { sanitizePlan } from '../core/plan';
+import type { Mood, ScenePlan } from '../core/types';
 
 /** Temas da biblioteca (filtros e fileiras da tela inicial). */
 export const GENRES = ['Mistério', 'Fantasia', 'Aconchego', 'Suspense', 'Aventura'] as const;
@@ -15,6 +16,13 @@ export interface SampleBook {
   author: string;
   synopsis: string;
   pages: string[];
+  /**
+   * Sonorização calibrada à mão, uma por página (matriz de mixagem + efeitos),
+   * no mesmo formato que a IA devolve. Com ela o livro soa bem sem servidor.
+   */
+  plans?: unknown[];
+  /** obra em domínio público (crédito mostrado na ficha) */
+  credit?: string;
 }
 
 /** Histórias curtas incluídas no app para demonstrar o ambiente sonoro. */
@@ -208,3 +216,12 @@ export const SAMPLE_BOOKS: SampleBook[] = [
     ],
   },
 ];
+
+/** Livros públicos (exemplos e Project Gutenberg): nunca disparam a IA, só usam cache pré-calculado. */
+export const isPublicBook = (id: string) => id.startsWith('sample-') || /^gut-\d+$/.test(id);
+
+/** Planos calibrados do livro de exemplo (validados como qualquer plano vindo de fora). */
+export function bundledPlans(id: string): (ScenePlan | null)[] | undefined {
+  const b = SAMPLE_BOOKS.find((x) => x.id === id);
+  return b?.plans?.map((p) => sanitizePlan(p));
+}

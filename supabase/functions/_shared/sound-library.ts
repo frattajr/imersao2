@@ -9,11 +9,11 @@
 /** Mesmas listas de src/core/types.ts (um teste garante que continuam iguais). */
 export const LIB_LAYERS = [
   'wind', 'leaves', 'birds', 'rain', 'thunder', 'sea', 'water', 'fire',
-  'cafe', 'crowd', 'city', 'train', 'night', 'cricket', 'clock',
+  'cafe', 'crowd', 'city', 'train', 'night', 'cricket', 'clock', 'tavern', 'drone',
 ] as const;
 export const LIB_SPOTS = [
   'steps', 'door', 'knock', 'doorbell', 'keys', 'roar', 'howl', 'bark', 'owl',
-  'bell', 'horn', 'hooves', 'creak', 'drip', 'gust', 'rustle', 'purr', 'musicbox',
+  'bell', 'horn', 'hooves', 'creak', 'drip', 'gust', 'rustle', 'purr', 'musicbox', 'heartbeat', 'chains',
 ] as const;
 
 export const MATERIALS = [
@@ -157,10 +157,13 @@ const EN: Record<string, string> = {
   fire: 'crackling fireplace', cafe: 'cozy cafe ambience with soft chatter and cups', crowd: 'distant crowd murmur',
   city: 'distant city traffic', train: 'train rolling on tracks', night: 'quiet night ambience', cricket: 'crickets chirping',
   clock: 'old clock ticking',
+  tavern: 'old tavern ambience with low murmurs, wooden mugs and a crackling hearth',
+  drone: 'very low dark ambient drone, subtle unease, no melody, no rhythm',
   steps: 'footsteps', door: 'a door', knock: 'knocking on a door', doorbell: 'small shop door bell',
   keys: 'jingling keys', roar: 'a creature roar', howl: 'a wolf howl', bark: 'a dog barking', owl: 'an owl hooting',
   bell: 'church bell tolling', horn: 'a horn', hooves: 'horse hooves', creak: 'wood creaking', drip: 'water drips',
   gust: 'a gust of wind', rustle: 'rustling', purr: 'a cat purring', musicbox: 'a music box melody',
+  heartbeat: 'a slow muffled heartbeat', chains: 'heavy iron chains rattling',
 };
 const PLACE_EN: Record<Place, string> = {
   indoor: 'indoors in a small room', outdoor: 'outdoors', cave: 'inside a cave with echo', hall: 'in a large stone hall with reverb',

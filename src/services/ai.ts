@@ -24,9 +24,12 @@ async function invoke<T>(fn: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-/** Planos de som para um lote de páginas consecutivas. */
-export async function fetchScenePlans(title: string, pages: string[], prev: Ambience | null): Promise<(ScenePlan | null)[]> {
-  const r = await invoke<{ plans: unknown[] }>('sound-plan', { title, pages, prev });
+/**
+ * Planos de som para um lote de páginas consecutivas.
+ * `cacheOnly`: livros públicos — só planos já pré-calculados no servidor, sem chamar a IA.
+ */
+export async function fetchScenePlans(title: string, pages: string[], prev: Ambience | null, cacheOnly = false): Promise<(ScenePlan | null)[]> {
+  const r = await invoke<{ plans: unknown[] }>('sound-plan', { title, pages, prev, cacheOnly });
   const plans = Array.isArray(r?.plans) ? r.plans : [];
   return pages.map((_, i) => sanitizePlan(plans[i]));
 }
@@ -37,6 +40,22 @@ export async function fetchGlossary(title: string, text: string, known: string[]
   return (Array.isArray(r?.entries) ? r.entries : [])
     .filter((x): x is GlossaryEntry => !!x && typeof (x as GlossaryEntry).term === 'string')
     .slice(0, 12);
+}
+
+/**
+ * X-Ray: explica um termo/personagem só com o que já foi lido (sem spoiler).
+ * `cacheOnly` para livros públicos: só respostas já pré-calculadas.
+ */
+export async function explainTerm(title: string, term: string, textSoFar: string, cacheOnly = false): Promise<string> {
+  const r = await invoke<{ entries: unknown[] }>('glossary', { title, text: textSoFar, known: [], focus: term, cacheOnly });
+  const e = (Array.isArray(r?.entries) ? r.entries : []).find((x): x is GlossaryEntry => !!x && typeof (x as GlossaryEntry).desc === 'string');
+  return e?.desc?.trim() ?? '';
+}
+
+/** "O que aconteceu até aqui?" — 2 frases sobre as páginas antes do ponto de parada. */
+export async function fetchRecap(title: string, text: string, cacheOnly = false): Promise<string> {
+  const r = await invoke<{ summary?: string }>('recap', { title, text, cacheOnly });
+  return typeof r?.summary === 'string' ? r.summary.trim() : '';
 }
 
 /**

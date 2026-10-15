@@ -21,12 +21,14 @@ const M: Record<Layer, RegExp> = {
   night: /noite|madrugada|\blua\b|estrela|escur|breu/,
   cricket: /grilo|cigarra/,
   clock: /relogio|pendulo|tic-tac/,
+  tavern: /taberna|taverna|estalagem|hospedaria|bodega|caneca|botequim/,
+  drone: /pavor|terror|horror|medo|calafrio|arrepi|sinistr|lugubre|macabr|loucura|cadaver|tumulo|catacumba|cripta/,
 };
 
 const LAYER_MOOD: Record<Layer, Mood> = {
   rain: 'rain', thunder: 'rain', sea: 'sea', fire: 'fire', leaves: 'forest', birds: 'forest',
   water: 'forest', night: 'night', cricket: 'night', city: 'city', train: 'city', cafe: 'warm',
-  crowd: 'warm', wind: 'cold', clock: 'calm',
+  crowd: 'warm', wind: 'cold', clock: 'calm', tavern: 'warm', drone: 'tension',
 };
 
 function keywordSpots(n: string): Spot[] {
@@ -53,6 +55,8 @@ function keywordSpots(n: string): Spot[] {
   if (has(/ronron/)) o.push({ s: 'purr', at: 2, w: 0.4 });
   if (has(/chave/)) o.push({ s: 'keys', at: 2, w: 0.4 });
   if (has(/rajada|ventania/)) o.push({ s: 'gust', at: 1.5, w: 0.5 });
+  if (has(/coracao (batia|bate|pulsa|batendo)|batidas do coracao|pulsacao|batimento/)) o.push({ s: 'heartbeat', n: 8, at: 1.5, w: 0.45 });
+  if (has(/corrente|grilh|algema/)) o.push({ s: 'chains', at: 2, w: 0.45 });
   if (has(/rangido|rangeu|rangia/) && !o.some((x) => x.s === 'door')) o.push({ s: 'creak', at: 1.5, w: 0.5 });
   return o.slice(0, 2);
 }
@@ -80,11 +84,12 @@ export const LAYER_LABEL: Record<Layer, string> = {
   wind: '🍃 vento', leaves: '🍂 folhas', birds: '🐦 pássaros', rain: '🌧 chuva', thunder: '⛈ trovão distante',
   sea: '🌊 mar', water: '💧 água corrente', fire: '🔥 lareira', cafe: '☕ café', crowd: '🗣 vozes',
   city: '🏙 cidade', train: '🚆 trem', night: '🌙 noite', cricket: '🦗 grilos', clock: '🕰 relógio',
+  tavern: '🍺 taberna', drone: '🌑 tensão',
 };
 
 export const SPOT_LABEL: Record<Spot['s'], string> = {
   steps: '👣 passos', door: '🚪 porta', knock: '✊ batidas', doorbell: '🔔 sininho', keys: '🗝 chaves',
   roar: '🐉 rugido', howl: '🐺 uivo', bark: '🐕 latido', owl: '🦉 coruja', bell: '🔔 sino', horn: '📯 apito',
   hooves: '🐎 cavalo', creak: '🪵 rangido', drip: '💧 gotas', gust: '💨 rajada', rustle: '🧥 tecido',
-  purr: '🐈 ronrom', musicbox: '🎶 caixa de música',
+  purr: '🐈 ronrom', musicbox: '🎶 caixa de música', heartbeat: '🫀 coração', chains: '⛓ correntes',
 };

@@ -1,5 +1,12 @@
-import { Literata_400Regular, Literata_500Medium } from '@expo-google-fonts/literata';
-import { Nunito_600SemiBold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
+// cada peso importado do próprio arquivo: o app leva só as fontes que usa
+import { AtkinsonHyperlegible_400Regular } from '@expo-google-fonts/atkinson-hyperlegible/400Regular';
+import { AtkinsonHyperlegible_700Bold } from '@expo-google-fonts/atkinson-hyperlegible/700Bold';
+import { Literata_400Regular } from '@expo-google-fonts/literata/400Regular';
+import { Literata_500Medium } from '@expo-google-fonts/literata/500Medium';
+import { Merriweather_400Regular } from '@expo-google-fonts/merriweather/400Regular';
+import { Merriweather_700Bold } from '@expo-google-fonts/merriweather/700Bold';
+import { Nunito_600SemiBold } from '@expo-google-fonts/nunito/600SemiBold';
+import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -18,7 +25,7 @@ function Root() {
   const { c, theme } = usePrefs();
   return (
     <>
-      <StatusBar style={theme === 'sepia' ? 'dark' : 'light'} />
+      <StatusBar style={c.status} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'fade' }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="read/[id]" options={{ gestureEnabled: false }} />
@@ -33,7 +40,10 @@ function Root() {
 }
 
 export default function Layout() {
-  const [loaded] = useFonts({ Literata_400Regular, Literata_500Medium, Nunito_600SemiBold, Nunito_800ExtraBold });
+  const [loaded] = useFonts({
+    Literata_400Regular, Literata_500Medium, Merriweather_400Regular, Merriweather_700Bold,
+    AtkinsonHyperlegible_400Regular, AtkinsonHyperlegible_700Bold, Nunito_600SemiBold, Nunito_800ExtraBold,
+  });
 
   useEffect(() => {
     bootAudio();

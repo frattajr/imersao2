@@ -3,14 +3,14 @@ import type { SoundVariant } from '../../supabase/functions/_shared/sound-librar
 /** Camadas contínuas de ambiente. */
 export const LAYERS = [
   'wind', 'leaves', 'birds', 'rain', 'thunder', 'sea', 'water', 'fire',
-  'cafe', 'crowd', 'city', 'train', 'night', 'cricket', 'clock',
+  'cafe', 'crowd', 'city', 'train', 'night', 'cricket', 'clock', 'tavern', 'drone',
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
 /** Sons pontuais que acontecem na cena. */
 export const SPOTS = [
   'steps', 'door', 'knock', 'doorbell', 'keys', 'roar', 'howl', 'bark', 'owl',
-  'bell', 'horn', 'hooves', 'creak', 'drip', 'gust', 'rustle', 'purr', 'musicbox',
+  'bell', 'horn', 'hooves', 'creak', 'drip', 'gust', 'rustle', 'purr', 'musicbox', 'heartbeat', 'chains',
 ] as const;
 export type SpotName = (typeof SPOTS)[number];
 
@@ -37,12 +37,31 @@ export interface Spot {
 
 export type Ambience = Partial<Record<Layer, number>>;
 
+/** 1 = essencial (a cena não existe sem ele), 2 = apoio, 3 = textura (sai primeiro). */
+export type StemPriority = 1 | 2 | 3;
+
+/**
+ * Uma linha da matriz de mixagem: qual stem (loop contínuo) toca, em que
+ * volume, com que corte de agudos (low-pass, em Hz: abafa o som "do outro
+ * lado da parede" ou "ao longe") e com que prioridade.
+ */
+export interface MixStem {
+  s: Layer;
+  /** 0–1 */
+  gain: number;
+  /** frequência de corte em Hz (200–20000); sem valor = sem filtro */
+  lowpass?: number;
+  priority: StemPriority;
+}
+
 export interface ScenePlan {
   mood: Mood | null;
   ambience: Ambience;
   spots: Spot[];
   /** como soa cada camada nesta cena (ex.: chuva em telhado de metal) */
   looks?: Partial<Record<Layer, SoundVariant>>;
+  /** matriz de mixagem (IA ou plano calibrado); `ambience` é derivado dela */
+  mix?: MixStem[];
 }
 
 export interface GlossaryEntry {

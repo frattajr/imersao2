@@ -1,17 +1,33 @@
 /**
- * Motor de ambiente sonoro.
+ * Motor de áudio adaptativo (mixer de stems).
  *
- * Usa só o essencial de qualquer API de áudio estilo Web Audio: buffers em
- * loop, nós de ganho e rampas de volume. Funciona com react-native-audio-api
- * (celular) e com o AudioContext do navegador. Todos os sons vêm do
- * repositório da ElevenLabs (o arquivo mais parecido com a descrição da
- * cena). Som que ainda não existe é gerado; até ficar pronto, fica em silêncio.
+ * Grafo:
+ *   stem (loop) → low-pass → ganho do stem ┐
+ *   stem (loop) → low-pass → ganho do stem ┼→ barramento AMBIENTE ─┐
+ *                                          ┘   (sofre ducking)     ├→ master → saída
+ *   efeito pontual → ganho ─→ barramento SFX ┐                      │
+ *   detalhe de ambiente → barramento DETALHES ┴→ barramento EFEITOS ┘
+ *
+ * - A cena chega como uma MATRIZ DE MIXAGEM declarativa (stems, ganho,
+ *   low-pass e prioridade — ver core/types.ts `MixStem`), vinda da IA, de um
+ *   plano calibrado ou das palavras-chave. O motor só executa a matriz.
+ * - Transições com curva de potência constante (equal-power) de 2,5 s a 4 s,
+ *   para a troca de cenário não "afundar" o volume no meio.
+ * - Ducking: o ambiente abaixa ~4 dB enquanto um efeito pontual toca.
+ * - Conforto: volumes separados de ambiente e efeitos, loops liga/desliga e
+ *   modo foco (menos stems, agudos cortados, sem efeitos).
+ * - Bateria: no máximo 4 stems; stem que silencia é parado (o buffer fica em
+ *   cache); o contexto de áudio é suspenso quando nada toca; relógio de 0,5 s.
+ *
+ * Usa só o subconjunto do Web Audio comum a react-native-audio-api (celular)
+ * e ao navegador. Os sons vêm do repositório (ElevenLabs/pacote inicial);
+ * stem sem arquivo ainda fica em silêncio e entra quando ficar pronto.
  */
 import type { SoundDesc, SoundVariant } from '../../supabase/functions/_shared/sound-library';
-import { layerDesc, spotDesc } from '../core/sound';
+import { ambienceToMix, MAX_STEMS, normalizeMix } from '../core/plan';
 import type { AmbientDetail } from '../core/scenery';
-import type { Ambience, Layer, Spot } from '../core/types';
-import { LAYERS } from '../core/types';
+import { layerDesc, spotDesc } from '../core/sound';
+import type { Ambience, Layer, MixStem, Spot } from '../core/types';
 
 /* ---------- Subconjunto da API de áudio que usamos ---------- */
 export interface ParamLike {
@@ -22,6 +38,7 @@ export interface ParamLike {
 }
 export interface NodeLike { connect(n: unknown): unknown; disconnect(): void }
 export interface GainLike extends NodeLike { gain: ParamLike }
+export interface FilterLike extends NodeLike { type: string; frequency: ParamLike; Q: ParamLike }
 export interface BufferLike {
   duration: number;
   getChannelData(c: number): Float32Array;
@@ -41,6 +58,8 @@ export interface CtxLike {
   createGain(): GainLike;
   createBufferSource(): SourceLike;
   createBuffer(channels: number, length: number, sampleRate: number): BufferLike;
+  /** opcional: sem filtro, o low-pass é ignorado */
+  createBiquadFilter?(): FilterLike;
   resume(): Promise<unknown>;
   suspend(): Promise<unknown>;
   decodeAudioData?(data: ArrayBuffer): Promise<BufferLike>;
@@ -51,25 +70,71 @@ export interface SoundSource {
   resolve(d: SoundDesc): Promise<{ id: string; url: string } | null>;
 }
 
-/** Volume relativo de cada camada quando tocada a partir de gravação. */
-const RECORDED_GAIN = 0.35;
-/** Volume dos sons pontuais vindos de arquivo, multiplicado pela intensidade "w" da cena. */
-const RECORDED_SPOT_GAIN = 0.8;
-/** Detalhes de ambiente (rangidos, gotas…) ficam bem abaixo dos sons da ação. */
+/** Arquivos guardados para ler sem internet (ver src/services/offline.ts). */
+export interface OfflineStore {
+  get(url: string): Promise<ArrayBuffer | null>;
+}
+
+/* ---------- Constantes de mixagem ---------- */
+/** Volume de um stem com ganho 1 (arquivos normalizados em TARGET_RMS). */
+const STEM_GAIN = 0.35;
+/** Volume dos efeitos pontuais, multiplicado pela intensidade "w" da cena. */
+const SFX_GAIN = 0.8;
+/** Detalhes de ambiente (rangidos, gotas…) ficam bem abaixo dos efeitos da ação. */
 const DETAIL_GAIN = 0.55;
-const s0 = (x: number) => Math.max(0, x);
-/** Tempo máximo esperando o repositório antes de tocar a reserva. */
+/** Transições: 2,5 s para entrar, 4 s para sair (multiplicadas pela preferência e pela agitação da cena). */
+export const FADE_IN = 2.5;
+export const FADE_OUT = 4;
+/** Ducking: quanto o ambiente abaixa enquanto um efeito toca (0,63 ≈ −4 dB). */
+export const DUCK_LEVEL = 0.63;
+const DUCK_ATTACK = 0.25;
+const DUCK_RELEASE = 1.4;
+/** Low-pass "aberto" (sem corte audível). */
+const OPEN_LP = 20000;
+/** Modo foco: só os stems essenciais, agudos cortados, sem efeitos. */
+const FOCUS_MAX_STEMS = 2;
+const FOCUS_LP = 1800;
+const FOCUS_GAIN = 0.75;
+/** Tempo máximo esperando o repositório antes de seguir sem o som. */
 const LOOKUP_TIMEOUT_MS = 2500;
-const UP = 2.2;   // segundos para uma camada entrar
-const DOWN = 3.6; // segundos para uma camada sair
+const TICK_MS = 500;
+
+/**
+ * Curva de potência constante: no cruzamento de dois stems a soma de
+ * potência fica estável (sem o "buraco" de volume de uma rampa linear).
+ * Aproximada por 4 segmentos lineares (a API comum não tem setValueCurve).
+ */
+export function equalPowerPoints(from: number, to: number, dur: number): { dt: number; v: number }[] {
+  const up = to > from;
+  return [0.25, 0.5, 0.75, 1].map((x) => {
+    const k = up ? Math.sin((x * Math.PI) / 2) : 1 - Math.cos((x * Math.PI) / 2);
+    return { dt: x * dur, v: x === 1 ? to : from + (to - from) * k };
+  });
+}
+
+function rampParam(p: ParamLike, from: number, to: number, t: number, dur: number): void {
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(from, t);
+  if (dur <= 0.02) { p.setValueAtTime(to, t); return; }
+  for (const pt of equalPowerPoints(from, to, dur)) p.linearRampToValueAtTime(pt.v, t + pt.dt);
+}
+
+/** Duração de uma transição, sempre entre 2,5 s e 4 s × preferência (agitação só alonga). */
+export function fadeSeconds(entering: boolean, sceneFade: number, userFade: number): number {
+  const base = entering ? FADE_IN : FADE_OUT;
+  return Math.min(4 * Math.max(1, userFade) * 1.5, Math.max(FADE_IN * Math.min(1, userFade), base * userFade * Math.max(1, sceneFade)));
+}
 
 interface Ramp { from: number; to: number; t0: number; t1: number }
-interface LayerState {
+interface StemState {
   gain: GainLike;
+  filter: FilterLike | null;
+  lowpass: number;
   src: SourceLike | null;
   ramp: Ramp;
+  /** ganho pedido pela matriz, já com volume de cena aplicado */
   level: number;
-  /** id do som do repositório que está tocando (para "som ruim") */
+  priority: number;
   libId: string | null;
   loading: boolean;
 }
@@ -78,7 +143,7 @@ const valueAt = (r: Ramp, t: number) =>
   t >= r.t1 ? r.to : t <= r.t0 ? r.from : r.from + ((r.to - r.from) * (t - r.t0)) / (r.t1 - r.t0);
 
 /**
- * Iguala o volume dos arquivos (gravados ou gerados vêm com níveis muito
+ * Iguala o volume dos arquivos (gerados ou gravados vêm com níveis muito
  * diferentes): leva a média (RMS) a um alvo fixo sem deixar o pico passar de
  * 0,9. Devolve false se o arquivo está praticamente mudo.
  */
@@ -105,28 +170,66 @@ export function normalize(b: BufferLike): boolean {
   return true;
 }
 
-const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+/**
+ * Junta janelas de ducking que se sobrepõem e devolve os pontos do envelope
+ * (tempo, ganho) a partir de `now`. Exportada para teste.
+ */
+export function duckEnvelope(windows: [number, number][], now: number): { t: number; v: number }[] {
+  const ws = windows.filter(([, e]) => e + DUCK_RELEASE > now).sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const [s, e] of ws) {
+    const last = merged[merged.length - 1];
+    if (last && s - DUCK_ATTACK <= last[1] + DUCK_RELEASE) last[1] = Math.max(last[1], e);
+    else merged.push([s, e]);
+  }
+  const pts: { t: number; v: number }[] = [];
+  for (const [s, e] of merged) {
+    pts.push({ t: Math.max(now, s - DUCK_ATTACK), v: 1 }, { t: Math.max(now, s), v: DUCK_LEVEL });
+    pts.push({ t: Math.max(now, e), v: DUCK_LEVEL }, { t: Math.max(now, e) + DUCK_RELEASE, v: 1 });
+  }
+  return pts;
+}
+
+export interface ComfortPrefs {
+  /** volume do ambiente (stems), 0–1 */
+  ambient: number;
+  /** volume dos efeitos pontuais e detalhes, 0–1 */
+  sfx: number;
+  /** loops de ambiente ligados */
+  loops: boolean;
+  /** modo foco: só o essencial, abafado, sem efeitos */
+  focus: boolean;
+}
 
 export class AmbientEngine {
   private ctx: CtxLike | null = null;
   private master!: GainLike;
+  private ambBus!: GainLike;
+  private duckGain!: GainLike;
+  private fxBus!: GainLike;
   private spotBus!: GainLike;
-  private layers = new Map<Layer, LayerState>();
+  private detailBus!: GainLike;
+  private stems = new Map<Layer, StemState>();
   private bufCache = new Map<string, BufferLike>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private volume = 0.7;
   private enabled = true;
   private fade = 1;
   private sceneGain = 1;
-  /** preferências da pessoa (tela Configurações) */
+  /** preferências da pessoa (tela Configurações / painel de áudio do leitor) */
   private user = { fade: 1, spots: 1, details: 1, detailRate: 1 };
+  private comfort: ComfortPrefs = { ambient: 1, sfx: 1, loops: true, focus: false };
   private details: AmbientDetail[] = [];
   private nextDetail = 0;
   private lastDetail = '';
-  private detailBus!: GainLike;
   private library: SoundSource | null = null;
+  private offline: OfflineStore | null = null;
   private looks: Partial<Record<Layer, SoundVariant>> = {};
+  private lastMix: MixStem[] = [];
   private recentSpots: { id: string; until: number }[] = [];
+  private ducks: [number, number][] = [];
+  private lastSound = 0;
+  private retryAt = 0;
 
   constructor(private makeCtx: () => CtxLike) {}
 
@@ -141,27 +244,46 @@ export class AmbientEngine {
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
     this.master.connect(ctx.destination);
+    this.duckGain = ctx.createGain();
+    this.duckGain.connect(this.master);
+    this.ambBus = ctx.createGain();
+    this.ambBus.connect(this.duckGain);
+    this.fxBus = ctx.createGain();
+    this.fxBus.connect(this.master);
     this.spotBus = ctx.createGain();
-    this.spotBus.connect(this.master);
+    this.spotBus.connect(this.fxBus);
     this.detailBus = ctx.createGain();
-    this.detailBus.gain.value = DETAIL_GAIN * this.user.details;
-    this.detailBus.connect(this.master);
-    this.timer = setInterval(() => this.tick(), 250);
+    this.detailBus.connect(this.fxBus);
+    this.applyBusLevels(0);
+    this.timer = setInterval(() => this.tick(), TICK_MS);
   }
 
   get running(): boolean {
     return !!this.ctx;
   }
 
+  /** Volume geral (0 = mudo: suspende o áudio). */
   setVolume(v: number): void {
     this.volume = v;
     this.enabled = v > 0;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.master.gain.cancelScheduledValues(t);
-    this.master.gain.setValueAtTime(this.master.gain.value, t);
-    this.master.gain.linearRampToValueAtTime(v, t + 0.3);
+    rampParam(this.master.gain, this.master.gain.value, v, t, 0.3);
     if (v > 0 && this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  /** Conforto acústico: volumes separados, loops e modo foco. */
+  setComfort(p: Partial<ComfortPrefs>): void {
+    const prev = this.comfort;
+    this.comfort = { ...prev, ...p };
+    if (!this.ctx) return;
+    this.applyBusLevels(0.6);
+    // foco ou loops mudaram: reaplica a última matriz com as novas regras
+    if (prev.focus !== this.comfort.focus || prev.loops !== this.comfort.loops) this.applyMix(this.lastMix);
+  }
+
+  get comfortPrefs(): ComfortPrefs {
+    return { ...this.comfort };
   }
 
   async pause(): Promise<void> {
@@ -172,52 +294,52 @@ export class AmbientEngine {
     if (this.ctx && this.enabled && this.ctx.state === 'suspended') await this.ctx.resume();
   }
 
-  /** Liga o repositório de sons (arquivos reais/gerados escolhidos pela descrição). */
+  /** Liga o repositório de sons (arquivos escolhidos pela descrição). */
   setLibrary(lib: SoundSource | null): void {
     this.library = lib;
+  }
+
+  /** Arquivos baixados para ler sem internet: consultados antes da rede. */
+  setOfflineStore(store: OfflineStore | null): void {
+    this.offline = store;
   }
 
   /** Sons do repositório tocando agora (ou há pouco), para o botão "som ruim". */
   libraryIdsPlaying(): string[] {
     const ids = new Set<string>();
-    this.layers.forEach((s) => { if (s.libId && s.level > 0) ids.add(s.libId); });
+    this.stems.forEach((s) => { if (s.libId && s.level > 0) ids.add(s.libId); });
     const now = this.ctx?.currentTime ?? 0;
     this.recentSpots.forEach((r) => { if (r.until > now) ids.add(r.id); });
     return [...ids];
   }
 
   /**
-   * Define o ambiente: camadas novas sobem devagar, as que saem descem mais devagar ainda.
-   * `looks` diz como cada camada soa na cena; vale para a camada que ainda vai carregar
-   * (uma camada que já está tocando continua com o mesmo arquivo, sem troca brusca).
+   * Executa a matriz de mixagem da cena.
+   * `looks` diz como cada stem soa (vale para o stem que ainda vai carregar:
+   * um stem que já toca continua com o mesmo arquivo, sem troca brusca).
+   * `fade`/`gain` vêm da suavização automática (cena agitada = mais lento e baixo).
    */
-  setScene(amb: Ambience, looks?: Partial<Record<Layer, SoundVariant>>, opts?: { fade?: number; gain?: number }): void {
-    if (!this.ctx) return;
+  setMix(mix: MixStem[], looks?: Partial<Record<Layer, SoundVariant>>, opts?: { fade?: number; gain?: number }): void {
     if (looks) this.looks = { ...this.looks, ...looks };
-    // cena agitada: transições mais longas e tudo um pouco mais baixo (ver core/smooth.ts)
-    this.fade = Math.max(0.5, Math.min(6, (opts?.fade ?? 1) * this.user.fade));
+    this.fade = Math.max(1, Math.min(2.5, opts?.fade ?? 1));
     this.sceneGain = Math.max(0.5, Math.min(1, opts?.gain ?? 1));
-    if (this.enabled && this.ctx.state === 'suspended' && Object.values(amb).some((v) => (v ?? 0) > 0)) void this.ctx.resume();
-    for (const L of LAYERS) {
-      const target = (amb[L] ?? 0) * this.sceneGain;
-      const st = this.layers.get(L);
-      if (!st && target <= 0) continue;
-      const s = st ?? this.createLayer(L);
-      s.level = target;
-      const gainTarget = target * RECORDED_GAIN;
-      this.rampLayer(s, gainTarget, (gainTarget > valueAt(s.ramp, this.ctx.currentTime) ? UP : DOWN) * this.fade);
-      if (target > 0 && !s.src && !s.loading) void this.loadLayer(L, s);
-    }
+    this.lastMix = mix;
+    if (!this.ctx) return;
+    this.applyMix(mix);
+  }
+
+  /** Atalho para o formato simples { stem: ganho } (palavras-chave, planos antigos). */
+  setScene(amb: Ambience, looks?: Partial<Record<Layer, SoundVariant>>, opts?: { fade?: number; gain?: number }): void {
+    this.setMix(ambienceToMix(amb), looks, opts);
   }
 
   /**
-   * Preferências da pessoa: suavidade das transições (multiplica o tempo),
-   * volume dos sons da história e dos detalhes, e frequência dos detalhes
-   * (0 = desligados).
+   * Preferências: suavidade das transições (multiplica o tempo), volume dos
+   * efeitos da história e dos detalhes, e frequência dos detalhes (0 = desligados).
    */
   setUserPrefs(p: { fade: number; spots: number; details: number; detailRate: number }): void {
     this.user = { ...p };
-    if (this.ctx) this.detailBus.gain.value = DETAIL_GAIN * p.details;
+    if (this.ctx) this.applyBusLevels(0.4);
     if (p.detailRate <= 0) this.nextDetail = 0;
     else if (this.details.length && !this.nextDetail && this.ctx) this.nextDetail = this.ctx.currentTime + 10;
   }
@@ -231,26 +353,25 @@ export class AmbientEngine {
     const was = this.details.length;
     this.details = details.slice(0, 3);
     if (!this.ctx) return;
-    if (!this.details.length) { this.nextDetail = 0; return; }
-    if (this.user.detailRate <= 0) { this.nextDetail = 0; return; }
+    if (!this.details.length || this.user.detailRate <= 0 || this.comfort.focus) { this.nextDetail = 0; return; }
     if (!was || !this.nextDetail) this.nextDetail = this.ctx.currentTime + (8 + Math.random() * 10) / this.user.detailRate;
   }
 
-  /** Interrompe (com fade curto) os sons pontuais da página anterior. */
+  /** Interrompe (com fade curto) os efeitos pontuais da página anterior. */
   clearSpots(): void {
     if (!this.ctx) return;
     const old = this.spotBus, t = this.ctx.currentTime;
-    old.gain.cancelScheduledValues(t);
-    old.gain.setValueAtTime(old.gain.value, t);
-    old.gain.linearRampToValueAtTime(0, t + 0.8);
+    rampParam(old.gain, old.gain.value, 0, t, 0.8);
     setTimeout(() => { try { old.disconnect(); } catch { /* já desconectado */ } }, 1500);
     this.spotBus = this.ctx.createGain();
-    this.spotBus.connect(this.master);
+    this.spotBus.connect(this.fxBus);
+    this.ducks = [];
+    this.scheduleDuck();
   }
 
-  /** Toca os sons pontuais da cena, cada um no seu momento. */
+  /** Toca os efeitos pontuais da cena, cada um no seu momento (com ducking do ambiente). */
   playSpots(spots: Spot[]): void {
-    if (!this.ctx || !this.enabled || this.user.spots <= 0) return;
+    if (!this.ctx || !this.enabled || this.user.spots <= 0 || this.comfort.focus || this.comfort.sfx <= 0) return;
     if (spots.length && this.ctx.state === 'suspended') void this.ctx.resume();
     this.lastSound = this.ctx.currentTime + 12;
     const bus = this.spotBus;
@@ -261,37 +382,40 @@ export class AmbientEngine {
       void this.spotBuffer(sp).then((buf) => {
         if (!buf || !this.ctx || bus !== this.spotBus) return;
         const lib = this.spotLib.get(buf);
-        const level = this.sceneGain * this.user.spots;
         if (lib) this.recentSpots = [...this.recentSpots.filter((x) => x.until > this.ctx!.currentTime), { id: lib, until: t0 + reps * gap + 6 }];
         for (let r = 0; r < reps; r++) {
+          const at = Math.max(this.ctx.currentTime + 0.05, t0 + r * gap);
           const src = this.ctx.createBufferSource();
           src.buffer = buf;
-          if (this.fileBufs.has(buf)) {
-            // a síntese já sai no volume pedido; arquivo normalizado precisa do "w" da cena
-            const g = this.ctx.createGain();
-            g.gain.value = sp.w * RECORDED_SPOT_GAIN * level;
-            src.connect(g);
-            g.connect(bus);
-          } else if (level < 1) {
-            const g = this.ctx.createGain();
-            g.gain.value = level;
-            src.connect(g);
-            g.connect(bus);
-          } else {
-            src.connect(bus);
-          }
-          src.start(Math.max(this.ctx.currentTime + 0.05, t0 + r * gap));
+          const g = this.ctx.createGain();
+          g.gain.value = sp.w * SFX_GAIN * this.sceneGain;
+          src.connect(g);
+          g.connect(bus);
+          src.start(at);
+          this.ducks.push([at, at + Math.min(buf.duration, 8)]);
         }
+        this.scheduleDuck();
       });
     }
   }
 
-  /** Para tudo e libera o contexto (ex.: ao sair do leitor). */
+  /**
+   * Carrega os stems que ainda não têm arquivo (o som estava sendo gerado).
+   * Chamado quando o repositório avisa que entrou um som novo e a cada 20 s.
+   */
+  retryMissing(): void {
+    if (!this.ctx || !this.library) return;
+    this.stems.forEach((s, L) => {
+      if (!s.src && !s.loading && s.level > 0) void this.loadStem(L, s);
+    });
+  }
+
+  /** Para tudo e libera o contexto (ex.: ao fechar o app). */
   async dispose(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.layers.forEach((s) => { try { s.src?.stop(); } catch { /* */ } });
-    this.layers.clear();
+    this.stems.forEach((s) => { try { s.src?.stop(); } catch { /* */ } });
+    this.stems.clear();
     const c = this.ctx;
     this.ctx = null;
     try { await (c as unknown as { close?: () => Promise<void> })?.close?.(); } catch { /* */ }
@@ -299,101 +423,135 @@ export class AmbientEngine {
 
   /* ---------- interno ---------- */
 
-  private lastSound = 0;
-
-  /**
-   * Economia de bateria: para as camadas que já silenciaram há alguns
-   * segundos (o buffer fica em cache, voltar é instantâneo) e suspende o
-   * áudio quando nada toca há um tempo.
-   */
-  private reap(): void {
-    const ctx = this.ctx!;
-    const now = ctx.currentTime;
-    let active = false;
-    this.layers.forEach((s) => {
-      if (s.level > 0 || now < s.ramp.t1 + 2) { active = true; return; }
-      if (s.src) { try { s.src.stop(); s.src.disconnect(); } catch { /* já parado */ } s.src = null; }
-    });
-    if (active || (this.details.length && s0(this.nextDetail - now) < 30)) this.lastSound = now;
-    else if (ctx.state === 'running' && now - this.lastSound > 12) void ctx.suspend();
+  private applyBusLevels(dur: number): void {
+    const t = this.ctx!.currentTime;
+    const amb = this.comfort.loops ? this.comfort.ambient * (this.comfort.focus ? FOCUS_GAIN : 1) : 0;
+    const fx = this.comfort.focus ? 0 : this.comfort.sfx;
+    rampParam(this.ambBus.gain, this.ambBus.gain.value, amb, t, dur);
+    rampParam(this.fxBus.gain, this.fxBus.gain.value, fx, t, dur);
+    rampParam(this.spotBus.gain, this.spotBus.gain.value, this.user.spots, t, dur);
+    rampParam(this.detailBus.gain, this.detailBus.gain.value, DETAIL_GAIN * this.user.details, t, dur);
   }
 
-  private createLayer(L: Layer): LayerState {
-    const g = this.ctx!.createGain();
+  /** Matriz efetiva: aplica loops/foco e o limite de stems por prioridade. */
+  private effectiveMix(mix: MixStem[]): MixStem[] {
+    if (!this.comfort.loops) return [];
+    const focus = this.comfort.focus;
+    return normalizeMix(focus ? mix.filter((m) => m.priority <= 2) : mix, focus ? FOCUS_MAX_STEMS : MAX_STEMS)
+      .map((m) => (focus ? { ...m, lowpass: Math.min(m.lowpass ?? OPEN_LP, FOCUS_LP) } : m));
+  }
+
+  private applyMix(mix: MixStem[]): void {
+    const ctx = this.ctx!;
+    const eff = this.effectiveMix(mix);
+    const want = new Map(eff.map((m) => [m.s, m]));
+    if (this.enabled && ctx.state === 'suspended' && eff.length) void ctx.resume();
+    // stems que saem: descem devagar (4 s × preferência)
+    this.stems.forEach((s, L) => {
+      if (want.has(L) || s.level <= 0) return;
+      s.level = 0;
+      this.rampStem(s, 0, fadeSeconds(false, this.fade, this.user.fade));
+    });
+    // stems que entram ou mudam
+    for (const m of eff) {
+      const s = this.stems.get(m.s) ?? this.createStem(m.s);
+      const level = m.gain * this.sceneGain;
+      const entering = level > valueAt(s.ramp, ctx.currentTime) / STEM_GAIN + 0.01;
+      s.level = level;
+      s.priority = m.priority;
+      const dur = fadeSeconds(entering, this.fade, this.user.fade);
+      if (s.src) this.rampStem(s, level * STEM_GAIN, dur);
+      this.setLowpass(s, m.lowpass ?? OPEN_LP, dur);
+      if (!s.src && !s.loading) void this.loadStem(m.s, s);
+    }
+  }
+
+  private createStem(L: Layer): StemState {
+    const ctx = this.ctx!;
+    const g = ctx.createGain();
     g.gain.value = 0;
-    g.connect(this.master);
-    const s: LayerState = { gain: g, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, libId: null, loading: false };
-    this.layers.set(L, s);
+    g.connect(this.ambBus);
+    let filter: FilterLike | null = null;
+    if (ctx.createBiquadFilter) {
+      filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = OPEN_LP;
+      filter.Q.value = 0.5; // corte suave, sem ressonância
+      filter.connect(g);
+    }
+    const s: StemState = { gain: g, filter, lowpass: OPEN_LP, src: null, ramp: { from: 0, to: 0, t0: 0, t1: 0 }, level: 0, priority: 3, libId: null, loading: false };
+    this.stems.set(L, s);
     return s;
   }
 
-  private rampLayer(s: LayerState, to: number, dur: number): void {
-    const ctx = this.ctx!, t = ctx.currentTime, from = valueAt(s.ramp, t);
+  private rampStem(s: StemState, to: number, dur: number): void {
+    const t = this.ctx!.currentTime, from = valueAt(s.ramp, t);
     s.ramp = { from, to, t0: t, t1: t + dur };
-    s.gain.gain.cancelScheduledValues(t);
-    s.gain.gain.setValueAtTime(from, t);
-    // duas etapas: a curva fica mais natural que uma reta única
-    s.gain.gain.linearRampToValueAtTime(from + (to - from) * 0.7, t + dur * 0.45);
-    s.gain.gain.linearRampToValueAtTime(to, t + dur);
+    rampParam(s.gain.gain, from, to, t, dur);
   }
 
-  private async loadLayer(L: Layer, s: LayerState): Promise<void> {
+  private setLowpass(s: StemState, hz: number, dur: number): void {
+    if (!s.filter || Math.abs(hz - s.lowpass) < 50) return;
+    const t = this.ctx!.currentTime;
+    // a frequência soa logarítmica: o "meio" do caminho é a média geométrica
+    const mid = Math.sqrt(s.lowpass * hz);
+    s.filter.frequency.cancelScheduledValues(t);
+    s.filter.frequency.setValueAtTime(s.lowpass, t);
+    s.filter.frequency.linearRampToValueAtTime(mid, t + dur * 0.5);
+    s.filter.frequency.linearRampToValueAtTime(hz, t + dur);
+    s.lowpass = hz;
+  }
+
+  private async loadStem(L: Layer, s: StemState): Promise<void> {
     s.loading = true;
     try {
-      let buf: BufferLike | null = null;
       const hit = await this.lookup(layerDesc(L, this.looks[L]));
-      if (hit) {
-        buf = await this.fetchUrl(hit.url);
-        if (buf) s.libId = hit.id;
-      }
-      // sem arquivo ainda (som novo sendo gerado): a camada fica em silêncio e entra quando ficar pronto
-      if (!this.ctx || !buf || this.layers.get(L) !== s) return;
+      const buf = hit ? await this.fetchUrl(hit.url) : null;
+      if (!this.ctx || !buf || !hit || this.stems.get(L) !== s) return;
+      s.libId = hit.id;
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
       src.loop = true;
-      src.connect(s.gain);
+      src.connect(s.filter ?? s.gain);
       src.start(this.ctx.currentTime + 0.02, Math.random() * Math.max(0, buf.duration - 1));
       s.src = src;
-      this.rampLayer(s, s.level * RECORDED_GAIN, UP * this.fade);
+      this.rampStem(s, s.level * STEM_GAIN, fadeSeconds(true, this.fade, this.user.fade));
     } finally {
       s.loading = false;
     }
   }
 
-  /**
-   * Carrega as camadas que ainda não têm arquivo (o som estava sendo
-   * gerado). Chamado quando o repositório avisa que entrou um som novo e,
-   * por garantia, a cada 20 s.
-   */
-  retryMissing(): void {
-    if (!this.ctx || !this.library) return;
-    this.layers.forEach((s, L) => {
-      if (!s.src && !s.loading && s.level > 0) void this.loadLayer(L, s);
-    });
+  /** Reagenda o envelope de ducking do ambiente a partir de agora. */
+  private scheduleDuck(): void {
+    const ctx = this.ctx!;
+    const now = ctx.currentTime;
+    this.ducks = this.ducks.filter(([, e]) => e + DUCK_RELEASE > now);
+    const p = this.duckGain.gain;
+    p.cancelScheduledValues(now);
+    p.setValueAtTime(p.value, now);
+    if (!this.ducks.length) { p.linearRampToValueAtTime(1, now + 0.4); return; }
+    for (const pt of duckEnvelope(this.ducks, now)) p.linearRampToValueAtTime(pt.v, pt.t);
   }
 
-  /** Qual som do repositório cada buffer de som pontual veio (para "som ruim"). */
+  /** De qual som do repositório veio cada buffer de efeito (para "som ruim"). */
   private spotLib = new WeakMap<BufferLike, string>();
-  /** Buffers que vieram de arquivo (já normalizados): o volume do som pontual é aplicado à parte. */
-  private fileBufs = new WeakSet<BufferLike>();
 
   private async spotBuffer(sp: Spot): Promise<BufferLike | null> {
     const found = await this.lookup(spotDesc(sp));
-    if (found) {
-      const b = await this.fetchUrl(found.url);
-      if (b) { this.spotLib.set(b, found.id); return b; }
-    }
-    // sem arquivo: não toca (o som novo está sendo gerado e toca nas próximas vezes)
-    return null;
+    if (!found) return null; // sem arquivo: não toca (o som novo toca nas próximas vezes)
+    const b = await this.fetchUrl(found.url);
+    if (b) this.spotLib.set(b, found.id);
+    return b;
   }
 
   /** Consulta o repositório sem segurar a cena: se demorar, segue sem o som por enquanto. */
   private lookup(d: SoundDesc): Promise<{ id: string; url: string } | null> {
-    if (!this.library) return Promise.resolve(null);
-    return Promise.race([
-      this.library.resolve(d).catch(() => null),
-      sleep(LOOKUP_TIMEOUT_MS).then(() => null),
-    ]);
+    const lib = this.library;
+    if (!lib) return Promise.resolve(null);
+    return new Promise((res) => {
+      const t = setTimeout(() => res(null), LOOKUP_TIMEOUT_MS);
+      lib.resolve(d).catch(() => null).then((v) => { clearTimeout(t); res(v); });
+    });
   }
 
   private async fetchUrl(url: string): Promise<BufferLike | null> {
@@ -402,11 +560,15 @@ export class AmbientEngine {
     if (hit) return hit;
     if (!this.ctx?.decodeAudioData) return null;
     try {
-      const r = await fetch(url);
-      if (!r.ok) return null;
-      const b = await this.ctx.decodeAudioData(await r.arrayBuffer());
-      if (!normalize(b)) return null; // silencioso ou corrompido: usa a reserva
-      this.fileBufs.add(b);
+      // offline primeiro (capítulo baixado), depois a rede
+      let data = this.offline ? await this.offline.get(url).catch(() => null) : null;
+      if (!data) {
+        const r = await fetch(url);
+        if (!r.ok) return null;
+        data = await r.arrayBuffer();
+      }
+      const b = await this.ctx.decodeAudioData(data);
+      if (!normalize(b)) return null; // silencioso ou corrompido
       this.bufCache.set(key, b);
       return b;
     } catch {
@@ -416,9 +578,9 @@ export class AmbientEngine {
 
   private tickDetails(now: number): void {
     if (!this.details.length || !this.nextDetail || now < this.nextDetail) return;
+    if (this.user.detailRate <= 0 || this.comfort.focus || this.comfort.sfx <= 0) { this.nextDetail = 0; return; }
     // intervalo longo e irregular; mais longo ainda quando a cena está agitada
-    if (this.user.detailRate <= 0) { this.nextDetail = 0; return; }
-    this.nextDetail = now + ((20 + Math.random() * 35) * Math.max(1, this.fade)) / this.user.detailRate;
+    this.nextDetail = now + ((20 + Math.random() * 35) * this.fade) / this.user.detailRate;
     const pool = this.details.length > 1 ? this.details.filter((d) => d.s !== this.lastDetail) : this.details;
     const d = pool[Math.floor(Math.random() * pool.length)];
     this.lastDetail = d.s;
@@ -427,7 +589,7 @@ export class AmbientEngine {
     void this.spotBuffer(sp).then((buf) => {
       if (!buf || !this.ctx || !this.enabled) return;
       const g = this.ctx.createGain();
-      g.gain.value = (this.fileBufs.has(buf) ? d.w * RECORDED_SPOT_GAIN : 1) * this.sceneGain;
+      g.gain.value = d.w * SFX_GAIN * this.sceneGain;
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
       src.connect(g);
@@ -436,7 +598,21 @@ export class AmbientEngine {
     });
   }
 
-  private retryAt = 0;
+  /**
+   * Economia de bateria: para os stems que já silenciaram (o buffer fica em
+   * cache, voltar é instantâneo) e suspende o áudio quando nada toca há 12 s.
+   */
+  private reap(): void {
+    const ctx = this.ctx!;
+    const now = ctx.currentTime;
+    let active = false;
+    this.stems.forEach((s) => {
+      if (s.level > 0 || now < s.ramp.t1 + 2) { active = true; return; }
+      if (s.src) { try { s.src.stop(); s.src.disconnect(); } catch { /* já parado */ } s.src = null; }
+    });
+    if (active || (this.details.length && this.nextDetail && this.nextDetail - now < 30)) this.lastSound = now;
+    else if (ctx.state === 'running' && now - this.lastSound > 12) void ctx.suspend();
+  }
 
   private tick(): void {
     const ctx = this.ctx;

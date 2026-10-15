@@ -1,7 +1,11 @@
 /**
- * Decide o som de cada página: usa o plano da IA (do cache local, ou pede ao
- * servidor em lotes de 8 páginas, um pouco antes de você chegar lá) e cai
- * para as palavras-chave enquanto a IA não respondeu.
+ * Decide o som de cada página, nesta ordem:
+ *  1. plano calibrado que vem com o livro (obras de exemplo);
+ *  2. plano já guardado no aparelho;
+ *  3. servidor, em lotes de 8 páginas, um pouco antes de você chegar lá —
+ *     para livros públicos (exemplos, Project Gutenberg) só o cache global,
+ *     sem chamar a IA; a IA só roda para textos da própria pessoa;
+ *  4. palavras-chave, enquanto nada disso chegou.
  */
 import { analyze } from '../core/analyze';
 import type { Ambience, ScenePlan } from '../core/types';
@@ -17,10 +21,15 @@ export class SceneDirector {
   private plans = new Map<number, ScenePlan>();
   private disabled = !aiAvailable();
 
-  constructor(private bookId: string, private title: string, private pages: string[], private onPlan: (page: number) => void) {}
+  constructor(
+    private bookId: string, private title: string, private pages: string[], private onPlan: (page: number) => void,
+    private opts: { publicBook?: boolean; bundled?: (ScenePlan | null)[] } = {},
+  ) {}
 
   /** Plano disponível agora (IA se já chegou; senão palavras-chave). */
   async planFor(i: number): Promise<{ plan: ScenePlan; fromAi: boolean; pending: boolean }> {
+    const calibrated = this.opts.bundled?.[i];
+    if (calibrated) return { plan: calibrated, fromAi: true, pending: false };
     let p = this.plans.get(i);
     if (!p) {
       const cached = await (await getRepo()).getPlan(this.bookId, i);
@@ -38,7 +47,8 @@ export class SceneDirector {
   }
 
   private ensureBatch(b: number): Promise<void> {
-    if (this.disabled || b * BATCH >= this.pages.length) return Promise.resolve();
+    // livro com planos calibrados: nada a pedir ao servidor
+    if (this.disabled || this.opts.bundled?.length || b * BATCH >= this.pages.length) return Promise.resolve();
     const existing = this.inflight.get(b);
     if (existing) return existing;
     const job = (async () => {
@@ -55,7 +65,7 @@ export class SceneDirector {
       let prev: Ambience | null = null;
       if (from > 0) prev = (this.plans.get(from - 1) ?? (await repo.getPlan(this.bookId, from - 1)))?.ambience ?? null;
       try {
-        const plans = await fetchScenePlans(this.title, slice, prev);
+        const plans = await fetchScenePlans(this.title, slice, prev, !!this.opts.publicBook);
         await repo.savePlans(this.bookId, from, plans);
         plans.forEach((p, k) => { if (p) { this.plans.set(from + k, p); this.onPlan(from + k); } });
         // busca (ou manda gerar) os sons das próximas páginas antes de o leitor chegar nelas
