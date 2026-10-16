@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "backgroundColor": "#15151a",
+    "backgroundColor": "#131317",
     "ios": {
       "bundleIdentifier": "com.imersao.leitura",
       "supportsTablet": true,
@@ -27,7 +27,11 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.WAKE_LOCK"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#131317"
+      }
     },
     "plugins": [
       "expo-router",
@@ -50,7 +54,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#15151a",
+          "backgroundColor": "#131317",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 170,
           "resizeMode": "contain"
         }
       ]
@@ -60,7 +66,9 @@
     },
     "web": {
       "output": "single",
-      "bundler": "metro"
-    }
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "icon": "./assets/icon.png"
   }
 }
