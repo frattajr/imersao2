@@ -36,31 +36,32 @@ jobs:
           npx expo export --platform web
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
-      # pacote inicial de stems (ElevenLabs): cada som é gerado UMA vez e fica em cache;
-      # precisa do segredo ELEVENLABS_API_KEY no repositório (Settings → Secrets → Actions).
-      # O cache é salvo a cada execução (chave com o número da execução): assim os sons
-      # gerados agora entram no cache e não são pagos de novo no próximo deploy.
+      # pacote inicial de sons: Freesound, só sons CC0 (segredo FREESOUND_API_KEY,
+      # chave grátis em freesound.org/apiv2/apply). Cada som é baixado UMA vez e fica
+      # em cache (salvo a cada execução). Sem a chave do Freesound, usa a ElevenLabs
+      # se o segredo ELEVENLABS_API_KEY existir.
       - uses: actions/cache/restore@v4
         with:
           path: .stems-cache
-          key: stems-v2-${{ github.run_id }}
+          key: stems-fs-${{ github.run_id }}
           restore-keys: |
-            stems-v2-
-            stems-
-      - name: Pacote inicial de stems
+            stems-fs-
+      - name: Pacote inicial de sons
         timeout-minutes: 25
         continue-on-error: true
         env:
+          FREESOUND_API_KEY: ${{ secrets.FREESOUND_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: |
-          bun scripts/build-stems.ts .stems-cache --max 80
+          if [ -n "$FREESOUND_API_KEY" ]; then bun scripts/build-stems-freesound.ts .stems-cache --max 120
+          else bun scripts/build-stems.ts .stems-cache --max 80; fi
           mkdir -p dist/stems && cp -r .stems-cache/. dist/stems/
       - uses: actions/cache/save@v4
         if: always()
         continue-on-error: true
         with:
           path: .stems-cache
-          key: stems-v2-${{ github.run_id }}
+          key: stems-fs-${{ github.run_id }}
       - name: Copiar catálogo e livros do Project Gutenberg
         timeout-minutes: 20
         continue-on-error: true

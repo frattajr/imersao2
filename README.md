@@ -169,6 +169,16 @@ npx expo run:ios        # ou: npx expo run:android
 npx eas build --profile development --platform ios
 ```
 
+### Sons do Freesound (substitui a ElevenLabs)
+
+`scripts/build-stems-freesound.ts` monta o pacote inicial de sons com o Freesound, **só sons CC0** (domínio público, uso comercial liberado):
+
+- para cada som de que o app precisa (ambientes em loop de 20 s a 3 min, efeitos curtos), busca no Freesound e escolhe o mais bem avaliado;
+- baixa a prévia em MP3 de alta qualidade e grava autor e link no `manifest.json`;
+- roda no deploy com o segredo `FREESOUND_API_KEY` (chave grátis em https://freesound.org/apiv2/apply), uma vez por som, guardado em cache;
+- a API é usada só para montar o pacote; o app toca os arquivos do nosso servidor;
+- sem essa chave, o deploy cai para a ElevenLabs (se houver `ELEVENLABS_API_KEY`).
+
 ### APK de teste (sem conta na Expo)
 
 O workflow `.github/workflows/apk.yml` compila um APK de teste no próprio GitHub a cada push neste branch (ou em **Actions → APK de teste (Android) → Run workflow**):

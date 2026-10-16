@@ -153,7 +153,7 @@ export default function Settings() {
 
         <Section title="Fontes e créditos">
           <Text style={[st.hint, { color: c.mut }]}>
-            Os clássicos são obras em domínio público. Os textos vêm do Project Gutenberg (gutenberg.org) e do Wikisource em português (pt.wikisource.org), passam por limpeza e têm a grafia atualizada pelo app. As capas do acervo vêm da Open Library (openlibrary.org). As traduções de Poe e Dickens e as sinopses foram escritas para o Imersão.
+            Os clássicos são obras em domínio público. Os textos vêm do Project Gutenberg (gutenberg.org) e do Wikisource em português (pt.wikisource.org), passam por limpeza e têm a grafia atualizada pelo app. As capas do acervo vêm da Open Library (openlibrary.org). Os sons ambientes vêm do Freesound (freesound.org), todos em domínio público (CC0); autor e link de cada um ficam no pacote de sons. As traduções de Poe e Dickens e as sinopses foram escritas para o Imersão.
           </Text>
         </Section>
       </ScrollView>
