@@ -39,6 +39,16 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci
+      # NDK que o React Native 0.81 pede: instalado antes, com novas tentativas
+      # (o download automático do Gradle às vezes chega corrompido)
+      - name: Instalar o NDK
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          for i in 1 2 3 4; do
+            yes | "$SDKM" --install "ndk;27.1.12297006" > /dev/null && [ -f "$ANDROID_HOME/ndk/27.1.12297006/source.properties" ] && break
+            echo "tentativa $i falhou; tentando de novo"; rm -rf "$ANDROID_HOME/ndk/27.1.12297006"; sleep 15
+          done
+          ls "$ANDROID_HOME/ndk"
       - name: Gerar o projeto Android
         run: |
           npx expo prebuild --platform android --no-install
