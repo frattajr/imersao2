@@ -1,0 +1,67 @@
+# APK de teste para Android, compilado no próprio GitHub (sem conta na Expo).
+#
+# A cada push neste branch (ou manualmente em Actions → "APK de teste" → Run
+# workflow): gera o projeto Android (expo prebuild), compila em modo release
+# para celulares ARM 64 bits (praticamente todos desde 2017) e publica:
+#   - na versão de teste "apk-teste", com link fixo para baixar no celular:
+#     https://github.com/<dono>/<repo>/releases/download/apk-teste/imersao-teste.apk
+#   - como artefato da execução (Actions → execução → Artifacts).
+# Assinado com a chave de depuração: serve para testar, não para a Play Store
+# (para a loja, use o EAS: `eas build --profile production`).
+name: APK de teste (Android)
+
+on:
+  push:
+    branches: [main, claude/github-project-preview-o2jd93]
+    paths-ignore: ['README.md', '__tests__/**', 'scripts/**', 'supabase/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - name: Gerar o projeto Android
+        run: |
+          npx expo prebuild --platform android --no-install
+          # mais memória para o Gradle (o React Native com a nova arquitetura compila C++)
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g" >> android/gradle.properties
+      - name: Compilar o APK
+        working-directory: android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+      - name: Separar o APK
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk imersao-teste.apk
+          ls -lh imersao-teste.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: imersao-apk
+          path: imersao-teste.apk
+          retention-days: 14
+      - name: Publicar com link fixo (versão de teste)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete apk-teste --cleanup-tag -y || true
+          gh release create apk-teste imersao-teste.apk --prerelease --target "$GITHUB_SHA" \
+            --title "APK de teste" \
+            --notes "Compilado do commit ${GITHUB_SHA::7}. Para instalar: abra este link no celular Android, baixe o imersao-teste.apk e permita instalar apps desconhecidos. Assinado com chave de teste (não é a versão da loja)."

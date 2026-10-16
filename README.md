@@ -169,6 +169,19 @@ npx expo run:ios        # ou: npx expo run:android
 npx eas build --profile development --platform ios
 ```
 
+### APK de teste (sem conta na Expo)
+
+O workflow `.github/workflows/apk.yml` compila um APK de teste no próprio GitHub a cada push neste branch (ou em **Actions → APK de teste (Android) → Run workflow**):
+
+- `expo prebuild` + Gradle em modo release, para celulares ARM 64 bits;
+- assinado com a chave de depuração: serve para testar, não para a Play Store.
+
+Para instalar, abra no celular Android o link fixo e permita "instalar apps desconhecidos":
+
+**https://github.com/frattajr/imersao2/releases/download/apk-teste/imersao-teste.apk**
+
+O APK busca os sons, o acervo e a cópia do Gutenberg no GitHub Pages. Quando o pacote de sons é gerado ou atualizado lá, o app já instalado passa a tocar sem precisar de outro APK.
+
 ### 4. Compilar com EAS (lojas)
 
 Compatibilidade: **Expo SDK 54**, React Native 0.81, **nova arquitetura ligada** (`newArchEnabled`), `react-native-audio-api` (Web Audio nativo, toca com a tela bloqueada — modo de áudio em segundo plano no `app.json`) e `expo-sqlite` 16 (SQLite nativo). O Expo Go **não** serve por causa do módulo de áudio nativo.
