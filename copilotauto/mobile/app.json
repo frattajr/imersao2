@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "CopilotAuto",
+    "slug": "copilotauto",
+    "scheme": "copilotauto",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "backgroundColor": "#0F1115",
+    "ios": {
+      "bundleIdentifier": "com.copilotauto.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "A câmera guia as fotos da vistoria do carro.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.copilotauto.app",
+      "edgeToEdgeEnabled": true,
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      ["expo-camera", { "cameraPermission": "A câmera guia as fotos da vistoria do carro.", "recordAudioAndroid": false }]
+    ]
+  }
+}
