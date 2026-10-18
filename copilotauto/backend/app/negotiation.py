@@ -5,7 +5,8 @@ Regras:
   conta uma vez, pelo pior resultado entre DOT e banda de rodagem.
 - Oferta sugerida = preço pedido − média das faixas; teto de desconto de 25%
   do preço pedido (acima disso o argumento perde credibilidade na mesa).
-- Preço de desistência = preço pedido − custo máximo.
+- Preço de desistência (o máximo a pagar) = preço pedido − custo mínimo.
+  Fica sempre igual ou acima da oferta sugerida.
 - Qualquer RED estrutural ou mais de 3 alavancas RED → recomendar laudo
   cautelar ANTES de negociar preço.
 """
@@ -80,7 +81,7 @@ def summarize(findings: list[StoredFinding], asking_price: int | None) -> Negoti
         if discount > cap:
             discount, capped = cap, True
         suggested = _round_down(asking_price - discount)
-        walk_away = _round_down(asking_price - min(total_max, cap))
+        walk_away = _round_down(asking_price - min(total_min, cap))
 
     if recommend_pro:
         rec = (

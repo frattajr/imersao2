@@ -78,7 +78,7 @@ O maior risco é a **falsa tranquilidade**: o app diz "tudo certo" e o comprador
 
 - Para cada foto, vale o resultado mais recente. Cada pneu conta uma vez só, pelo pior resultado entre DOT e banda.
 - **Oferta sugerida** = preço pedido − média das faixas, arredondada para baixo de R$ 500 em R$ 500, com desconto de no máximo 25% do pedido.
-- **Preço de desistência** = preço pedido − custo máximo, com o mesmo teto.
+- **Preço de desistência** (o máximo a pagar) = preço pedido − custo mínimo, com o mesmo teto. Fica sempre igual ou acima da oferta sugerida.
 - O app copia os argumentos, do mais forte ao mais fraco, num texto pronto para mandar ao vendedor.
 
 ## Rodando

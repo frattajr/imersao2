@@ -144,6 +144,7 @@ def test_report_with_negotiation_and_structural_flag(client):
     assert neg["recommend_professional_inspection"] is True
     assert neg["suggested_offer"] >= 52000 * 0.75
     assert neg["suggested_offer"] % 500 == 0
+    assert neg["suggested_offer"] <= neg["walk_away_price"] <= 52000
     assert "não constituem laudo" in rep["legal_notice"]
     assert len(rep["missing_components"]) == len(catalog.required_slots()) - 2
 
