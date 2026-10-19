@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atendente IA</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <header class="topo">
+    <strong>Atendente IA</strong>
+    <span class="sub">WhatsApp comercial para pequenas empresas</span>
+  </header>
+  <div class="layout">
+    <aside class="lateral">
+      <h2>Empresas</h2>
+      <ul id="lista-empresas"></ul>
+      <form id="form-nova" class="cartao">
+        <h3>Nova empresa</h3>
+        <label>Nome<input name="nome" required placeholder="Ex.: João Elétrica"></label>
+        <label>Ramo<select name="ramo" id="sel-ramo"></select></label>
+        <button class="primario">Criar e montar estrutura</button>
+      </form>
+    </aside>
+    <main id="principal">
+      <div class="vazio">
+        <h1>Cadastre uma empresa para começar</h1>
+        <p>Você só informa as APIs e os serviços. O sistema monta sozinho o prompt da IA, as ferramentas de orçamento, agenda e cobrança, o webhook do WhatsApp e os follow-ups.</p>
+      </div>
+    </main>
+  </div>
+  <div id="aviso" role="status"></div>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
