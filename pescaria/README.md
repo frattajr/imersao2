@@ -13,11 +13,32 @@ Os gestos imitam o corpo de quem pesca. A parte de baixo da tela é a mão na va
 | **Tocar ou passar o dedo na água** | Gotas e ondas. As vitórias-régias balançam e os peixes por perto vêm ver. |
 | **Um toque curto para cima, com a boia na água** | Dá vida à isca: a boia mexe e atrai quem estiver por perto. |
 | **Puxar firme quando a boia afunda** | Fisga, para cima ou para baixo. Puxar cedo só faz o peixe recuar e voltar; perder a hora dá uma segunda chance. Sem peixe por perto, puxar para baixo recolhe a boia. |
-| **Pequenos círculos** | Giram a carretilha de madeira. Não há barra de tensão: você sente pela vara que verga, pela linha que brilha e treme, pelo som da linha esticada e pela vibração do celular. Só arrebenta se insistir girando forte por mais de 2 segundos. |
+| **Pequenos círculos** | Giram a carretilha de madeira. Não há barra de tensão: você sente pela vara que verga, pela linha que brilha e treme, pelo som da linha esticada e pela vibração do celular (veja abaixo). Só arrebenta se insistir girando forte por mais de 2 segundos. |
 | **Levar o dedo para o lado** | Quando o peixe corre, levar o dedo para o lado contrário segura a corrida e o cansa mais rápido. A câmera inclina junto. |
 | **Deslizar a página para baixo** | Devolve o peixe: ele desce na linha, toca a água e nada para o fundo. |
 
 As dicas aparecem só até a primeira pesca. Depois, o jogo fica em silêncio e só fala se a linha estiver no limite.
+
+## Vibração
+
+Cada momento tem a sua sensação, pensada como o que a mão sentiria segurando a vara:
+
+| Momento | O que a mão sente |
+| --- | --- |
+| Chegar ao lago, tocar na água | Um toque leve. |
+| Pegar a boia e mirar | Pequenos entalhes a cada 2,5 m que a luz avança, e um duplo toque quando ela encontra uma sombra. |
+| Lançar | A linha correndo: pulsos que vão perdendo força. Um toque quando a boia cai. |
+| Mexer a isca, beliscada | Toques curtos e leves. |
+| Mordida | Uma batida forte e, enquanto a boia fica no fundo, puxadas de tempos em tempos. |
+| Fisgar | Um tranco de três batidas. |
+| Briga | A catraca da carretilha a cada volta, mais firme quanto mais esticada a linha. Quando o peixe corre, um tremor contínuo que acelera com a tensão; com a linha no limite, o zumbido rápido da fricção soltando linha. Saltos e corridas têm batidas próprias. |
+| Linha arrebenta | Um tranco longo que some. |
+| Tirar o peixe da água | Três batidas e, enquanto ele sobe, um coração batendo devagar. |
+| Devolver | Ondas que vão diminuindo, e o respingo quando ele toca a água. |
+
+Os padrões de cada momento têm prioridade sobre o tremor contínuo da briga, para um não atropelar o outro. O botão com o celular, no alto da tela, liga e desliga a vibração; a escolha fica salva.
+
+**Onde funciona:** no Android (Chrome, Firefox, Samsung Internet), com o jogo aberto direto pelo endereço ou instalado na tela inicial. Navegadores bloqueiam a vibração em páginas embutidas dentro de outra página. No iPhone não existe API de vibração; o jogo usa o interruptor nativo do Safari (iOS 18 ou mais novo) para dar toques leves, mas sem controle de força ou duração. Onde não há nenhum dos dois, o botão não aparece.
 
 ## O que deixa a cena viva
 
