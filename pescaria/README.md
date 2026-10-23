@@ -75,6 +75,32 @@ Os padrões de cada momento têm prioridade sobre o tremor contínuo da briga, p
 
 **Onde funciona:** no Android (Chrome, Firefox, Samsung Internet), com o jogo aberto direto pelo endereço ou instalado na tela inicial. Navegadores bloqueiam a vibração em páginas embutidas dentro de outra página. No iPhone não existe API de vibração; o jogo usa o interruptor nativo do Safari (iOS 18 ou mais novo) para dar toques leves, mas sem controle de força ou duração. Onde não há nenhum dos dois, o botão não aparece.
 
+## Direção de arte
+
+A arte segue três jogos reconhecidos pela beleza visual:
+
+- **Alto's Odyssey** (Apple Design Award 2018): cenas reduzidas ao essencial, cores fortes e um fundo de cores mais apagadas, que se move em outra velocidade (parallax).
+- **Firewatch** (arte de Olly Moss): silhuetas simplificadas, um tema de cor quase monocromático por momento e névoas diferentes para dar variedade de cor.
+- **GRIS** (prêmio de Best Visual Art no Game Developers Choice e Games for Impact no The Game Awards): o visual de aquarela.
+
+O que isso virou no jogo:
+- **Paleta curada por hora:** cada um dos 8 momentos do dia tem sua própria paleta, com céu em três tons, cor do sol, névoa, tinta das silhuetas e água. A paleta não sai de uma mistura automática de duas cores.
+- **Seis camadas de profundidade:** céu, serra distante, serra próxima, pinheiros, margem com copas e pinheiros, e água. Cada camada é feita da mistura entre a tinta e a névoa: quanto mais longe, mais névoa. A base de cada uma afunda numa faixa de névoa, e cada uma tem seu próprio parallax. A serra é gerada por deslocamento do ponto médio, para ter picos de verdade.
+- **Reflexo de verdade:** o céu, o sol, a lua, as nuvens e a paisagem são pintados numa tela à parte e espelhados na água em faixas que ondulam (mais longe, ondas mais leves; perto, mais fortes). Por cima vai uma tinta de água, clara e espelhada ao longe e escura perto.
+- **Luz:** halo do sol em duas camadas, brilho do horizonte do lado da luz, borda das montanhas acesa na hora dourada e brilho do sol se espalhando sobre a cena. À noite, Via Láctea e estrela cadente de vez em quando.
+- **Nuvens pintadas** em duas cores: sombra embaixo, luz em cima.
+- **Primeiro plano fora de foco:** juncos com um traço largo e transparente por baixo, e trapiche, juncos e vitórias-régias tingidos pela paleta do momento.
+- **Acabamento:** uma gradação de cor (luz quente em cima, sombra da paleta embaixo) e uma textura de papel de aquarela, com manchas e fibras, por cima de tudo.
+
+**Desempenho:** a paisagem é repintada a cada 4 quadros, ou quando a câmera se move de verdade, porque quase não muda de um quadro para o outro. O reflexo é montado em meia resolução, sem rotação, e aplicado de uma vez. Estrelas, estrela cadente e pássaros são desenhados por cima a cada quadro.
+
+Fontes sobre as referências:
+- [Alto's Odyssey vence o Apple Design Award (MobileSyrup)](https://mobilesyrup.com/2018/06/04/altos-odyssey-wins-apple-design-award-wwdc-2018/)
+- [Como Alto's Odyssey foi feito (Dice)](https://www.dice.com/career-advice/altos-odyssey-winning-mobile-game)
+- [A arte de Firewatch na GDC 2015 (Thumbsticks)](https://www.thumbsticks.com/gdc-2015-the-art-of-firewatch)
+- [A cor e a névoa em Firewatch](https://blogs.ulster.ac.uk/bethbuchanan/2021/03/05/ixd104-further-looking-into-the-art-of-firewatch)
+- [GRIS e seus prêmios (Notebookcheck)](https://www.notebookcheck.net/Award-winning-platformer-GRIS-is-down-to-its-lowest-price-ever-in-honor-of-studios-upcoming-release.899510.0.html)
+
 ## O que deixa a cena viva
 
 - **Câmera:** desliza devagar, sempre suavizada.
