@@ -2,6 +2,21 @@
 
 Um jogo de pescaria para o celular que é mais lugar do que jogo. Você está sentado num trapiche, com uma vara de bambu na mão, e o dia passa devagar sobre o lago. Não há placar, medidor nem contador. O que você pesca vira uma lembrança escrita à mão num diário, e todo peixe volta para a água.
 
+## Modos de pesca
+
+Os dois modos usam as mesmas mecânicas e mudam só alguns números. O jogo começa no **Sereno**, sem perguntar nada. A troca fica no painel de ajustes e vale na hora.
+
+| | Sereno (padrão) | Natural |
+| --- | --- | --- |
+| Fisgar | Um toque em qualquer lugar da tela, ou o puxão da vara | Só o puxão da vara |
+| Tempo para fisgar | 3,2 s | 1,8 s |
+| Recolher na briga | Segurar o dedo parado traz devagar; círculos trazem mais rápido | Só círculos |
+| Força do peixe | 75% | 100% |
+| Linha no limite | Cede um pouco: o peixe ganha distância e a briga continua | Arrebenta se você insistir por mais de 2,4 s |
+| Vontade dos peixes de vir até a boia | 1,4 vez | Normal |
+
+Na primeira vez, uma luz sobe devagar a partir de baixo da tela mostrando o gesto de lançar. Depois de aprender, ela só volta se o lago ficar parado por 45 s.
+
 ## Gestos
 
 Os gestos imitam o corpo de quem pesca. A parte de baixo da tela é a mão na vara; a parte de cima é a água. Um rastro suave mostra o caminho do dedo, e a vara sempre aponta para o que você está fazendo: para o dedo, para a boia ou para o peixe.
@@ -160,26 +175,37 @@ O lago foi pensado para ficar aberto por horas.
 
   Na primeira vez que cada um aparece, surge uma frase e toca um sino.
 - **Diário de descobertas:** o ícone do diário mostra o tempo de calma, as lótus abertas e brotando, os visitantes já vistos (os outros ficam em segredo, com uma dica de quando aparecem), os climas presenciados e os peixes.
-- **Modo contemplação:** depois de 25 s sem nenhum toque, movimento do mouse ou tecla, toda a interface some (opacidade 0) e o lago segue sozinho:
-  - mais saltos de peixe ao longe, folhas caindo e estrelas cadentes;
-  - visitantes chegam mais cedo;
-  - a câmera passeia devagar.
+- **Modo contemplação:** depois de 25 s sem nenhum toque, movimento do mouse ou tecla, toda a interface some (opacidade 0) e o lago segue sozinho. De 35 a 80 s em 35 a 80 s, há 65% de chance de um acontecimento pequeno; no resto do tempo, nada acontece, e isso faz parte. Os acontecimentos possíveis são:
+  - um peixe saltando ao longe;
+  - uma folha caindo;
+  - a névoa engrossando e voltando ao normal em 45 s;
+  - um visitante chegando mais cedo;
+  - uma coruja à noite, um pássaro de dia ou sapos ao entardecer.
+
+  Além disso, as estrelas cadentes ficam um pouco mais frequentes, os visitantes chegam mais cedo e a câmera passeia devagar.
 
   Nesse modo os peixes não chegam à boia, para não haver mordida sem ninguém olhando. O menor movimento traz a interface de volta.
-- **Tudo fica salvo no aparelho** (`localStorage`): tempo de calma, lótus, visitantes e climas a cada 10 s e ao sair, e os níveis do mixer na hora.
+- **Tudo fica salvo no aparelho** (`localStorage`): tempo de calma, lótus, visitantes e climas a cada 10 s e ao sair, e, na hora, os ajustes (modo, volumes, vibração e movimento), as lembranças e o caderno de peixes. A hora da última visita é gravada ao sair.
 
-## Mixer de sons
+## Ajustes e mixer de sons
 
-O ícone de controles deslizantes no canto abre um painel de vidro com quatro camadas, todas geradas por código, sem arquivos de áudio:
+O ícone de controles deslizantes abre o painel de ajustes. Ele rola por dentro e ocupa no máximo 60% da altura da tela, então dá para fechar tocando no lago logo abaixo.
+
+- **Pesca:** Serena ou Natural (veja acima).
+- **Vibração:** Desligada, Suave (pulsos com metade da duração) ou Normal. Some em aparelhos sem vibração.
+- **Movimento:** Completo ou Reduzido. Reduzido desliga o balanço da câmera, as aproximações, as linhas de brisa e as animações da interface. Na primeira vez, segue o "reduzir movimento" do aparelho.
+- **Sons:** seis volumes independentes, todos gerados por código, sem arquivos de áudio:
 
 | Camada | O que é |
 | --- | --- |
+| **Música** | Piano e harpa: a música generativa e as notas que acompanham a boia, a mordida e a captura. |
+| **Efeitos e bichos** | Água espirrando, carretilha, linha, pássaros, grilos, sapos e coruja. |
 | **Água calma** | Ruído marrom com filtro passa-baixa que respira a cada 5 s, mais a água batendo na margem. |
 | **Brisa nas folhas** | Vento grave e um farfalhar agudo de folhas que cresce e some em rajadas. |
 | **Chuva suave** | Chuva fina. Toca baixinho mesmo com tempo seco e cresce quando chove de verdade. |
-| **Sinos harmônicos** | O piano generativo, as notas de kalimba de cada toque e sinos de vento soltos a cada 9 a 20 s, sempre na escala pentatônica do momento. |
+| **Sinos harmônicos** | As notas de kalimba de cada toque e sinos de vento soltos a cada 9 a 20 s, sempre na escala pentatônica do momento. |
 
-O painel fecha ao tocar fora dele. Em 70%, cada camada fica no volume original do jogo. O botão de alto-falante continua silenciando tudo de uma vez.
+Em 70%, cada camada fica no volume original do jogo. O botão de alto-falante continua silenciando tudo de uma vez.
 
 ## O que deixa a cena viva
 
@@ -206,15 +232,55 @@ O painel fecha ao tocar fora dele. Em 70%, cada camada fica no volume original d
 
 Cada peixe vira uma página com:
 - a data e a hora do dia;
-- uma lembrança escrita à mão (por exemplo, "Uma tilápia de 35 cm, no pôr do sol. A primeira vez que vi uma de perto.");
-- medidas, nome científico e uma nota sobre a espécie.
+- uma lembrança com o lugar do lago onde ele foi fisgado (por exemplo, "Uma tilápia de 35 cm, no pôr do sol, entre as vitórias-régias. A primeira vez que vi uma de perto.");
+- medidas, nome científico, uma nota sobre a espécie e o jeito dela.
 
-O diário guarda as últimas lembranças e mostra os 11 peixes brasileiros: os que você já viu e os que ainda não viu, com dicas de quando costumam aparecer.
+Os lugares possíveis são: pertinho do trapiche, entre as vitórias-régias, junto às plantas da margem esquerda, junto aos juncos da margem direita, no meio do lago e lá no fundo.
+
+Cada lembrança do diário mostra:
+- um desenho pequeno do peixe;
+- a data, a hora do dia e o clima;
+- a marca "◆ primeira vez" na primeira captura da espécie.
+
+Visitantes vistos pela primeira vez e enfeites novos do trapiche também viram lembranças, com um losango no lugar do peixe. O diário guarda as últimas 60 e mostra as 12 mais recentes. Abrir o diário é sempre opcional: nada na pesca depende dele.
+
+O diário também mostra os 11 peixes brasileiros: os que você já viu e os que ainda não viu, com dicas de quando costumam aparecer. Depois de conhecer uma espécie, a página dela conta o jeito dela (veja abaixo).
 
 - **Comuns:** Lambari, Acará (de dia), Tilápia.
 - **Pouco comuns:** Traíra (à noite), Piau-três-pintas (ao amanhecer e no fim da tarde), Pacu (de dia), Tambaqui.
 - **Raros:** Tucunaré (de dia), Dourado (ao amanhecer e no fim da tarde), Pintado (à noite).
 - **Lenda do lago:** Pirarucu.
+
+### O jeito de cada peixe
+
+Cada espécie tem um lugar preferido no lago, para onde volta aos poucos quando se afasta. Também tem um jeito próprio de reagir à isca, que dá para aprender só olhando a água:
+
+| Espécie | Onde fica | Como reage |
+| --- | --- | --- |
+| Lambari | Raso, perto do trapiche | Nota a isca de longe, gosta dela mexendo e belisca de 1 a 3 vezes. |
+| Acará | Vitórias-régias e margens | Tranquilo, morde sem pressa. |
+| Tilápia | Qualquer lugar | Calma, boa para começar. |
+| Traíra | Plantas | Emboscada: não belisca, ataca de uma vez a isca que se mexe. Tempo de fisgar um pouco menor. |
+| Piau-três-pintas | Qualquer lugar | Cauteloso: chega, recua e volta; prova a isca 3 vezes. |
+| Pacu | Raso | Toques na água o chamam de bem mais longe, como frutas caindo. |
+| Tambaqui | Fundo | Lento e forte. |
+| Tucunaré | Plantas | Corre atrás da isca arrastada e costuma saltar na briga. |
+| Dourado | Fundo | Gosta de isca em movimento e luta saltando. |
+| Pintado | Fundo | Desconfiado: se você mexer a isca enquanto ele chega perto, ele recua. Prefere o lago quieto. |
+| Pirarucu | Fundo | Vem quando o lago fica quieto por um tempo. |
+
+Os peixes cautelosos (piau, pintado e pirarucu) ficam com mais vontade de chegar quanto mais tempo você passa sem tocar na tela.
+
+### Ritmo da espera
+
+- **Uma sombra passa:** se nada chega perto da boia por 8 a 13 s, um peixe por perto vem dar uma olhada. Isso não garante mordida; às vezes ele só passa.
+- **Aviso antes dos mordiscos:** a boia treme de leve quando um peixe encosta na linha.
+- **Susto no pouso:** a boia caindo espanta por 2,5 s quem estava logo embaixo. Depois, os peixes voltam a se interessar.
+
+### O trapiche e a volta
+
+- **Enfeites:** com 3 espécies conhecidas, um sino de vento aparece pendurado na lamparina. Com 6, uma lanterna de papel passa a boiar perto do trapiche e acende à noite. Os dois chegam com um verso e ficam no diário.
+- **A volta:** quem fica mais de 20 minutos fora encontra uma abertura mais curta ("O lago guardou o seu lugar", sem a lista de gestos depois de aprender) e um verso de boas-vindas. Depois de 2 horas fora, há pétalas novas boiando na água. Não existe sequência diária, energia, espera forçada nem perda por ausência.
 
 ## Como abrir
 
