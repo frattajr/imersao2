@@ -11,10 +11,10 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400&family=Caveat:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Quicksand:wght@300;400&display=swap">
 <style>
-/* Layout: a cena ocupa a tela inteira; a interface é vidro fosco que quase desaparece.
-   Pelo menos 70% da tela fica livre: só o lago, a vara e a boia. */
+/* Layout: a cena ocupa a tela inteira; a interface são molduras finas e escuras, com losangos
+   nos cantos (como as telas antigas de Hyrule), que somem enquanto você olha a boia. */
 :root {
   /* paleta serena: lago fundo, sálvia, névoa, água e areia (sem branco ou preto puros) */
   --lake-deep: #213036;          /* cor principal: fundo, tema do PWA */
@@ -23,23 +23,28 @@
   --sage-soft: #c5d3c2;
   --mist: #b8c7cc;
   --water: #6f8f92;
-  --sand: #ece4d2;               /* texto */
-  --sand-dim: rgba(236, 228, 210, .72);
-  --sand-faint: rgba(236, 228, 210, .45);
-  --glow: #f1dfb8;               /* luz quente dos avisos */
+  --sand: #f4f0e6;               /* marfim: texto */
+  --sand-dim: rgba(244, 240, 230, .72);
+  --sand-faint: rgba(244, 240, 230, .45);
+  --gold: #e6c687;               /* dourado pálido: títulos pequenos, adornos */
+  --emerald: #65e892;            /* anel de recolhimento */
+  --turquoise: #7fe3d6;          /* anéis na água */
+  --glow: #e6c687;               /* luz quente dos avisos */
+  --panel: rgba(22, 34, 39, .78);
   --glass: rgba(205, 220, 214, .13);
   --glass-strong: rgba(205, 220, 214, .2);
-  --glass-border: 1px solid rgba(255, 255, 255, .35);
-  --glass-blur: blur(12px) saturate(115%);
+  --glass-border: 1px solid rgba(244, 240, 230, .3);
+  --glass-blur: blur(10px) saturate(115%);
   --shadow-soft: 0 24px 70px rgba(14, 24, 28, .32), 0 2px 10px rgba(14, 24, 28, .12);
   --text-soft: 0 1px 18px rgba(18, 30, 34, .45);
-  --radius: 24px;
+  --radius: 4px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --t-fast: 600ms;
   --t-med: 750ms;
   --t-slow: 900ms;
   --f-ui: "Quicksand", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --f-hand: "Caveat", "Segoe Print", "Bradley Hand", cursive;
+  --f-title: "Cormorant Garamond", "Cinzel", Georgia, "Times New Roman", serif;
+  --f-hand: var(--f-title);
   color-scheme: dark;
 }
 html, body { height: 100%; margin: 0; }
@@ -87,12 +92,12 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
 .hud-btns { display: flex; gap: 8px; pointer-events: auto; }
 .icon-btn {
   width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
-  border: var(--glass-border); border-radius: var(--radius);
-  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: var(--glass-border); border-radius: 50%;
+  background: rgba(22, 34, 39, .45); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-soft);
   transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
-.icon-btn:hover { background: var(--glass-strong); }
+.icon-btn:hover { background: rgba(22, 34, 39, .7); }
 .icon-btn:active { transform: scale(.96); }
 .icon-btn svg { width: 20px; height: 20px; stroke: var(--sand); fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -100,8 +105,8 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
 .verse, .hint { position: fixed; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; text-align: center; }
 .verse {
   top: calc(env(safe-area-inset-top, 0px) + 15vh); width: min(28ch, calc(100% - 40px));
-  margin: 0; font-weight: 300; line-height: 1.45; letter-spacing: .05em;
-  font-size: clamp(1.1rem, 4.6vw, 1.45rem); text-wrap: balance; text-shadow: var(--text-soft);
+  margin: 0; font-family: var(--f-title); font-style: italic; font-weight: 400; line-height: 1.4; letter-spacing: .03em;
+  font-size: clamp(1.25rem, 5.2vw, 1.6rem); text-wrap: balance; text-shadow: var(--text-soft);
   transition: opacity var(--t-slow) var(--ease);
 }
 .hint {
@@ -109,7 +114,7 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
   font-size: 1rem; font-weight: 400; line-height: 1.45; color: var(--sand);
   text-shadow: var(--text-soft); transition: opacity var(--t-med) var(--ease);
 }
-.hint.alert { font-size: 1.4rem; font-weight: 400; color: var(--glow); text-shadow: 0 0 22px rgba(241, 223, 184, .45), var(--text-soft); transition-duration: var(--t-fast); }
+.hint.alert { font-family: var(--f-title); font-size: 1.7rem; font-weight: 500; letter-spacing: .06em; color: var(--glow); text-shadow: 0 0 22px rgba(230, 198, 135, .5), var(--text-soft); transition-duration: var(--t-fast); }
 .off { opacity: 0; }
 
 /* abertura: o título pousa sobre a cena, num cartão de vidro */
@@ -121,25 +126,25 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
 }
 .intro.leaving { opacity: 0; pointer-events: none; }
 .intro-in {
-  width: min(30rem, 100%); box-sizing: border-box; display: grid; gap: 18px; padding: 26px 22px 22px;
+  position: relative; width: min(30rem, 100%); box-sizing: border-box; display: grid; gap: 18px; padding: 30px 26px 26px;
   border: var(--glass-border); border-radius: var(--radius);
-  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  background: var(--panel); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-soft);
 }
-.intro h1 { margin: 0; font-weight: 300; font-size: clamp(2.4rem, 11vw, 3.4rem); line-height: 1; letter-spacing: .06em; text-wrap: balance; }
+.intro h1 { margin: 0; font-family: var(--f-title); font-weight: 400; font-size: clamp(2.6rem, 12vw, 3.6rem); line-height: 1; letter-spacing: .08em; text-align: center; text-wrap: balance; }
 .intro .lead { margin: 0; font-size: 1.02rem; line-height: 1.6; color: var(--sand); }
 .ways { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 12px; }
 .ways li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: center; font-size: .88rem; line-height: 1.5; color: var(--sand-dim); }
 .ways b { color: var(--sand); font-weight: 400; }
-.ways svg { width: 30px; height: 30px; stroke: var(--sage-soft); fill: none; stroke-width: 1.3; stroke-linecap: round; }
+.ways svg { width: 30px; height: 30px; stroke: var(--gold); fill: none; stroke-width: 1.3; stroke-linecap: round; }
 .begin, .page .act button {
   padding: 14px 24px; border: var(--glass-border); border-radius: var(--radius);
-  background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  background: rgba(244, 240, 230, .06); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-soft); color: var(--sand); font-weight: 400; letter-spacing: .06em;
   transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .begin { justify-self: stretch; margin-top: 4px; }
-.begin:hover, .page .act button:hover { background: rgba(205, 220, 214, .28); }
+.begin:hover, .page .act button:hover { background: rgba(230, 198, 135, .16); border-color: rgba(230, 198, 135, .6); }
 .begin:active, .page .act button:active { transform: scale(.98); }
 @media (prefers-reduced-motion: no-preference) {
   .intro-in { animation: rise var(--t-slow) var(--ease) both; }
@@ -147,6 +152,7 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
   .intro-in > *:nth-child(2) { animation-delay: .12s; }
   .intro-in > *:nth-child(3) { animation-delay: .24s; }
   .intro-in > *:nth-child(4) { animation-delay: .36s; }
+  .intro-in > *:nth-child(5) { animation-delay: .48s; }
 }
 @keyframes rise { from { opacity: .001; transform: translateY(14px); } }
 
@@ -161,21 +167,21 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
 .page {
   position: relative; width: min(390px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
   border: var(--glass-border); border-radius: var(--radius);
-  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  background: var(--panel); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-soft); color: var(--sand);
-  padding: 26px 22px 22px; display: grid; gap: 10px;
+  padding: 30px 26px 26px; display: grid; gap: 10px;
   transition: transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease);
   touch-action: none;
 }
 @media (prefers-reduced-motion: no-preference) { .catch .page { animation: settle var(--t-slow) var(--ease) both; } }
 @keyframes settle { from { transform: translateY(30px); opacity: 0; } }
 .page.out { transform: translateY(110%); opacity: 0; }
-.kicker { font-size: .7rem; font-weight: 400; letter-spacing: .18em; text-transform: uppercase; color: var(--sage-soft); }
-.page h2 { margin: 0; font-weight: 300; font-size: 2rem; line-height: 1.1; letter-spacing: .05em; text-wrap: balance; }
-.sci { margin: -4px 0 0; font-size: .95rem; font-style: italic; color: var(--sand-dim); }
+.kicker { font-size: .7rem; font-weight: 400; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
+.page h2 { margin: 0; font-family: var(--f-title); font-weight: 500; font-size: 2.2rem; line-height: 1.05; letter-spacing: .05em; text-wrap: balance; }
+.sci { margin: -4px 0 0; font-family: var(--f-title); font-size: 1.05rem; font-style: italic; color: var(--sand-dim); }
 #cardFish { width: 100%; height: auto; aspect-ratio: 2 / 1; max-width: 100%; }
-.memory { margin: 0; font-family: var(--f-hand); font-size: 1.55rem; line-height: 1.25; letter-spacing: .01em; color: var(--sand); }
-.measure { margin: 0; font-size: .74rem; font-weight: 400; letter-spacing: .14em; text-transform: uppercase; color: var(--sage-soft); font-variant-numeric: tabular-nums; }
+.memory { margin: 0; font-family: var(--f-hand); font-style: italic; font-size: 1.32rem; line-height: 1.35; letter-spacing: .01em; color: var(--sand); text-wrap: pretty; }
+.measure { margin: 0; font-size: .74rem; font-weight: 400; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-variant-numeric: tabular-nums; }
 .note { margin: 0; font-size: .95rem; line-height: 1.6; color: var(--sand-dim); }
 .page .act { margin-top: 6px; display: grid; gap: 8px; justify-items: center; }
 .page .act button { width: 100%; }
@@ -185,55 +191,105 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
 .diary-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .diary .close {
   width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
-  border: var(--glass-border); border-radius: var(--radius); background: var(--glass);
+  border: var(--glass-border); border-radius: 50%; background: transparent;
   transition: background var(--t-fast) var(--ease);
 }
-.diary .close:hover { background: var(--glass-strong); }
+.diary .close:hover { background: rgba(244, 240, 230, .08); }
 .diary .close svg { width: 20px; height: 20px; stroke: var(--sand); fill: none; stroke-width: 1.4; stroke-linecap: round; }
-.diary h3 { margin: 12px 0 0; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--sage-soft); font-weight: 400; }
+.diary h3 { margin: 14px 0 0; display: flex; align-items: center; gap: 10px; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); font-weight: 400; }
+.diary h3::before { content: "◆"; font-size: 7px; }
+.diary h3::after { content: ""; flex: 1; height: 1px; background: linear-gradient(to right, rgba(230, 198, 135, .45), rgba(230, 198, 135, 0)); }
 .mems { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.mems li { font-family: var(--f-hand); font-size: 1.35rem; line-height: 1.25; letter-spacing: .01em; color: var(--sand); }
-.mems li span { display: block; font-family: var(--f-ui); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--sand-faint); }
-.mems .empty { font-family: var(--f-ui); font-size: .95rem; color: var(--sand-dim); }
+.mems li { font-family: var(--f-hand); font-style: italic; font-size: 1.22rem; line-height: 1.3; letter-spacing: .01em; color: var(--sand); }
+.mems li span { display: block; font-family: var(--f-ui); font-style: normal; font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--sand-faint); }
+.mems .empty { font-family: var(--f-ui); font-style: normal; font-size: .95rem; color: var(--sand-dim); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 14px; }
-.entry { display: grid; gap: 2px; min-width: 0; padding: 8px; border-radius: 18px; background: rgba(205, 220, 214, .06); }
+.entry { display: grid; gap: 2px; min-width: 0; padding: 8px; border: 1px solid rgba(244, 240, 230, .1); border-radius: var(--radius); background: rgba(244, 240, 230, .03); }
 .entry canvas { width: 100%; height: auto; aspect-ratio: 2 / 1; }
-.entry b { font-weight: 400; font-size: 1rem; letter-spacing: .04em; }
+.entry b { font-family: var(--f-title); font-weight: 500; font-size: 1.15rem; letter-spacing: .04em; }
 .entry span { font-size: .74rem; color: var(--sand-dim); font-variant-numeric: tabular-nums; }
 .entry.unk b { font-weight: 300; color: var(--sand-faint); }
 
 /* diário: o lago, visitantes e climas */
 .seen { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .seen li { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: start; }
-.seen li::before { content: ""; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--sage-soft); box-shadow: 0 0 10px rgba(197, 211, 194, .6); }
-.seen li b { display: block; font-weight: 400; font-size: .95rem; }
+.seen li::before { content: ""; width: 7px; height: 7px; margin-top: 7px; transform: rotate(45deg); background: var(--gold); box-shadow: 0 0 10px rgba(230, 198, 135, .6); }
+.seen li b { display: block; font-family: var(--f-title); font-weight: 500; font-size: 1.08rem; }
 .seen li span { display: block; font-size: .78rem; line-height: 1.45; color: var(--sand-dim); }
 .seen li.unk b { font-weight: 300; color: var(--sand-faint); }
-.seen li.unk::before { background: transparent; border: 1px solid var(--sand-faint); box-shadow: none; }
+.seen li.unk::before { background: transparent; border: 1px solid var(--sand-faint); box-shadow: none; box-sizing: border-box; }
 
 /* mixer de natureza: um painel de vidro que desce do canto */
 .mixer {
   position: fixed; z-index: 6; top: calc(env(safe-area-inset-top, 0px) + 70px); right: max(14px, env(safe-area-inset-right, 0px));
   width: min(290px, calc(100% - 28px)); box-sizing: border-box; padding: 18px 18px 16px; display: grid; gap: 14px;
   border: var(--glass-border); border-radius: var(--radius);
-  background: rgba(33, 48, 54, .38); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--shadow-soft);
+  background: var(--panel); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--shadow-soft);
   opacity: 0; transform: translateY(-10px) scale(.98); pointer-events: none; visibility: hidden;
   transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease), visibility 0s linear var(--t-med);
 }
 .mixer.open { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease), visibility 0s; }
-.mixer h2 { margin: 0; font-size: .72rem; font-weight: 400; letter-spacing: .18em; text-transform: uppercase; color: var(--sage-soft); }
+.mixer h2 { margin: 0; font-size: .72rem; font-weight: 400; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
 .mix-row { display: grid; gap: 4px; }
 .mix-row label { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: .92rem; color: var(--sand); }
 .mix-row output { font-size: .76rem; color: var(--sand-dim); font-variant-numeric: tabular-nums; }
 .mixer input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; margin: 0; background: transparent; cursor: pointer; }
-.mixer input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(to right, var(--sage-soft) var(--v, 50%), rgba(236, 228, 210, .22) var(--v, 50%)); }
+.mixer input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(to right, var(--gold) var(--v, 50%), rgba(244, 240, 230, .2) var(--v, 50%)); }
 .mixer input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7.5px; border: 0; border-radius: 50%; background: var(--sand); box-shadow: 0 2px 12px rgba(14, 24, 28, .35); }
 .mixer input[type=range]::-moz-range-track { height: 3px; border-radius: 3px; background: rgba(236, 228, 210, .22); }
-.mixer input[type=range]::-moz-range-progress { height: 3px; border-radius: 3px; background: var(--sage-soft); }
+.mixer input[type=range]::-moz-range-progress { height: 3px; border-radius: 3px; background: var(--gold); }
 .mixer input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--sand); box-shadow: 0 2px 12px rgba(14, 24, 28, .35); }
 .mixer input[type=range]:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 2px; border-radius: 10px; }
 .mixer small { font-size: .74rem; line-height: 1.5; color: var(--sand-faint); }
-.icon-btn[aria-expanded="true"] { background: var(--glass-strong); }
+.icon-btn[aria-expanded="true"] { background: rgba(22, 34, 39, .8); border-color: rgba(230, 198, 135, .6); }
+
+/* molduras de Hyrule: uma segunda linha fina por dentro e losangos dourados nos cantos */
+.intro-in, .page, .mixer { outline: 1px solid rgba(244, 240, 230, .1); outline-offset: -7px; }
+.intro-in::before, .intro-in::after, .page::before, .page::after, .mixer::before, .mixer::after {
+  content: "◆"; position: absolute; z-index: 1; font-size: 9px; line-height: 1; color: var(--gold);
+  pointer-events: none; transform: translate(-50%, -50%);
+}
+.intro-in::before, .page::before, .mixer::before { top: 7px; left: 7px; }
+.intro-in::after, .page::after, .mixer::after { top: calc(100% - 7px); left: calc(100% - 7px); }
+.rule { display: flex; align-items: center; gap: 12px; width: 100%; font-size: 9px; line-height: 1; color: var(--gold); }
+.rule::before, .rule::after { content: ""; flex: 1; height: 1px; }
+.rule::before { background: linear-gradient(to right, rgba(230, 198, 135, 0), rgba(230, 198, 135, .6)); }
+.rule::after { background: linear-gradient(to left, rgba(230, 198, 135, 0), rgba(230, 198, 135, .6)); }
+
+/* faixa do compêndio: o peixe aparece numa faixa larga de lado a lado, com brilho dourado */
+.sheet.catch {
+  padding-left: 0; padding-right: 0;
+  background: linear-gradient(to bottom, rgba(14, 22, 26, .1), rgba(14, 22, 26, .42) 50%, rgba(14, 22, 26, .1));
+}
+.catch .page {
+  width: 100%; max-height: none; overflow: visible; border-radius: 0; border-left: 0; border-right: 0;
+  border-color: rgba(230, 198, 135, .55); outline: none; text-align: center; justify-items: center; gap: 8px;
+  padding: 26px max(24px, calc((100% - 34rem) / 2)) 22px;
+  background: linear-gradient(90deg, rgba(22, 34, 39, .3), rgba(22, 34, 39, .84) 16%, rgba(22, 34, 39, .84) 84%, rgba(22, 34, 39, .3));
+  box-shadow: 0 0 46px rgba(230, 198, 135, .16), 0 24px 70px rgba(14, 24, 28, .4);
+}
+.catch .page::before { top: 0; left: 50%; font-size: 11px; }
+.catch .page::after { top: 100%; left: 50%; font-size: 11px; }
+.catch .shine {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, rgba(230, 198, 135, 0) 38%, rgba(230, 198, 135, .13) 50%, rgba(230, 198, 135, 0) 62%) no-repeat;
+  background-size: 260% 100%; background-position: 130% 0;
+}
+@media (prefers-reduced-motion: no-preference) { .catch .shine { animation: shine 3.4s var(--ease) .5s both; } }
+@keyframes shine { to { background-position: -30% 0; } }
+.catch .rule { width: min(20rem, 80%); margin: 2px 0; }
+.catch #cardFish { width: min(100%, 360px); filter: drop-shadow(0 0 18px rgba(230, 198, 135, .22)); }
+.catch .note { font-size: .9rem; max-width: 34ch; }
+.catch .act { width: min(20rem, 100%); }
+
+/* olhando a boia: os controles secundários somem e quase a tela toda fica para o lago */
+body.watching .hud { opacity: 0; }
+body.watching .hud-btns { pointer-events: none; }
+body.watching .hud:focus-within { opacity: 1; }
+@media (hover: hover) {
+  body.watching .hud-btns { pointer-events: auto; }
+  body.watching .hud:hover { opacity: 1; }
+}
 
 /* modo contemplação: a interface se recolhe e o lago segue vivo sozinho */
 .hud, .hint, .verse, .mixer { will-change: opacity; }
@@ -279,6 +335,7 @@ body.contemplating .hud, body.contemplating .hint, body.contemplating .verse, bo
 <div class="intro" id="intro">
   <div class="intro-in">
     <h1>Lago Sereno</h1>
+    <div class="rule" aria-hidden="true">◆</div>
     <p class="lead">O lago já estava aqui antes de você chegar. Sente-se no trapiche, respire devagar e deixe a tarde passar.</p>
     <ul class="ways">
       <li><svg viewBox="0 0 34 34"><path d="M17 29V7M11 13l6-6 6 6"/></svg><span><b>Levante a vara.</b> Arraste para cima a partir de baixo, leve a luz até uma sombra e solte.</span></li>
@@ -291,10 +348,13 @@ body.contemplating .hud, body.contemplating .hint, body.contemplating .verse, bo
 
 <div class="sheet catch" id="catch" hidden>
   <article class="page" id="page">
-    <span class="kicker" id="cWhen"></span>
+    <i class="shine" aria-hidden="true"></i>
+    <span class="kicker" id="cEntry">Compêndio do lago</span>
     <h2 id="cName">Lambari</h2>
     <p class="sci" id="cSci"></p>
+    <div class="rule" aria-hidden="true">◆</div>
     <canvas id="cardFish" width="560" height="280"></canvas>
+    <span class="kicker" id="cWhen"></span>
     <p class="memory" id="cMemory"></p>
     <p class="measure" id="cMeasure"></p>
     <p class="note" id="cNote"></p>
@@ -581,6 +641,17 @@ function buildScenery() {
   mists = Array.from({ length: 5 }, (_, i) => ({ y: rnd(0.0, 0.16), x: rnd(0, W), w: rnd(0.7, 1.3) * W, h: rnd(10, 28) * hs, v: rnd(3, 9) * (i % 2 ? 1 : -1) }));
   motes = Array.from({ length: 30 }, () => ({ x: rnd(0, W), y: rnd(0, H), ph: rnd(0, TAU), sp: rnd(4, 12), r: rnd(0.6, 1.8) }));
   paper = paper || makePaper();
+  spirits = Array.from({ length: 26 }, () => ({ u: Math.random(), v: Math.random(), ph: rnd(0, TAU), f: rnd(0.05, 0.12), amp: rnd(10, 26), r: rnd(0.7, 1.3), gold: Math.random() < 0.55, dx: rnd(-7, 7), ox: 0, oy: 0, x: 0, y: 0 }));
+  edgePads = [-1, -1, -1, 1, 1, 1].map((side, i) => ({
+    x: side < 0 ? rnd(-0.06, 0.16) * W : rnd(0.84, 1.06) * W, y: H * rnd(0.8, 0.92), rx: rnd(26, 52) * Math.min(1.4, W / 400),
+    rot: rnd(0, TAU), ph: rnd(0, TAU), flower: i % 3 === 1
+  }));
+  if (!spiritSprites) spiritSprites = [[230, 198, 135], [127, 227, 214]].map(col => {
+    const c = document.createElement("canvas"); c.width = c.height = 48;
+    const x = c.getContext("2d"), gr = x.createRadialGradient(24, 24, 0, 24, 24, 24);
+    gr.addColorStop(0, rgb(mix(col, [255, 255, 255], 0.6), 1)); gr.addColorStop(0.16, rgb(col, 0.8)); gr.addColorStop(0.45, rgb(col, 0.18)); gr.addColorStop(1, rgb(col, 0));
+    x.fillStyle = gr; x.fillRect(0, 0, 48, 48); return c;
+  });
   specks = Array.from({ length: 38 }, () => { const d = rnd(4.5, 18); return { x: rnd(-0.95, 0.95) * xMax(d), d, vx: 0, vd: 0, ph: rnd(0, TAU), r: rnd(0.8, 1.8) }; });
 }
 
@@ -606,8 +677,8 @@ const Snd = {
     const n = this.noise.getChannelData(0), b = this.brown.getChannelData(0); let last = 0;
     for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; n[i] = w; last = (last + 0.02 * w) / 1.02; b[i] = last * 3.5; }
     // reverberação longa, como um lago aberto
-    const rl = c.sampleRate * 3.8, ir = c.createBuffer(2, rl, c.sampleRate);
-    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < rl; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rl, 2.8); }
+    const rl = c.sampleRate * 5.2, ir = c.createBuffer(2, rl, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < rl; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rl, 3.2); }
     this.reverb = c.createConvolver(); this.reverb.buffer = ir;
     const wet = c.createGain(); wet.gain.value = 0.55; this.reverb.connect(wet); wet.connect(this.master);
     // quatro canais do mixer: água, brisa, chuva e sinos (sinos têm um envio próprio para a reverberação)
@@ -660,15 +731,28 @@ const Snd = {
     this.env(gn, vol, [att, dec], t);
     s.start(t, Math.random() * 3); s.stop(t + att + dec + 0.05);
   },
-  // piano suave: fundamental + harmônicos que escurecem enquanto a nota morre
-  piano(midi, vol, when = 0, dur = 3.4) {
+  // piano abafado: fundamental + harmônicos que escurecem enquanto a nota morre (bright = brilho inicial do filtro)
+  piano(midi, vol, when = 0, dur = 3.4, bright = 1900) {
     if (!this.ctx) return; const c = this.ctx, t = c.currentTime + when, f = 440 * Math.pow(2, (midi - 69) / 12);
-    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.setValueAtTime(2800, t); lp.frequency.exponentialRampToValueAtTime(600, t + dur);
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.setValueAtTime(bright, t); lp.frequency.exponentialRampToValueAtTime(480, t + dur);
     const env = c.createGain(); lp.connect(env); env.connect(this.music);
     env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(vol, t + 0.012);
     env.gain.exponentialRampToValueAtTime(vol * 0.3, t + 0.5); env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     [[1, "sine", 1], [2, "triangle", 0.13], [3.01, "sine", 0.05]].forEach(([m, type, k]) => {
       const o = c.createOscillator(), og = c.createGain(); o.type = type; o.frequency.value = f * m; o.detune.value = rnd(-3, 3);
+      og.gain.value = k; o.connect(og); og.connect(lp); o.start(t); o.stop(t + dur + 0.1);
+    });
+  },
+  // harpa: ataque de dedo, corpo de triângulo e senos e um brilho que escurece devagar na reverberação
+  harp(midi, vol = 0.05, when = 0, dur = 4.5) {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime + when, f = 440 * Math.pow(2, (midi - 69) / 12);
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 0.4;
+    lp.frequency.setValueAtTime(3600, t); lp.frequency.exponentialRampToValueAtTime(520, t + dur * 0.7);
+    const env = c.createGain(); lp.connect(env); env.connect(this.music);
+    env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+    env.gain.exponentialRampToValueAtTime(vol * 0.25, t + 0.4); env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    [[1, "triangle", 1], [2, "sine", 0.35], [3, "sine", 0.12], [4.02, "sine", 0.05]].forEach(([m, type, k]) => {
+      const o = c.createOscillator(), og = c.createGain(); o.type = type; o.frequency.value = f * m; o.detune.value = rnd(-2, 2);
       og.gain.value = k; o.connect(og); og.connect(lp); o.start(t); o.stop(t + dur + 0.1);
     });
   },
@@ -689,11 +773,6 @@ const Snd = {
     }
     if (this.phrases++ % 2 === 0) { this.chord = (this.chord + (Math.random() < 0.6 ? 1 : 0)) % sc.roots.length; this.piano(sc.roots[this.chord], 0.045 * this.musicLevel, 0, 6); }
     this.nextPhrase = rnd(3.5, 8);
-  },
-  phrase() {
-    const sc = this.scale(), base = (Math.random() * 3) | 0;
-    [0, 1, 2, 4].forEach((k, i) => this.piano(sc.notes[Math.min(sc.notes.length - 1, base + k)], 0.07, i * 0.32, 4.5));
-    this.piano(sc.roots[0], 0.05, 0, 6);
   },
   // a linha "canta" quando estica
   songStart() {
@@ -721,8 +800,24 @@ const Snd = {
   creak() { this.tone("sawtooth", rnd(130, 170), rnd(110, 140), 0.012, 0.05, 0.25, 0, 600); },
   drag() { this.burst(4200, 3800, 6, 0.012, 0.001, 0.02); },
   snap() { this.burst(5000, 1800, 2, 0.1, 0.002, 0.12); },
-  // mordida: duas notas que sobem, claras sobre o ambiente
-  biteCall() { const sc = this.scale(); this.piano(sc.notes[2] + 12, 0.09, 0, 2.2); this.piano(sc.notes[4] + 12, 0.08, 0.14, 2.6); this.plop(1.2); },
+  // mordida: um acorde suspenso (fundamental, quarta, quinta e oitava) dedilhado de leve, que fica no ar sem resolver
+  biteCall() {
+    const r = this.scale().roots[0] + 24;
+    [0, 5, 7, 12].forEach((k, i) => this.harp(r + k, 0.05 - i * 0.005, i * 0.05, 3.6));
+    this.piano(r - 12, 0.055, 0, 4.5, 1300); this.plop(1.2);
+  },
+  // boia na água: uma nota solitária e abafada, com a harpa uma oitava acima, bem baixinho
+  landNote() {
+    const n = this.scale().notes[pick([0, 2, 4])];
+    this.piano(n, 0.075, 0.04, 5.5, 1500); this.harp(n + 12, 0.016, 0.1, 4);
+  },
+  // peixe recolhido ou descoberta: arpejo de quatro notas subindo, claro e luminoso
+  arpeggio(vol = 0.05) {
+    const sc = this.scale(), top = sc.notes.length - 1;
+    [0, 2, 3, 4].forEach((k, i) => this.harp(sc.notes[Math.min(top, k)] + 12, vol * (1 - i * 0.08), i * 0.17, 4.2));
+    this.kalimba(sc.notes[Math.min(top, 4)] + 24, vol * 0.3, 0.75);
+    this.piano(sc.roots[0], vol * 0.8, 0, 6, 1200);
+  },
   // kalimba: ataque lento, decaimento longo e um harmônico levemente desafinado, como uma lâmina de metal
   kalimba(midi, vol = 0.06, when = 0) {
     if (!this.ctx) return; const c = this.ctx, t = c.currentTime + when, f = 440 * Math.pow(2, (midi - 69) / 12);
@@ -748,8 +843,8 @@ const Snd = {
     let when = 0, step = (Math.random() * sc.notes.length) | 0;
     for (let i = 0; i < n; i++) { step = clamp(step + (Math.random() * 5 | 0) - 2, 0, sc.notes.length - 1); this.kalimba(sc.notes[step] + 12, 0.02, when); when += rnd(0.18, 0.5); }
   },
-  // descoberta: três notas subindo, como um sino que se abre
-  discovery() { const sc = this.scale(); [0, 2, 4].forEach((k, i) => this.kalimba(sc.notes[Math.min(sc.notes.length - 1, k + 2)] + 12, 0.05, i * 0.22)); },
+  // descoberta: o mesmo arpejo luminoso da captura, um pouco mais baixo
+  discovery() { this.arpeggio(0.042); },
   // toque na água ou na vara: uma nota da escala pentatônica do momento, subindo e descendo devagar
   chime(octave = 0) {
     const now = performance.now(); if (now - (this.lastChime || 0) < 220) return; this.lastChime = now;
@@ -910,6 +1005,8 @@ function markSeen(key) {
 }
 // partículas de luz pousadas na água (pólen de dia, brilho à noite) que o dedo empurra
 let specks = [];
+// brisa visível, luzes espirituais e as vitórias-régias escuras nos cantos de baixo
+let winds = [], nextWind = 3, spirits = [], spiritSprites = null, edgePads = [];
 // contemplação: depois de 25 s sem toque, a interface some e o lago segue sozinho
 let lastActivity = performance.now(), contemplating = false;
 function noteActivity() {
@@ -920,7 +1017,8 @@ const book = store.get("lagoSereno.caderno", {});
 const memories = store.get("lagoSereno.lembrancas", []);
 let learned = store.get("lagoSereno.aprendeu", false);
 
-function addRipple(x, d, max = 0.8, life = 1.8, a = 0.45) { if (ripples.length < 100) ripples.push({ x, d, r: 0.02, max, life, t: 0, a }); }
+// cada anel guarda onde ficam as falhas do traço (sd) e em quantos arcos ele se parte (n)
+function addRipple(x, d, max = 0.8, life = 1.8, a = 0.45) { if (ripples.length < 100) ripples.push({ x, d, r: 0.02, max, life, t: 0, a, sd: rnd(0, TAU), n: 3 + (Math.random() * 3 | 0) }); }
 
 function spawnWeight(sp) {
   let w = RARITY[sp.rar].peso;
@@ -1197,8 +1295,8 @@ function releaseLure() {
 function landLure() {
   const f = P.fly; P.bob = { x: f.x, d: f.d, dip: 0.8, dipV: 0, tilt: 0 };
   addRipple(f.x, f.d, 1.1, 2.2, 0.6); addRipple(f.x, f.d, 0.55, 1.5, 0.45);
-  Snd.plop(0.9); Snd.chime(-1); cam.nudge = Math.max(cam.nudge, 0.0048); Haptics.land();
-  P.mode = "float"; P.waitT = 0; P.bonus = 0; P.target = null;
+  Snd.plop(0.9); Snd.landNote(); cam.nudge = Math.max(cam.nudge, 0.0048); Haptics.land();
+  P.mode = "float"; P.waitT = 0; P.bonus = 0; P.target = null; P.reelD0 = f.d;
   Object.assign(P, { crank: 0, crankAcc: 0, crankWin: [], tickAcc: 0, sweepAcc: 0, sweepDist: 0, floatT: 0 });
   const fi = f.lock && fishes.includes(f.lock) && f.lock.state === "wander" ? f.lock : null;
   if (fi) {
@@ -1274,7 +1372,7 @@ function startLand() {
   const start = proj(fi.x, Math.max(fi.d, 2.6));
   P.held = { fi, x0: start.x, y0: start.y };
   P.mode = "land"; P.landT = 0; P.fish = null; P.target = null;
-  Snd.songStop(); Snd.splash(0.9); Snd.phrase(); Haptics.lift(); Haptics.beatT = 0.9;
+  Snd.songStop(); Snd.splash(0.9); Snd.arpeggio(); Haptics.lift(); Haptics.beatT = 0.9;
   setHint("");
   for (let i = 0; i < 26; i++) drops.push({ x: start.x + rnd(-20, 20), y: start.y, vx: rnd(-60, 60), vy: rnd(-260, -80), t: 0 });
 }
@@ -1345,6 +1443,7 @@ function update(dt) {
   pads.forEach(pd => { pd.bob *= Math.exp(-dt * 1.5); });
   updateLeaves(dt);
   updateLiving(dt);
+  updateBreeze(dt);
 
 
   switch (P.mode) {
@@ -1385,6 +1484,7 @@ function update(dt) {
   }
   P.twitch *= Math.exp(-dt * 6); P.jolt = (P.jolt || 0) * Math.exp(-dt * 7);
   P.meterA = lerp(P.meterA || 0, P.mode === "fight" ? 1 : 0, damp(5, dt));
+  updateReelRing(dt);
   if (P.mode === "idle") updateHang(dt);
   P.rodBend = lerp(P.rodBend, P.mode === "fight" ? 0.25 + P.tension * 0.75 : P.mode === "land" || P.mode === "catch" ? 0.35 : P.mode === "float" ? 0.06 + Math.max(0, P.bob.dip) * 0.15 : 0, damp(4, dt));
   if (P.mode !== "fight") P.steer = lerp(P.steer, 0, damp(3, dt));
@@ -1437,6 +1537,42 @@ function updateLiving(dt) {
   if (weather._was > 0.5 && weather.rain < 0.2 && env.sunUp > 0.3 && !rainbow) { rainbow = { t: 0, life: 75 }; discover("arcoiris", "A chuva passou e deixou um arco-íris sobre o lago."); }
   if (weather.rain > 0.5) weather._was = weather.rain; else if (weather.rain < 0.2) weather._was = 0;
   if (rainbow && (rainbow.t += dt) > rainbow.life) rainbow = null;
+}
+// linhas de brisa: fitas finas que cruzam o ar e às vezes dão uma volta no meio do caminho
+function spawnWind() {
+  const dir = Math.random() < 0.5 ? 1 : -1, y0 = rnd(H * 0.07, Math.max(H * 0.12, hz + (nearY - hz) * 0.3));
+  const A = rnd(6, 18), lam = rnd(50, 110), ph = rnd(0, TAU), R = rnd(10, 18), loopLen = TAU * R;
+  const total = W + 280, step = 6, x0 = dir > 0 ? -140 : W + 140, loopS = Math.random() < 0.6 ? rnd(0.35, 0.65) * total : -1;
+  const pts = [];
+  for (let s = 0; s < total + (loopS > 0 ? loopLen : 0); s += step) {
+    if (loopS > 0 && s >= loopS && s < loopS + loopLen) {
+      const t = (s - loopS) / R, bx = x0 + dir * loopS, by = y0 + A * Math.sin(loopS / lam + ph);
+      pts.push(bx + dir * R * Math.sin(t), by - R * (1 - Math.cos(t)));
+    } else {
+      const ss = loopS > 0 && s >= loopS + loopLen ? s - loopLen : s;
+      pts.push(x0 + dir * ss, y0 + A * Math.sin(ss / lam + ph));
+    }
+  }
+  winds.push({ pts, head: 0, len: rnd(28, 46), spd: rnd(150, 230) / step, w: rnd(1.1, 2) });
+}
+function updateBreeze(dt) {
+  if ((nextWind -= dt * (contemplating ? 1.6 : 1)) < 0) { nextWind = rnd(5, 12) + weather.rain * 8; if (winds.length < 3 && P.mode !== "intro") spawnWind(); }
+  winds.forEach(w => { w.head += w.spd * dt; });
+  winds = winds.filter(w => w.head - w.len < w.pts.length / 2);
+  // as luzes sobem e descem devagar, em ondas, e se afastam do dedo
+  const top = hz + 6, span = (nearY - hz) * 0.95;
+  spirits.forEach(s => {
+    const w = T * s.f * TAU;
+    let x = s.u * W + T * s.dx + Math.sin(w + s.ph) * s.amp;
+    x = ((x % (W + 40)) + W + 40) % (W + 40) - 20;
+    const y = top + s.v * span + Math.sin(w * 0.7 + s.ph * 1.3) * s.amp * 0.6;
+    if (ptr.down) {
+      const dx = x + s.ox - ptr.x, dy = y + s.oy - ptr.y, d2 = dx * dx + dy * dy;
+      if (d2 < 6400 && d2 > 1) { const d = Math.sqrt(d2), k = (80 - d) / 80 * 140 * dt; s.ox += dx / d * k; s.oy += dy / d * k; }
+    }
+    s.ox *= Math.exp(-dt * 0.8); s.oy *= Math.exp(-dt * 0.8);
+    s.x = x + s.ox; s.y = y + s.oy;
+  });
 }
 function sproutLotus() {
   for (let tries = 0; tries < 24; tries++) {
@@ -1731,7 +1867,8 @@ function draw() {
   const dy = hz - bgCache.hz;
   g.drawImage(bgc, 0, 0, bgc.width, Math.ceil((bgCache.hz + 2) * DPR), -4, dy - 4, W + 8, bgCache.hz + 6);
   drawSkyLive();
-  g.fillStyle = rgb(env.water); g.fillRect(-W * 0.2, hz, W * 1.4, H - hz + H * 0.2);
+  // o espelho d'água puxa para o verde-azulado fundo do lago, que segura a composição no centro
+  g.fillStyle = rgb(mix(env.water, [33, 48, 54], 0.22)); g.fillRect(-W * 0.2, hz, W * 1.4, H - hz + H * 0.2);
   drawReflections();
   drawPads(L);
   drawLotus(L);
@@ -1749,6 +1886,8 @@ function draw() {
   drawMist();
   drawBobberInWater();
   drawVisitorsAir();
+  drawSpirits();
+  drawWinds();
   if (P.mode === "fight" && P.jump > 0) drawJumpingFish();
   g.restore();
   // primeiro plano: o que está perto de você
@@ -1764,6 +1903,7 @@ function draw() {
   drawFallingLeaves(L);
   drawGrade();
   drawFightMeter();
+  drawReelRing();
   drawTouch();
 }
 // Fundo acima do horizonte, pintado em "bg": céu, astros, nuvens e seis camadas de paisagem.
@@ -2072,15 +2212,36 @@ function drawFloaters(L) {
     g.beginPath(); g.ellipse(0, 0, s, s * 0.45, 0, 0, TAU); g.fill(); g.restore();
   });
 }
+// anéis em cel-shading: arcos orgânicos com pequenas falhas e espessura que varia,
+// marfim por fora e turquesa luminoso por dentro
+const IVORY = [244, 240, 230], TURQ = [127, 227, 214];
+function arcs(x, y, rx, ry, a0, n, gap, span) {
+  const seg = span / n;
+  for (let i = 0; i < n; i++) {
+    const s0 = a0 + i * seg + gap * 0.5, s1 = a0 + (i + 1) * seg - gap * 0.5;
+    g.moveTo(x + Math.cos(s0) * rx, y + Math.sin(s0) * ry); g.ellipse(x, y, rx, ry, 0, s0, s1);
+  }
+}
 function drawRipples() {
-  const c = mix(env.bot, [246, 243, 232], 0.45);
+  const ivA = 1 - env.night * 0.2;
+  g.lineCap = "round";
   ripples.forEach(r => {
     const p = proj(r.x, r.d), rx = r.r * kpx * p.s, ry = rx * squash(p.s);
-    const a = r.a * Math.pow(1 - r.t / r.life, 1.5);
+    const k = r.t / r.life, a = r.a * Math.pow(1 - k, 1.5);
     if (rx < 0.5 || p.y - ry > H) return;
-    g.strokeStyle = rgb(c, a); g.lineWidth = Math.max(0.6, p.s * 2);
-    g.beginPath(); g.ellipse(p.x, p.y, rx, ry, 0, 0, TAU); g.stroke();
+    const w = Math.max(0.9, p.s * 2.6) * (1.25 - k * 0.6), gap = 0.2 + k * 0.4;
+    g.strokeStyle = rgb(IVORY, a * ivA); g.lineWidth = w;
+    g.beginPath(); arcs(p.x, p.y, rx, ry, r.sd, r.n, gap, TAU); g.stroke();
+    // a frente do anel (o lado mais perto de quem olha) leva uma pincelada mais grossa
+    g.lineWidth = w * 1.9;
+    g.beginPath(); arcs(p.x, p.y, rx, ry, Math.PI / 2 - 0.55 + Math.sin(r.sd) * 0.35, 1, 0, 1.1); g.stroke();
+    if (k < 0.7) {
+      const ti = 1 - k / 0.7;
+      g.strokeStyle = rgb(TURQ, Math.min(1, a * 1.25 * ti)); g.lineWidth = w;
+      g.beginPath(); arcs(p.x, p.y, rx * 0.72, ry * 0.72, r.sd + 1.3, 2, 0.9 + k, TAU); g.stroke();
+    }
   });
+  g.lineCap = "butt";
 }
 function drawShadow(fi) {
   if (fi.alpha <= 0.01) return;
@@ -2260,7 +2421,48 @@ function drawDrops() {
   drops.forEach(d => { g.globalAlpha = 1 - d.t / 1.4; g.beginPath(); g.ellipse(d.x, d.y, 1.4, 2.6, 0, 0, TAU); g.fill(); });
   g.globalAlpha = 1;
 }
+function drawWinds() {
+  if (!winds.length) return;
+  const col = mix(IVORY, TURQ, env.night * 0.45), fade = 1 - weather.rain * 0.6;
+  g.lineCap = "round";
+  winds.forEach(w => {
+    const n = w.pts.length / 2, tail = w.head - w.len, i1 = Math.min(n - 1, w.head | 0);
+    for (let i = Math.max(1, Math.ceil(tail)); i <= i1; i++) {
+      const body = Math.sin(Math.PI * clamp((i - tail) / w.len, 0, 1));
+      g.strokeStyle = rgb(col, 0.3 * body * fade); g.lineWidth = w.w * (0.25 + body);
+      g.beginPath(); g.moveTo(w.pts[i * 2 - 2], w.pts[i * 2 - 1]); g.lineTo(w.pts[i * 2], w.pts[i * 2 + 1]); g.stroke();
+    }
+  });
+  g.lineCap = "butt";
+}
+function drawSpirits() {
+  if (!spiritSprites) return;
+  const vis = clamp(0.3 + env.night * 0.7 + env.golden * 0.35, 0, 1) * (1 - weather.rain * 0.5);
+  g.save(); g.globalCompositeOperation = "lighter";
+  spirits.forEach(s => {
+    const a = vis * (0.45 + 0.55 * Math.sin(T * 1.2 + s.ph * 2)) ;
+    if (a < 0.03) return;
+    const R = 22 * s.r;
+    g.globalAlpha = a; g.drawImage(spiritSprites[s.gold ? 0 : 1], s.x - R / 2, s.y - R / 2, R, R);
+  });
+  g.restore();
+}
+// vitórias-régias da margem: silhuetas escuras nos cantos de baixo, que sobem e descem com a água
+function drawEdgePads(L) {
+  const base = mix(env.ink, [40, 66, 50], 0.3 + L * 0.2), ox = -cam.x * kpx * 0.18;
+  edgePads.forEach(pd => {
+    const x = pd.x + ox, y = pd.y + Math.sin(T * TAU / 6 + pd.ph) * 2.5, ry = pd.rx * 0.36, rot = pd.rot + Math.sin(T * TAU / 9 + pd.ph) * 0.05;
+    g.fillStyle = rgb(shade(base, 0.9), 0.95); g.beginPath();
+    g.ellipse(x, y, pd.rx, ry, 0, rot + 0.3, rot + TAU - 0.12); g.lineTo(x, y); g.closePath(); g.fill();
+    g.strokeStyle = rgb(mix(base, IVORY, 0.25), 0.35); g.lineWidth = 1; g.stroke();
+    if (pd.flower) {
+      g.fillStyle = rgb(mix([236, 196, 206], base, 0.35 + (1 - L) * 0.4));
+      for (let i = 0; i < 6; i++) { const a = -Math.PI / 2 + (i - 2.5) * 0.32; g.beginPath(); g.ellipse(x + Math.cos(a) * ry * 0.5, y - ry * 0.35 + Math.sin(a) * ry * 0.3, ry * 0.42, ry * 0.16, a, 0, TAU); g.fill(); }
+    }
+  });
+}
 function drawReeds(L) {
+  drawEdgePads(L);
   const base = mix(env.ink, [46, 72, 44], 0.35 + L * 0.25), wind = Math.sin(T * TAU / 6) * 0.5 + weather.rain * 0.4, ox = -cam.x * kpx * 0.22;
   [reedsL, reedsR].forEach(set => set.forEach(rd => {
     const sway = (Math.sin(T * TAU / 5.5 + rd.ph) * 0.06 + wind * 0.04) * rd.h + rd.push;
@@ -2333,6 +2535,45 @@ function drawFallingLeaves(L) {
     g.save(); g.translate(l.x, l.y); g.rotate(l.rot); g.scale(1, Math.abs(Math.sin(T * 2 + l.ph)) * 0.7 + 0.3);
     g.fillStyle = rgb(shade(l.col, 0.5 + L * 0.5)); g.beginPath(); g.ellipse(0, 0, 7, 3.4, 0, 0, TAU); g.fill(); g.restore();
   });
+}
+// anel de recolhimento (como a roda de fôlego): aparece em volta dos círculos do dedo, enche com o
+// caminho já recolhido e some devagar quando o dedo para
+function updateReelRing(dt) {
+  const reeling = ptr.down && (P.mode === "float" || P.mode === "fight") && P.crank > 0.6;
+  const a0 = P.ringA || 0;
+  P.ringA = lerp(a0, reeling ? 1 : 0, damp(reeling ? 6 : 2.2, dt));
+  if (ptr.down) {
+    if (a0 < 0.03) { P.ringX = ptr.x; P.ringY = ptr.y; }
+    // o centro fica atrasado em relação ao dedo e acaba no meio dos círculos
+    P.ringX = lerp(P.ringX, ptr.x, damp(2.5, dt)); P.ringY = lerp(P.ringY, ptr.y, damp(2.5, dt));
+  }
+  let fill = P.ringFill || 0;
+  if (P.mode === "fight" && P.fish) fill = clamp(1 - (P.fish.d - 2.6) / Math.max(0.5, P.fightD0 - 2.6), 0, 1);
+  else if (P.mode === "float" && P.bob) fill = clamp(1 - (P.bob.d - 3) / Math.max(0.5, (P.reelD0 || P.bob.d) - 3), 0, 1);
+  P.ringFill = lerp(P.ringFill || 0, fill, damp(4, dt));
+  P.ringCad = lerp(P.ringCad || 0, clamp(P.crank / 8, 0, 1.3), damp(5, dt));
+}
+function drawReelRing() {
+  const a = P.ringA || 0;
+  if (a < 0.02) return;
+  const x = P.ringX, y = P.ringY, R = 54 + (1 - a) * 10, start = -Math.PI / 2, fill = clamp(P.ringFill || 0, 0.002, 1);
+  const col = P.mode === "fight" && P.tension > 0.88 ? [230, 198, 135] : [101, 232, 146];
+  g.save(); g.globalAlpha = a; g.lineCap = "round";
+  g.strokeStyle = "rgba(14,22,26,.32)"; g.lineWidth = 8; g.beginPath(); g.arc(x, y, R, 0, TAU); g.stroke();
+  g.strokeStyle = "rgba(244,240,230,.25)"; g.lineWidth = 1; g.beginPath(); g.arc(x, y, R, 0, TAU); g.stroke();
+  g.strokeStyle = rgb(col, 0.2); g.lineWidth = 10; g.beginPath(); g.arc(x, y, R, start, start + fill * TAU); g.stroke();
+  g.strokeStyle = rgb(col, 0.95); g.lineWidth = 3.2; g.beginPath(); g.arc(x, y, R, start, start + fill * TAU); g.stroke();
+  // quatro losangos marcam os quartos do caminho; acendem quando o verde passa por eles
+  for (let i = 0; i < 4; i++) {
+    const ang = start + i * TAU / 4, lit = fill >= i / 4 + 0.001, px = x + Math.cos(ang) * (R + 9), py = y + Math.sin(ang) * (R + 9);
+    g.save(); g.translate(px, py); g.rotate(Math.PI / 4);
+    g.fillStyle = lit ? "rgba(230,198,135,.95)" : "rgba(244,240,230,.3)"; g.fillRect(-2.2, -2.2, 4.4, 4.4); g.restore();
+  }
+  // cadência: um arco dourado fino por fora, que gira com o dedo e cresce com o ritmo
+  const span = 0.25 + clamp(P.ringCad || 0, 0, 1.3) * 1.1, ca = P.reelAng || 0;
+  g.strokeStyle = "rgba(230,198,135,.8)"; g.lineWidth = 1.5;
+  g.beginPath(); g.arc(x, y, R + 5, ca - span / 2, ca + span / 2); g.stroke();
+  g.restore();
 }
 // medidor discreto da briga: o peixe (à esquerda) vindo até você (à direita)
 const meter = { p: 0, label: "", col: [243, 236, 224] };
@@ -2516,13 +2757,19 @@ function drawPattern(c, sp, x0, y, L, Hh) {
 const $ = id => document.getElementById(id);
 const fmtKg = kg => kg < 1 ? `${Math.round(kg * 1000)} g` : `${kg.toFixed(kg < 10 ? 2 : 1).replace(".", ",")} kg`;
 function showCatch(sp, len, kg, memory, date) {
+  $("cEntry").textContent = `Compêndio do lago · Nº ${String(SPECIES.indexOf(sp) + 1).padStart(2, "0")}`;
   $("cWhen").textContent = `${date} · ${env.name}`;
   $("cName").textContent = sp.nome; $("cSci").textContent = sp.sci;
   $("cMemory").textContent = memory;
   $("cMeasure").textContent = `${len} cm · ${fmtKg(kg)} · ${RARITY[sp.rar].nome}`;
   $("cNote").textContent = sp.note;
   const c = $("cardFish"), cc = c.getContext("2d"); cc.clearRect(0, 0, c.width, c.height);
-  drawFishSide(cc, sp, c.width / 2, c.height / 2, c.width * 0.78, false);
+  // um halo dourado atrás do peixe, como uma página do compêndio
+  const halo = cc.createRadialGradient(0, 0, 0, 0, 0, c.height * 0.48);
+  halo.addColorStop(0, "rgba(230,198,135,.24)"); halo.addColorStop(1, "rgba(230,198,135,0)");
+  cc.save(); cc.translate(c.width / 2, c.height / 2); cc.scale(1.9, 1);
+  cc.fillStyle = halo; cc.fillRect(-c.height / 2, -c.height / 2, c.height, c.height); cc.restore();
+  drawFishSide(cc, sp, c.width / 2, c.height / 2, c.width * 0.72, false);
   $("catch").hidden = false;
   setTimeout(() => $("btnRelease").focus({ preventScroll: true }), 60);
 }
@@ -2639,6 +2886,7 @@ let phaseShown = "", clockTimer = null;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   update(dt); draw();
+  document.body.classList.toggle("watching", !["intro", "idle", "catch"].includes(P.mode));
   const climate = CLIMATES.find(c => c.id === climateId()).nome;
   if (climate !== phaseShown) {
     phaseShown = climate; $("phaseName").textContent = climate; $("clock").classList.remove("off");

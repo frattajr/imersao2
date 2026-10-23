@@ -27,6 +27,13 @@ Os movimentos de vara valem quando o dedo começa na parte de baixo da tela; mai
 
 **Com o peixe fisgado:**
 
+Enquanto você faz círculos (com a boia na água ou na briga), aparece em volta do dedo um anel radial fino, inspirado na roda de fôlego de Zelda:
+- o verde-esmeralda enche conforme a linha é recolhida;
+- quatro losangos acendem a cada quarto do caminho;
+- um arco dourado por fora gira com o dedo e cresce com a cadência;
+- se a linha estica demais, o verde vira dourado;
+- quando o dedo para, o anel some devagar.
+
 Um medidor pequeno aparece logo acima do trapiche. Um peixinho anda numa linha da esquerda (longe) até um ponto à direita (você), com setas mostrando para onde ele está indo e uma palavra embaixo:
 - **trazendo** (verde): você está ganhando linha.
 - **segurando** (creme): ninguém ganha.
@@ -42,7 +49,7 @@ O peixinho do medidor sacode quando o peixe resiste.
 | **Deslizar a página para baixo** | Devolve o peixe: ele desce na linha, toca a água e nada para o fundo. |
 
 As dicas aparecem só até a primeira pesca. Depois, o jogo fica em silêncio, com três exceções que sempre aparecem:
-- **Mordida:** "Agora! Puxe a vara", em letra maior, com anéis de luz pulsando na água onde a boia afundou e duas notas de piano subindo. Há 1,8 s para reagir, e perder a hora dá uma segunda chance com aviso.
+- **Mordida:** "Agora! Puxe a vara", em letra serifada dourada, com anéis de luz pulsando na água onde a boia afundou e um acorde suspenso de harpa. Há 1,8 s para reagir, e perder a hora dá uma segunda chance com aviso.
 - **Fisgada:** "Fisgou!", com três notas e um anel na água.
 - **Linha no limite:** o aviso para descansar o dedo.
 
@@ -90,6 +97,10 @@ O que isso virou no jogo:
 - **Luz:** halo do sol em duas camadas, brilho do horizonte do lado da luz, borda das montanhas acesa na hora dourada e brilho do sol se espalhando sobre a cena. À noite, Via Láctea e estrela cadente de vez em quando.
 - **Nuvens pintadas** em duas cores: sombra embaixo, luz em cima.
 - **Primeiro plano fora de foco:** juncos com um traço largo e transparente por baixo, e trapiche, juncos e vitórias-régias tingidos pela paleta do momento.
+- **Linhas de brisa:** de 5 a 12 s em 5 a 12 s, uma fita fina e translúcida cruza o ar em onda. Em mais da metade das vezes ela dá uma volta no meio do caminho, como o vento visível de Zelda. A fita é mais grossa no meio e some nas pontas, e à noite puxa para o turquesa.
+- **Anéis em cel-shading:** cada onda é desenhada como 3 a 5 arcos marfim com pequenas falhas que crescem enquanto o anel se abre. A frente leva uma pincelada mais grossa, e dentro corre um segundo anel turquesa luminoso.
+- **Luzes espirituais:** 26 partículas douradas e verde-água flutuam sobre o lago em ondas lentas (seno), se afastam do dedo e brilham mais ao entardecer e à noite.
+- **Margem em silhueta:** vitórias-régias escuras nos cantos de baixo, algumas com flor, sobem e descem com a água, à frente dos juncos que balançam. O espelho d'água puxa para o `#213036` para segurar o centro da composição.
 - **Acabamento:** uma gradação de cor (luz quente em cima, sombra da paleta embaixo) e uma textura de papel de aquarela, com manchas e fibras, por cima de tudo.
 
 **Desempenho:** a paisagem é repintada a cada 4 quadros, ou quando a câmera se move de verdade, porque quase não muda de um quadro para o outro. O reflexo é montado em meia resolução, sem rotação, e aplicado de uma vez. Estrelas, estrela cadente e pássaros são desenhados por cima a cada quadro.
@@ -101,14 +112,22 @@ Fontes sobre as referências:
 - [A cor e a névoa em Firewatch](https://blogs.ulster.ac.uk/bethbuchanan/2021/03/05/ixd104-further-looking-into-the-art-of-firewatch)
 - [GRIS e seus prêmios (Notebookcheck)](https://www.notebookcheck.net/Award-winning-platformer-GRIS-is-down-to-its-lowest-price-ever-in-honor-of-studios-upcoming-release.899510.0.html)
 
-## Interface zen
+## Interface zen (referência: Breath of the Wild e Tears of the Kingdom)
 
-A interface usa variáveis CSS em `:root`:
+A interface usa variáveis CSS em `:root`. A direção vem do "modo pro" de Zelda: quase nada na tela, e o que aparece é fino, escuro e geométrico, como as telas Sheikah e Zonai.
 
-- **Paleta serena:** lago fundo `#213036` (cor principal, também no tema do PWA), sálvia, névoa, água e areia. Não há branco nem preto puros na interface nem no desenho do jogo.
-- **Vidro fosco:** a abertura, a ficha do peixe, o diário e os botões têm fundo translúcido, `backdrop-filter: blur(12px)`, borda de 1 px `rgba(255,255,255,.35)`, cantos de 24 px e sombras bem difusas.
-- **HUD fantasma:** a hora e os botões ficam com opacidade 0,3 enquanto você joga e voltam a 1 só com o ponteiro em cima ou o foco do teclado. O resto da tela fica livre para o lago.
-- **Tipografia leve:** Quicksand nos pesos 300 e 400, com `letter-spacing: 0.04em`, e só sombras suaves. As lembranças continuam escritas à mão (Caveat).
+- **Paleta:**
+  - lago fundo `#213036` (cor principal, também no tema do PWA);
+  - texto em marfim `#f4f0e6`;
+  - títulos pequenos e adornos em dourado pálido `#e6c687`;
+  - verde-esmeralda `#65e892` no anel de recolhimento;
+  - turquesa `#7fe3d6` nos anéis da água.
+- **Molduras ultrafinas:** a abertura, o diário e o mixer têm fundo escuro translúcido `rgba(22,34,39,.78)` com `backdrop-filter: blur(10px)`. Levam borda de 1 px `rgba(244,240,230,.3)`, uma segunda linha ainda mais fraca por dentro e losangos `◆` dourados nos cantos. Os títulos de seção do diário levam um losango e uma linha dourada que some para a direita. Os botões do canto são círculos finos.
+- **Faixa do compêndio:** ao pescar, o peixe aparece numa faixa horizontal de lado a lado. Ela tem fios dourados em cima e embaixo com um losango no meio, um brilho dourado que passa uma vez, o número do peixe no compêndio, o nome em serifa, o nome científico, uma divisória com losango central, o desenho do peixe sobre um halo dourado, a lembrança, as medidas e a descrição.
+- **HUD invisível em repouso:** com a boia na água, durante a briga e no lançamento, a hora e os botões somem por completo (no celular, também deixam de receber toque). Só voltam com o lago parado, depois de recolher a linha, ou ao passar o mouse no canto no computador.
+- **Tipografia:**
+  - Cormorant Garamond (serifa clássica) nos títulos, nomes de peixes, versos e lembranças, em itálico;
+  - Quicksand 300 e 400 nos textos curtos, com `letter-spacing: 0.04em`.
 - **Transições orgânicas:** `cubic-bezier(0.22, 1, 0.36, 1)` entre 600 e 900 ms.
 - **Atmosfera que respira:** o fundo da página se move num ciclo de 28 s, e uma aura de luz suave sobre a cena respira em 24 s.
 - **Ritmo de respiração:** o balanço da boia, dos juncos, das vitórias-régias, da vara e da lamparina, e o leve sobe-e-desce da câmera seguem ciclos de 4,5 a 6 s, sempre em seno (entrada e saída suaves).
@@ -116,7 +135,11 @@ A interface usa variáveis CSS em `:root`:
 - **Sem tensão:** a tela nunca treme. Onde antes havia tremor (mordida, fisgada, corrida, boia caindo), a câmera se aproxima um pouquinho e volta devagar. O medidor da briga não usa vermelho: "linha no limite" aparece em areia quente, e os trancos da vara ficaram mais macios.
 - **Som:**
   - **Água:** o ruído marrom com filtro passa-baixa "respira", abrindo e fechando o filtro a cada 5 s.
-  - **Kalimba:** tocar na água, mexer a isca e a boia caindo tocam uma nota de kalimba na escala pentatônica do momento, com ataque lento, decaimento longo e reverberação.
+  - **Kalimba:** tocar na água e mexer a isca tocam uma nota de kalimba na escala pentatônica do momento, com ataque lento, decaimento longo e reverberação.
+  - **Piano espaçado e harpa,** como o piano de Breath of the Wild, com reverberação de 5,2 s e o mesmo piano generativo de fundo, agora mais abafado:
+    - quando a boia cai, toca uma nota solitária de piano abafado, com a harpa uma oitava acima, bem baixinho;
+    - na mordida, toca um acorde suspenso (fundamental, quarta, quinta e oitava) dedilhado na harpa, que fica no ar sem resolver;
+    - ao recolher um peixe ou descobrir algo novo no lago, toca um arpejo de 4 notas subindo, claro e luminoso.
   - **Retomada:** o áudio volta no primeiro toque se o iPhone o suspender.
 - **Quem ativa reduzir movimento** no aparelho fica sem a respiração do fundo, a aura e as animações de entrada.
 
