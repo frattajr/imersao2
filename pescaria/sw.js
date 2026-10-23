@@ -1,5 +1,5 @@
 // Guarda o jogo no aparelho para abrir sem internet.
-const CACHE = "lago-sereno-v8";
+const CACHE = "lago-sereno-v9";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon.svg"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => {

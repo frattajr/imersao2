@@ -4,146 +4,207 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Lago Sereno</title>
-<meta name="theme-color" content="#121826">
+<meta name="theme-color" content="#213036">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,300;1,400&family=Caveat:wght@400;500&family=Figtree:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400&family=Caveat:wght@400;500&display=swap">
 <style>
-/* Layout: a cena ocupa a tela inteira e quase não há interface.
-   Palavras aparecem como lembranças; o diário é uma página de papel. */
+/* Layout: a cena ocupa a tela inteira; a interface é vidro fosco que quase desaparece.
+   Pelo menos 70% da tela fica livre: só o lago, a vara e a boia. */
 :root {
-  --ink: #f3ece0;                       /* texto sobre a água */
-  --ink-dim: rgba(243, 236, 224, .7);
-  --night: #121826;                     /* fundo */
-  --paper: #efe6d2;                     /* página do diário */
-  --paper-ink: #2b2620;
-  --paper-soft: #6e6356;
-  --paper-line: rgba(70, 60, 45, .12);
-  --f-poem: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  /* paleta serena: lago fundo, sálvia, névoa, água e areia (sem branco ou preto puros) */
+  --lake-deep: #213036;          /* cor principal: fundo, tema do PWA */
+  --lake: #2c4046;
+  --sage: #a3b8a2;
+  --sage-soft: #c5d3c2;
+  --mist: #b8c7cc;
+  --water: #6f8f92;
+  --sand: #ece4d2;               /* texto */
+  --sand-dim: rgba(236, 228, 210, .72);
+  --sand-faint: rgba(236, 228, 210, .45);
+  --glow: #f1dfb8;               /* luz quente dos avisos */
+  --glass: rgba(205, 220, 214, .13);
+  --glass-strong: rgba(205, 220, 214, .2);
+  --glass-border: 1px solid rgba(255, 255, 255, .4);
+  --glass-blur: blur(12px) saturate(115%);
+  --shadow-soft: 0 24px 70px rgba(14, 24, 28, .32), 0 2px 10px rgba(14, 24, 28, .12);
+  --text-soft: 0 1px 18px rgba(18, 30, 34, .45);
+  --radius: 24px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 500ms;
+  --t-med: 700ms;
+  --t-slow: 800ms;
+  --f-ui: "Quicksand", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-hand: "Caveat", "Segoe Print", "Bradley Hand", cursive;
-  --f-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: dark;
 }
 html, body { height: 100%; margin: 0; }
 body {
-  background: var(--night); color: var(--ink); font-family: var(--f-ui);
+  /* o fundo respira devagar (visível ao abrir e por trás dos painéis) */
+  background: linear-gradient(160deg, var(--lake-deep), var(--lake) 45%, #26383c 70%, var(--lake-deep));
+  background-size: 220% 220%;
+  color: var(--sand); font-family: var(--f-ui); font-weight: 300; letter-spacing: .04em;
   overflow: hidden; overscroll-behavior: none; touch-action: none;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
 }
+@media (prefers-reduced-motion: no-preference) {
+  body { animation: tide 28s ease-in-out infinite alternate; }
+}
+@keyframes tide { from { background-position: 0% 40%; } to { background-position: 100% 60%; } }
 [hidden] { display: none !important; }
 canvas#c { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
-button { font: inherit; color: inherit; cursor: pointer; }
-button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+button { font: inherit; letter-spacing: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px; }
 
-/* Quase-interface */
+/* aura: uma luz suave sobre a cena que respira em ciclos de 24 s */
+.aura {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none; mix-blend-mode: soft-light; opacity: .55;
+  background:
+    radial-gradient(ellipse 80% 45% at 50% 28%, rgba(197, 211, 194, .35), transparent 70%),
+    radial-gradient(ellipse 90% 40% at 50% 100%, rgba(111, 143, 146, .35), transparent 70%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .aura { animation: aura 24s ease-in-out infinite alternate; }
+}
+@keyframes aura { from { opacity: .3; transform: scale(1); } to { opacity: .75; transform: scale(1.06); } }
+
+/* HUD fantasma: quase invisível enquanto se joga, aparece ao chegar perto */
 .hud {
   position: fixed; left: 0; right: 0; top: 0; z-index: 5; pointer-events: none;
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
   padding-left: max(18px, env(safe-area-inset-left, 0px));
   padding-right: max(14px, env(safe-area-inset-right, 0px));
+  opacity: .35; transition: opacity var(--t-med) var(--ease);
 }
-.clock { font-family: var(--f-poem); font-style: italic; font-size: 1.3rem; text-shadow: 0 1px 12px rgba(0,0,0,.45); transition: opacity 2.5s ease; }
+.hud:hover, .hud:focus-within { opacity: 1; }
+.clock { font-size: 1.05rem; font-weight: 300; letter-spacing: .08em; text-shadow: var(--text-soft); transition: opacity 2.5s var(--ease); }
 .clock.off { opacity: 0; }
-.hud-btns { display: flex; gap: 6px; pointer-events: auto; opacity: .55; transition: opacity .4s; }
-.hud-btns:hover, .hud-btns:focus-within { opacity: 1; }
-.icon-btn { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; display: grid; place-items: center; padding: 0; }
-.icon-btn svg { width: 22px; height: 22px; stroke: var(--ink); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 4px rgba(0,0,0,.5)); }
+.hud-btns { display: flex; gap: 8px; pointer-events: auto; }
+.icon-btn {
+  width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
+  border: var(--glass-border); border-radius: var(--radius);
+  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-soft);
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.icon-btn:hover { background: var(--glass-strong); }
+.icon-btn:active { transform: scale(.96); }
+.icon-btn svg { width: 20px; height: 20px; stroke: var(--sand); fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 
-.verse, .hint { position: fixed; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; text-align: center; transition: opacity 2.2s ease; }
+/* palavras que aparecem e somem como respiração */
+.verse, .hint { position: fixed; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none; text-align: center; }
 .verse {
-  top: calc(env(safe-area-inset-top, 0px) + 15vh); width: min(26ch, calc(100% - 40px));
-  margin: 0; font-family: var(--f-poem); font-style: italic; font-weight: 300; line-height: 1.25;
-  font-size: clamp(1.35rem, 5.6vw, 1.85rem); text-wrap: balance; text-shadow: 0 1px 16px rgba(0,0,0,.5);
+  top: calc(env(safe-area-inset-top, 0px) + 15vh); width: min(28ch, calc(100% - 40px));
+  margin: 0; font-weight: 300; line-height: 1.45; letter-spacing: .05em;
+  font-size: clamp(1.1rem, 4.6vw, 1.45rem); text-wrap: balance; text-shadow: var(--text-soft);
+  transition: opacity var(--t-slow) var(--ease);
 }
 .hint {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 9vh); width: min(30ch, calc(100% - 40px));
-  font-family: var(--f-poem); font-style: italic; font-size: 1.2rem; line-height: 1.3; color: var(--ink);
-  text-shadow: 0 1px 12px rgba(0,0,0,.65); transition-duration: .4s;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 9vh); width: min(32ch, calc(100% - 40px));
+  font-size: 1rem; font-weight: 400; line-height: 1.45; color: var(--sand);
+  text-shadow: var(--text-soft); transition: opacity var(--t-med) var(--ease);
 }
-.hint.alert { font-size: 1.75rem; font-weight: 500; letter-spacing: .01em; text-shadow: 0 0 18px rgba(255,220,170,.55), 0 1px 12px rgba(0,0,0,.7); transition-duration: .15s; }
+.hint.alert { font-size: 1.4rem; font-weight: 400; color: var(--glow); text-shadow: 0 0 22px rgba(241, 223, 184, .45), var(--text-soft); transition-duration: var(--t-fast); }
 .off { opacity: 0; }
 
-/* Abertura: o título pousa sobre a cena, sem caixa */
+/* abertura: o título pousa sobre a cena, num cartão de vidro */
 .intro {
   position: fixed; inset: 0; z-index: 10; display: grid; align-content: end; justify-items: center;
-  padding: calc(env(safe-area-inset-top, 0px) + 24px) max(22px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 30px) max(22px, env(safe-area-inset-left, 0px));
-  background: linear-gradient(to bottom, rgba(10,14,24,0) 0%, rgba(10,14,24,.35) 38%, rgba(10,14,24,.9) 100%);
-  transition: opacity 1.6s ease;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) max(18px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 24px) max(18px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(to bottom, rgba(33, 48, 54, 0) 0%, rgba(33, 48, 54, .25) 40%, rgba(33, 48, 54, .7) 100%);
+  transition: opacity var(--t-slow) var(--ease);
 }
 .intro.leaving { opacity: 0; pointer-events: none; }
-.intro-in { width: min(30rem, 100%); display: grid; gap: 18px; }
-.intro h1 { margin: 0; font-family: var(--f-poem); font-style: italic; font-weight: 300; font-size: clamp(3.2rem, 16vw, 5rem); line-height: .92; letter-spacing: -.01em; }
-.intro .lead { margin: 0; font-family: var(--f-poem); font-size: 1.3rem; line-height: 1.35; color: var(--ink); }
-.ways { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 12px; }
-.ways li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: center; font-size: .92rem; line-height: 1.4; color: var(--ink-dim); }
-.ways b { color: var(--ink); font-weight: 600; }
-.ways svg { width: 34px; height: 34px; stroke: var(--ink); fill: none; stroke-width: 1.4; stroke-linecap: round; opacity: .85; }
-.begin {
-  justify-self: start; margin-top: 6px; padding: 14px 24px; border-radius: 999px;
-  border: 1px solid rgba(243,236,224,.45); background: rgba(243,236,224,.06); font-weight: 600; letter-spacing: .03em;
+.intro-in {
+  width: min(30rem, 100%); box-sizing: border-box; display: grid; gap: 18px; padding: 26px 22px 22px;
+  border: var(--glass-border); border-radius: var(--radius);
+  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-soft);
 }
+.intro h1 { margin: 0; font-weight: 300; font-size: clamp(2.4rem, 11vw, 3.4rem); line-height: 1; letter-spacing: .06em; text-wrap: balance; }
+.intro .lead { margin: 0; font-size: 1.02rem; line-height: 1.6; color: var(--sand); }
+.ways { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 12px; }
+.ways li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: center; font-size: .88rem; line-height: 1.5; color: var(--sand-dim); }
+.ways b { color: var(--sand); font-weight: 400; }
+.ways svg { width: 30px; height: 30px; stroke: var(--sage-soft); fill: none; stroke-width: 1.3; stroke-linecap: round; }
+.begin, .page .act button {
+  padding: 14px 24px; border: var(--glass-border); border-radius: var(--radius);
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-soft); color: var(--sand); font-weight: 400; letter-spacing: .06em;
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.begin { justify-self: stretch; margin-top: 4px; }
+.begin:hover, .page .act button:hover { background: rgba(205, 220, 214, .28); }
+.begin:active, .page .act button:active { transform: scale(.98); }
 @media (prefers-reduced-motion: no-preference) {
-  .intro-in > * { animation: rise 1.6s cubic-bezier(.2,.7,.2,1) both; }
-  .intro-in > *:nth-child(2) { animation-delay: .25s; }
-  .intro-in > *:nth-child(3) { animation-delay: .5s; }
-  .intro-in > *:nth-child(4) { animation-delay: .75s; }
+  .intro-in { animation: rise var(--t-slow) var(--ease) both; }
+  .intro-in > * { animation: rise var(--t-slow) var(--ease) both; }
+  .intro-in > *:nth-child(2) { animation-delay: .12s; }
+  .intro-in > *:nth-child(3) { animation-delay: .24s; }
+  .intro-in > *:nth-child(4) { animation-delay: .36s; }
 }
 @keyframes rise { from { opacity: .001; transform: translateY(14px); } }
 
-/* Página do diário */
+/* páginas do diário: vidro fosco sobre o lago */
 .sheet {
   position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
-  background: rgba(6, 10, 18, .42);
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) max(18px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 18px) max(18px, env(safe-area-inset-left, 0px));
-  animation: fade .8s ease;
+  background: rgba(24, 36, 40, .28);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 18px) max(16px, env(safe-area-inset-left, 0px));
+  animation: fade var(--t-slow) var(--ease);
 }
 @keyframes fade { from { opacity: 0; } }
 .page {
   position: relative; width: min(390px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
-  background-color: var(--paper); color: var(--paper-ink);
-  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--paper-line) 31px 32px);
-  border-radius: 4px; padding: 26px 24px 22px; display: grid; gap: 10px;
-  box-shadow: 0 2px 0 rgba(0,0,0,.06), 0 24px 60px rgba(0,0,0,.45);
-  transform: rotate(-.8deg); transition: transform .6s cubic-bezier(.4,0,.2,1), opacity .6s ease;
+  border: var(--glass-border); border-radius: var(--radius);
+  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-soft); color: var(--sand);
+  padding: 26px 22px 22px; display: grid; gap: 10px;
+  transition: transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease);
   touch-action: none;
 }
-@media (prefers-reduced-motion: no-preference) { .catch .page { animation: settle 1s cubic-bezier(.2,.8,.2,1) both; } }
-@keyframes settle { from { transform: translateY(40px) rotate(2deg); opacity: 0; } }
-.page.out { transform: translateY(120%) rotate(5deg); opacity: 0; }
-.kicker { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--paper-soft); }
-.page h2 { margin: 0; font-family: var(--f-poem); font-weight: 500; font-size: 2.3rem; line-height: 1; text-wrap: balance; }
-.sci { margin: -4px 0 0; font-family: var(--f-poem); font-style: italic; font-size: 1.05rem; color: var(--paper-soft); }
+@media (prefers-reduced-motion: no-preference) { .catch .page { animation: settle var(--t-slow) var(--ease) both; } }
+@keyframes settle { from { transform: translateY(30px); opacity: 0; } }
+.page.out { transform: translateY(110%); opacity: 0; }
+.kicker { font-size: .7rem; font-weight: 400; letter-spacing: .18em; text-transform: uppercase; color: var(--sage-soft); }
+.page h2 { margin: 0; font-weight: 300; font-size: 2rem; line-height: 1.1; letter-spacing: .05em; text-wrap: balance; }
+.sci { margin: -4px 0 0; font-size: .95rem; font-style: italic; color: var(--sand-dim); }
 #cardFish { width: 100%; height: auto; aspect-ratio: 2 / 1; max-width: 100%; }
-.memory { margin: 0; font-family: var(--f-hand); font-size: 1.6rem; line-height: 1.2; color: #3a3129; }
-.measure { margin: 0; font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--paper-soft); font-variant-numeric: tabular-nums; }
-.note { margin: 0; font-family: var(--f-poem); font-size: 1.08rem; line-height: 1.4; color: var(--paper-soft); }
-.page .act { margin-top: 6px; display: grid; gap: 6px; justify-items: center; }
-.page .act button { width: 100%; padding: 13px 18px; border-radius: 999px; border: 1px solid var(--paper-ink); background: transparent; color: var(--paper-ink); font-weight: 600; letter-spacing: .02em; }
-.page .act small { font-size: .74rem; color: var(--paper-soft); }
+.memory { margin: 0; font-family: var(--f-hand); font-size: 1.55rem; line-height: 1.25; letter-spacing: .01em; color: var(--sand); }
+.measure { margin: 0; font-size: .74rem; font-weight: 400; letter-spacing: .14em; text-transform: uppercase; color: var(--sage-soft); font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: .95rem; line-height: 1.6; color: var(--sand-dim); }
+.page .act { margin-top: 6px; display: grid; gap: 8px; justify-items: center; }
+.page .act button { width: 100%; }
+.page .act small { font-size: .74rem; color: var(--sand-faint); }
 
-.diary { width: min(560px, 100%); transform: rotate(.4deg); touch-action: pan-y; }
+.diary { width: min(560px, 100%); touch-action: pan-y; }
 .diary-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.diary .close { width: 44px; height: 44px; border: 0; background: transparent; display: grid; place-items: center; }
-.diary .close svg { width: 22px; height: 22px; stroke: var(--paper-ink); fill: none; stroke-width: 1.6; stroke-linecap: round; }
-.diary h3 { margin: 10px 0 0; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--paper-soft); font-weight: 600; }
-.mems { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.mems li { font-family: var(--f-hand); font-size: 1.35rem; line-height: 1.2; color: #3a3129; }
-.mems li span { display: block; font-family: var(--f-ui); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--paper-soft); }
-.mems .empty { font-family: var(--f-poem); font-style: italic; font-size: 1.1rem; color: var(--paper-soft); }
+.diary .close {
+  width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
+  border: var(--glass-border); border-radius: var(--radius); background: var(--glass);
+  transition: background var(--t-fast) var(--ease);
+}
+.diary .close:hover { background: var(--glass-strong); }
+.diary .close svg { width: 20px; height: 20px; stroke: var(--sand); fill: none; stroke-width: 1.4; stroke-linecap: round; }
+.diary h3 { margin: 12px 0 0; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--sage-soft); font-weight: 400; }
+.mems { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.mems li { font-family: var(--f-hand); font-size: 1.35rem; line-height: 1.25; letter-spacing: .01em; color: var(--sand); }
+.mems li span { display: block; font-family: var(--f-ui); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--sand-faint); }
+.mems .empty { font-family: var(--f-ui); font-size: .95rem; color: var(--sand-dim); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 14px; }
-.entry { display: grid; gap: 2px; min-width: 0; }
+.entry { display: grid; gap: 2px; min-width: 0; padding: 8px; border-radius: 18px; background: rgba(205, 220, 214, .06); }
 .entry canvas { width: 100%; height: auto; aspect-ratio: 2 / 1; }
-.entry b { font-family: var(--f-poem); font-weight: 500; font-size: 1.15rem; }
-.entry span { font-size: .76rem; color: var(--paper-soft); font-variant-numeric: tabular-nums; }
-.entry.unk b { font-style: italic; font-weight: 400; color: var(--paper-soft); }
+.entry b { font-weight: 400; font-size: 1rem; letter-spacing: .04em; }
+.entry span { font-size: .74rem; color: var(--sand-dim); font-variant-numeric: tabular-nums; }
+.entry.unk b { font-weight: 300; color: var(--sand-faint); }
 </style>
 </head>
 <body>
+<div class="aura" aria-hidden="true"></div>
 <canvas id="c" aria-label="Lago ao entardecer. Arraste para cima a partir da parte de baixo da tela para lançar."></canvas>
 
 <div class="hud">
@@ -213,6 +274,8 @@ button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
    Utilidades
    ============================================================ */
 const TAU = Math.PI * 2;
+// um ciclo de respiração calma: 5 s (seno = entrada e saída suaves)
+const BREATH = TAU / 5;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -333,7 +396,7 @@ function timeWindow() {
    ============================================================ */
 const cv = document.getElementById("c"), g = cv.getContext("2d");
 let W = 0, H = 0, DPR = 1, horizon = 0, hz = 0, nearY = 0, kpx = 0, ZONE = 0;
-const cam = { x: 0, tilt: 0, z: 1, shake: 0, roll: 0 };
+const cam = { x: 0, tilt: 0, z: 1, nudge: 0, roll: 0 };
 function proj(x, d) {
   const s = 2 / d * cam.z;
   return { x: W / 2 + (x - cam.x) * kpx * s, y: hz + (nearY - hz) * s, s };
@@ -405,7 +468,7 @@ function makePaper() {
     const px = rnd(0, S), py = rnd(0, S), r = rnd(8, 80), light = Math.random() < 0.5, al = rnd(0.02, 0.07);
     for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
       const gr = x.createRadialGradient(px + ox, py + oy, 0, px + ox, py + oy, r);
-      gr.addColorStop(0, light ? `rgba(255,255,255,${al})` : `rgba(0,0,0,${al})`); gr.addColorStop(1, "rgba(128,128,128,0)");
+      gr.addColorStop(0, light ? `rgba(246,243,232,${al})` : `rgba(16,26,30,${al})`); gr.addColorStop(1, "rgba(128,128,128,0)");
       x.fillStyle = gr; x.fillRect(px + ox - r, py + oy - r, r * 2, r * 2);
     }
   }
@@ -471,17 +534,20 @@ const Snd = {
     const wet = c.createGain(); wet.gain.value = 0.55; this.reverb.connect(wet); wet.connect(this.master);
     this.music = c.createGain(); this.music.gain.value = 0.9;
     const dry = c.createGain(); dry.gain.value = 0.4; this.music.connect(dry); dry.connect(this.master); this.music.connect(this.reverb);
-    this.loop(this.brown, [["lowpass", 480, 0.7]], 0.3, [0.11, 0.11]);
+    this.loop(this.brown, [["lowpass", 480, 0.7]], 0.3, [1 / 5, 0.1], 160);
     this.loop(this.noise, [["bandpass", 900, 0.6]], 0.016, [0.23, 0.012]);
     this.windGain = this.loop(this.noise, [["bandpass", 380, 0.5]], 0.035, [0.05, 0.025]);
     this.rainGain = this.loop(this.noise, [["highpass", 1400, 0.7], ["lowpass", 6500, 0.7]], 0, null);
   },
-  loop(buf, filters, gain, lfo) {
+  loop(buf, filters, gain, lfo, breathe) {
     const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.loop = true;
     src.playbackRate.value = rnd(0.95, 1.05);
     let node = src;
-    filters.forEach(([type, f, q]) => { const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; node.connect(fl); node = fl; });
+    const fls = [];
+    filters.forEach(([type, f, q]) => { const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; node.connect(fl); node = fl; fls.push(fl); });
     const gn = c.createGain(); gn.gain.value = gain; node.connect(gn); gn.connect(this.master);
+    // a água "respira": o filtro abre e fecha num ciclo de 5 s
+    if (breathe && fls[0]) { const o = c.createOscillator(), og = c.createGain(); o.frequency.value = 1 / 5; og.gain.value = breathe; o.connect(og); og.connect(fls[0].frequency); o.start(); }
     if (lfo) { const o = c.createOscillator(), og = c.createGain(); o.frequency.value = lfo[0]; og.gain.value = lfo[1]; o.connect(og); og.connect(gn.gain); o.start(); }
     src.start(0, Math.random() * 3);
     return gn;
@@ -573,6 +639,24 @@ const Snd = {
   snap() { this.burst(5000, 1800, 2, 0.1, 0.002, 0.12); },
   // mordida: duas notas que sobem, claras sobre o ambiente
   biteCall() { const sc = this.scale(); this.piano(sc.notes[2] + 12, 0.09, 0, 2.2); this.piano(sc.notes[4] + 12, 0.08, 0.14, 2.6); this.plop(1.2); },
+  // kalimba: ataque lento, decaimento longo e um harmônico levemente desafinado, como uma lâmina de metal
+  kalimba(midi, vol = 0.06, when = 0) {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime + when, f = 440 * Math.pow(2, (midi - 69) / 12);
+    const env = c.createGain(), lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400;
+    env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(vol, t + 0.06);
+    env.gain.exponentialRampToValueAtTime(vol * 0.35, t + 0.6); env.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+    [[1, 1], [2.76, 0.18], [5.4, 0.05]].forEach(([m, k]) => {
+      const o = c.createOscillator(), og = c.createGain(); o.type = "sine"; o.frequency.value = f * m; og.gain.value = k;
+      o.connect(og); og.connect(lp); o.start(t); o.stop(t + 3.8);
+    });
+    lp.connect(env); env.connect(this.master); env.connect(this.reverb);
+  },
+  // toque na água ou na vara: uma nota da escala pentatônica do momento, subindo e descendo devagar
+  chime(octave = 0) {
+    const now = performance.now(); if (now - (this.lastChime || 0) < 220) return; this.lastChime = now;
+    const sc = this.scale(); this.chimeStep = clamp((this.chimeStep ?? 3) + (Math.random() * 3 | 0) - 1, 0, sc.notes.length - 1);
+    this.kalimba(sc.notes[this.chimeStep] + 12 * octave, 0.055);
+  },
   hookCall() { const sc = this.scale(); [0, 2, 4].forEach((k, i) => this.piano(sc.notes[k] + 12, 0.07, i * 0.08, 2)); },
   sad() { const sc = this.scale(); [4, 2, 0].forEach((k, i) => this.piano(sc.notes[k], 0.05, i * 0.5, 4)); },
   bird() { const base = rnd(2400, 3600), n = (2 + Math.random() * 3) | 0; for (let i = 0; i < n; i++) this.tone("sine", base, base * rnd(1.2, 1.6), 0.02, 0.01, 0.09, i * rnd(0.12, 0.18), null, true); },
@@ -714,7 +798,7 @@ function randomVerse() {
    Mundo
    ============================================================ */
 let ripples = [], fishes = [], splashes = [], drops = [], leaves = [], floaters = [];
-let nextLeaf = rnd(12, 25), trail = [];
+let nextLeaf = rnd(12, 25), trail = [], touchRings = [], motesTap = [];
 const book = store.get("lagoSereno.caderno", {});
 const memories = store.get("lagoSereno.lembrancas", []);
 let learned = store.get("lagoSereno.aprendeu", false);
@@ -766,7 +850,7 @@ function whipAngle(t) {
 }
 function rodGeom() {
   const b = rodBase(), L = H * 0.46;
-  const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + (P.jolt || 0) * Math.sin(T * 48) * 0.035 + Math.sin(T * 0.7) * 0.006 + (P.mode === "float" ? Math.sin(T * 0.9) * 0.012 + Math.sin(T * 2.3) * 0.004 : 0) - P.twitch * 0.05;
+  const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + (P.jolt || 0) * Math.sin(T * 26) * 0.022 + Math.sin(T * BREATH) * 0.006 + (P.mode === "float" ? Math.sin(T * BREATH + 1) * 0.012 : 0) - P.twitch * 0.05;
   const bend = P.rodBend;
   const tip = { x: b.x + Math.sin(a) * L - bend * 14, y: b.y - Math.cos(a) * L + bend * H * 0.085 };
   const ctrl = { x: lerp(b.x, tip.x, 0.55) + bend * 24 + Math.sin(a) * 6, y: lerp(b.y, tip.y, 0.55) + bend * 34 };
@@ -805,14 +889,16 @@ function updateCamera(dt) {
     case "land": case "catch": case "release": tx = cam.x * 0.98; tt = -H * 0.02; tz = 1.13; k = 0.9; break;
     case "retrieve": tx = cam.x * 0.6; tz = 1.02; break;
   }
-  if (!calm && P.mode !== "aim") { tx += Math.sin(T * 0.21) * 0.14; tt += Math.sin(T * 0.33) * 2.5; tz += Math.sin(T * 0.17) * 0.006; roll += Math.sin(T * 0.27) * 0.004; }
+  if (!calm && P.mode !== "aim") { tx += Math.sin(T * TAU / 30) * 0.12; tt += Math.sin(T * BREATH) * 2; tz += Math.sin(T * BREATH) * 0.004; roll += Math.sin(T * TAU / 6) * 0.003; }
   tx = clamp(tx, -2.6, 2.6);
   cam.x += (tx - cam.x) * damp(k, dt);
   cam.tilt += (tt - cam.tilt) * damp(k * 0.8, dt);
   cam.z += (tz - cam.z) * damp(1.2, dt);
   cam.roll += (roll - cam.roll) * damp(1.5, dt);
-  cam.shake *= Math.exp(-dt * 5);
-  if (calm) { cam.shake = 0; cam.roll = 0; }
+  // no lugar de tremer, a câmera se aproxima um pouquinho e volta devagar
+  cam.nudge *= Math.exp(-dt * 1.2);
+  cam.z += cam.nudge * dt * 2;
+  if (calm) { cam.nudge = 0; cam.roll = 0; }
   hz = horizon + cam.tilt;
 }
 
@@ -835,7 +921,7 @@ function touchWater(sx, sy, strong) {
   if (w.d > D_MAX + 4) return;
   addRipple(w.x, w.d, strong ? 0.7 : 0.32, strong ? 1.9 : 1.3, strong ? 0.5 : 0.3);
   if (!strong) return;
-  Snd.drip(0.7); Haptics.water();
+  Snd.drip(0.4); Snd.chime(); Haptics.water();
   pads.forEach(pd => { if (Math.hypot(pd.x - w.x, pd.d - w.d) < 2.2) pd.bob = 1; });
   fishes.forEach(fi => { if (fi.state === "wander" && Math.hypot(fi.x - w.x, fi.d - w.d) < 4.5) fi.curious = { x: w.x, d: w.d, t: rnd(1.8, 3) }; });
   if (P.mode === "float" && !P.target && Math.hypot(w.x - P.bob.x, w.d - P.bob.d) < 4) P.waitT += 3;
@@ -846,6 +932,9 @@ cv.addEventListener("pointerdown", e => {
   const now = performance.now();
   Object.assign(ptr, { id: e.pointerId, down: true, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, t0: now, hist: [{ x: e.clientX, y: e.clientY, t: now }], trail: 0, used: false, twitched: false, spin: 0 });
   P.lastDir = null; P.aimCancel = false; P.sweepAcc = 0; P.idleT = 0; trail = [{ x: e.clientX, y: e.clientY, t: T }];
+  // um anel de luz e algumas partículas onde o dedo encosta
+  touchRings.push({ x: e.clientX, y: e.clientY, t: 0, water: e.clientY > hz });
+  for (let i = 0; i < 7; i++) motesTap.push({ x: e.clientX + rnd(-8, 8), y: e.clientY + rnd(-6, 6), vx: rnd(-12, 12), vy: rnd(-26, -8), t: 0, life: rnd(1.4, 2.2), r: rnd(1, 2.2) });
   if (P.mode === "idle") {
     if (e.clientY > ZONE) { P.mode = "aim"; P.aimPt = null; P.lock = null; P.aimU = 0; P.aimArmed = false; P.aimK = e.clientY - proj(0, D_MIN).y; P.notch = 0; Haptics.grab(); Snd.creak(); }
     else touchWater(e.clientX, e.clientY, true);
@@ -961,7 +1050,7 @@ function releaseLure() {
 function landLure() {
   const f = P.fly; P.bob = { x: f.x, d: f.d, dip: 0.8, dipV: 0, tilt: 0 };
   addRipple(f.x, f.d, 1.1, 2.2, 0.6); addRipple(f.x, f.d, 0.55, 1.5, 0.45);
-  Snd.plop(0.9); cam.shake = 1.2; Haptics.land();
+  Snd.plop(0.9); Snd.chime(-1); cam.nudge = Math.max(cam.nudge, 0.0048); Haptics.land();
   P.mode = "float"; P.waitT = 0; P.bonus = 0; P.target = null;
   Object.assign(P, { crank: 0, crankAcc: 0, crankWin: [], tickAcc: 0, sweepAcc: 0, sweepDist: 0, floatT: 0 });
   const fi = f.lock && fishes.includes(f.lock) && f.lock.state === "wander" ? f.lock : null;
@@ -998,7 +1087,7 @@ const waitTips = { call: false, back: false };
 function twitch() {
   // dar vida à isca: a boia mexe e os peixes por perto notam
   P.twitch = 1; P.bob.dipV += 3; P.bob.tilt = rnd(-0.25, 0.25);
-  addRipple(P.bob.x, P.bob.d, 0.45, 1.3, 0.45); Snd.plop(0.35); Snd.creak(); Haptics.twitchLure();
+  addRipple(P.bob.x, P.bob.d, 0.45, 1.3, 0.45); Snd.plop(0.35); Snd.chime(); Haptics.twitchLure();
   P.waitT += 4;
   fishes.forEach(fi => { if (fi.state === "wander" && Math.hypot(fi.x - P.bob.x, fi.d - P.bob.d) < 7) fi.curious = { x: P.bob.x, d: P.bob.d, t: 2.5 }; });
 }
@@ -1010,7 +1099,7 @@ function hook() {
   const fi = P.target;
   P.mode = "fight"; P.fish = fi; fi.state = "hooked";
   Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0, shakeT: 0.6, jolt: 0, dVel: 0, fightD0: Math.max(fi.d, 4) });
-  P.twitch = 1.4; Snd.splash(0.7); Snd.hookCall(); Haptics.hooked(); cam.shake = 2.5; Snd.songStart();
+  P.twitch = 1.4; Snd.splash(0.7); Snd.hookCall(); Haptics.hooked(); cam.nudge = Math.max(cam.nudge, 0.0100); Snd.songStart();
   flashHint(learned ? "Fisgou!" : "Fisgou! Agora, pequenos círculos com o dedo", learned ? 1.8 : 3.5);
   addRipple(fi.x, fi.d, 1.4, 1.4, 0.75); addRipple(fi.x, fi.d, 0.8, 1, 0.6);
 }
@@ -1238,7 +1327,7 @@ function updateFish(fi, dt) {
         setHint("Ainda não… ele está só provando");
       } else {
         fi.state = "bite"; fi.t = 0; fi.window = 1.8 + P.bonus * 0.2 + (fi.sp.rar === 0 ? 0.2 : 0);
-        P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.4, 0.6); Snd.plop(1.1); Haptics.bite(); Haptics.tugT = 0.45; cam.shake = 1.5;
+        P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.4, 0.6); Snd.plop(1.1); Haptics.bite(); Haptics.tugT = 0.45; cam.nudge = Math.max(cam.nudge, 0.0060);
         setHint("Agora! Puxe a vara", true); Snd.biteCall();
       }
     }
@@ -1324,7 +1413,7 @@ function updateFight(dt) {
   P.nextRun -= dt;
   if (P.run <= 0 && P.nextRun < 0) {
     P.run = rnd(1.3, 2.6) * (0.5 + P.stamina * 0.5); P.runDir = Math.random() < 0.5 ? -1 : 1; P.nextRun = rnd(2.6, 5);
-    addRipple(fi.x, fi.d, 1.2, 1.5, 0.6); Snd.splash(0.35); cam.shake = 2; Haptics.run();
+    addRipple(fi.x, fi.d, 1.2, 1.5, 0.6); Snd.splash(0.35); cam.nudge = Math.max(cam.nudge, 0.0080); Haptics.run();
     if (sp.rar >= 2 || Math.random() < 0.3) P.jump = 1;
   }
   const running = P.run > 0; if (running) P.run -= dt;
@@ -1369,7 +1458,6 @@ function draw() {
   const L = env.light;
   g.save();
   if (cam.roll) { g.translate(W / 2, H * 0.6); g.rotate(cam.roll); g.translate(-W / 2, -H * 0.6); }
-  if (cam.shake > 0.05) g.translate(Math.sin(T * 37) * cam.shake, Math.cos(T * 31) * cam.shake * 0.6);
   bgCache.frame++;
   if (bgCache.dirty || bgCache.frame % 4 === 0 || Math.abs(cam.x - bgCache.camX) > 0.12 || Math.abs(hz - bgCache.hz) > 2.5) {
     bg.clearRect(0, 0, W, H); drawBackdrop(bg);
@@ -1443,7 +1531,7 @@ function drawBackdrop(c) {
       gl.addColorStop(0, rgb(env.sun, al * clear)); gl.addColorStop(1, rgb(env.sun, 0));
       c.fillStyle = gl; c.fillRect(sx - R, sy - R, R * 2, R * 2);
     });
-    c.fillStyle = rgb(mix(env.sun, [255, 255, 255], 0.4), 0.95 * clear); c.beginPath(); c.arc(sx, sy, r0, 0, TAU); c.fill();
+    c.fillStyle = rgb(mix(env.sun, [246, 243, 232], 0.4), 0.95 * clear); c.beginPath(); c.arc(sx, sy, r0, 0, TAU); c.fill();
   }
   const moonA = ((dayT + 1 - 0.64) % 1) / 0.4;
   if (moonA >= 0 && moonA <= 1) {
@@ -1486,7 +1574,7 @@ function drawSkyLive() {
     if (shooting) {
       const k = shooting.t / shooting.dur, x = shooting.x + shooting.vx * k, y = shooting.y + shooting.vy * k;
       const gr = g.createLinearGradient(x, y, x - shooting.vx * 0.25, y - shooting.vy * 0.25);
-      gr.addColorStop(0, `rgba(255,255,255,${0.9 * (1 - k)})`); gr.addColorStop(1, "rgba(255,255,255,0)");
+      gr.addColorStop(0, `rgba(246,243,232,${0.9 * (1 - k)})`); gr.addColorStop(1, "rgba(246,243,232,0)");
       g.strokeStyle = gr; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.lineTo(x - shooting.vx * 0.25, y - shooting.vy * 0.25); g.stroke();
     }
   }
@@ -1494,7 +1582,7 @@ function drawSkyLive() {
 }
 function drawClouds(c, skyX) {
   // nuvens pintadas em duas cores: sombra embaixo, luz em cima
-  const shadow = mix(env.mid, env.top, 0.25), lit = mix(mix(env.hor, env.sun, 0.5), [255, 255, 255], 0.25 * (1 - env.golden));
+  const shadow = mix(env.mid, env.top, 0.25), lit = mix(mix(env.hor, env.sun, 0.5), [246, 243, 232], 0.25 * (1 - env.golden));
   const a = (0.55 + weather.rain * 0.3) * (1 - env.night * 0.55);
   clouds.forEach(cl => {
     const cy = cl.y + cam.tilt * 0.4, cx = cl.x + skyX * 1.5;
@@ -1528,7 +1616,7 @@ function drawReflections() {
   wt.addColorStop(0, rgb(env.fog, 0.12)); wt.addColorStop(0.25, rgb(env.water, 0.35)); wt.addColorStop(1, rgb(shade(env.water, 0.6), 0.82));
   g.fillStyle = wt; g.fillRect(-W * 0.2, hz, W * 1.4, H - hz + H * 0.2);
   // linha brilhante onde a água encontra a margem
-  g.fillStyle = rgb(mix(env.hor, [255, 255, 255], 0.3), 0.35 * env.light); g.fillRect(-W * 0.2, hz, W * 1.4, 1.2);
+  g.fillStyle = rgb(mix(env.hor, [246, 243, 232], 0.3), 0.35 * env.light); g.fillRect(-W * 0.2, hz, W * 1.4, 1.2);
   const sun = env.sunUp > 0.02, lightX = sun ? env.sunX : env.moonX;
   if (lightX > 0) {
     const col = sun ? env.sun : [215, 225, 255], k = (sun ? 0.85 : 0.6) * (1 - weather.rain * 0.7);
@@ -1540,16 +1628,17 @@ function drawReflections() {
     });
     g.restore();
   }
-  const shimC = mix(env.hor, [255, 255, 255], 0.35);
+  const shimC = mix(env.hor, [246, 243, 232], 0.35);
   shimmer.forEach(sm => {
     const x = sm.x * xMax(sm.d) + Math.sin(T * 0.15 + sm.ph) * 0.3, p = proj(x, sm.d), w = sm.len * kpx * p.s;
-    const a = (0.035 + 0.05 * Math.sin(T * sm.sp + sm.ph)) * env.light;
+    // perto de você as linhas de vento quase somem, para não riscar a água
+    const a = (0.035 + 0.05 * Math.sin(T * sm.sp + sm.ph)) * env.light * (1 - clamp(p.s, 0, 1) * 0.75);
     if (a <= 0 || p.y > H + 5) return;
     g.strokeStyle = rgb(shimC, a); g.lineWidth = Math.max(0.6, p.s * 2);
     g.beginPath(); g.moveTo(p.x - w / 2, p.y); g.lineTo(p.x + w / 2, p.y); g.stroke();
   });
   if (env.lamp > 0.02) {
-    const lx = lampPos().x, fl = 0.85 + Math.sin(T * 9) * 0.05 + Math.sin(T * 13.7) * 0.05;
+    const lx = lampPos().x, fl = 0.9 + Math.sin(T * BREATH) * 0.06 + Math.sin(T * 2.1) * 0.02;
     const gr = g.createLinearGradient(0, H * 0.7, 0, H);
     gr.addColorStop(0, "rgba(255,190,110,0)"); gr.addColorStop(0.5, `rgba(255,190,110,${0.24 * env.lamp * fl})`); gr.addColorStop(1, "rgba(255,190,110,0)");
     g.fillStyle = gr; g.beginPath(); g.ellipse(lx + Math.sin(T * 1.7) * 2, H * 0.86, 16 + Math.sin(T * 2) * 3, H * 0.14, 0, 0, TAU); g.fill();
@@ -1578,7 +1667,7 @@ function drawBirds(c) {
 }
 function drawPads(L) {
   pads.forEach(pd => {
-    const p = proj(pd.x, pd.d + Math.sin(T * 0.3 + pd.ph) * 0.05), rx = pd.r * kpx * p.s, ry = rx * squash(p.s);
+    const p = proj(pd.x, pd.d + Math.sin(T * TAU / 6 + pd.ph) * 0.05), rx = pd.r * kpx * p.s, ry = rx * squash(p.s);
     if (p.x < -rx || p.x > W + rx || p.y > H + ry) return;
     const lift = pd.bob * Math.sin(T * 8) * ry * 0.4;
     const c = mix(mix(env.ink, [70, 108, 72], 0.45 + L * 0.35), env.fog, 0.12);
@@ -1602,7 +1691,7 @@ function drawFloaters(L) {
   });
 }
 function drawRipples() {
-  const c = mix(env.bot, [255, 255, 255], 0.45);
+  const c = mix(env.bot, [246, 243, 232], 0.45);
   ripples.forEach(r => {
     const p = proj(r.x, r.d), rx = r.r * kpx * p.s, ry = rx * squash(p.s);
     const a = r.a * Math.pow(1 - r.t / r.life, 1.5);
@@ -1667,7 +1756,7 @@ function floatShape(r) {
   g.save(); g.beginPath(); g.rect(-r, -r * 1.2, r * 2, r * 0.95); g.clip();
   g.fillStyle = "#d4553c"; g.beginPath(); g.ellipse(0, 0, r * 0.4, r, 0, 0, TAU); g.fill(); g.restore();
   g.fillStyle = "rgba(40,30,24,.6)"; g.fillRect(-r * 0.4, -r * 0.27, r * 0.8, r * 0.07);
-  g.fillStyle = "rgba(255,255,255,.45)"; g.beginPath(); g.ellipse(-r * 0.16, -r * 0.5, r * 0.08, r * 0.25, 0, 0, TAU); g.fill();
+  g.fillStyle = "rgba(246,243,232,.45)"; g.beginPath(); g.ellipse(-r * 0.16, -r * 0.5, r * 0.08, r * 0.25, 0, 0, TAU); g.fill();
   g.strokeStyle = "#6a5a48"; g.lineWidth = Math.max(1, r * 0.08); g.beginPath(); g.moveTo(0, r); g.lineTo(0, r * 1.35); g.stroke();
 }
 function drawFloatFree(x, y, r, rot) { g.save(); g.translate(x, y); g.rotate(rot); floatShape(r); g.restore(); }
@@ -1675,13 +1764,13 @@ function drawBobberInWater() {
   if (P.mode !== "float" && P.mode !== "skim") return;
   const p = proj(P.bob.x, P.bob.d), r = Math.max(3, 17 * Math.pow(p.s, 0.7));
   const wl = p.y, sink = clamp(P.bob.dip * 0.55, -0.2, 1.15);
-  const cy = wl - r * 0.15 + sink * r * 1.6 + Math.sin(T * 2) * r * 0.05;
+  const cy = wl - r * 0.15 + sink * r * 1.6 + Math.sin(T * BREATH) * r * 0.09;
   // parte submersa, apagada pela água
   g.save(); g.beginPath(); g.rect(p.x - r * 3, wl, r * 6, r * 4); g.clip(); g.globalAlpha = 0.22;
-  g.translate(p.x, cy); g.rotate(P.bob.tilt + Math.sin(T * 1.3) * 0.05); floatShape(r); g.restore();
+  g.translate(p.x, cy); g.rotate(P.bob.tilt + Math.sin(T * TAU / 4.5) * 0.05); floatShape(r); g.restore();
   g.save(); g.beginPath(); g.rect(p.x - r * 3, wl - r * 4, r * 6, r * 4); g.clip();
-  g.translate(p.x, cy); g.rotate(P.bob.tilt + Math.sin(T * 1.3) * 0.05); floatShape(r); g.restore();
-  g.strokeStyle = "rgba(255,255,255,.25)"; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, wl, r * 0.7, r * 0.18, 0, 0, TAU); g.stroke();
+  g.translate(p.x, cy); g.rotate(P.bob.tilt + Math.sin(T * TAU / 4.5) * 0.05); floatShape(r); g.restore();
+  g.strokeStyle = "rgba(246,243,232,.25)"; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, wl, r * 0.7, r * 0.18, 0, 0, TAU); g.stroke();
   if (P.target && P.target.state === "bite") {
     // a água pisca em anéis de luz onde a boia afundou
     const R = Math.max(18, 1.1 * kpx * p.s);
@@ -1790,9 +1879,9 @@ function drawDrops() {
   g.globalAlpha = 1;
 }
 function drawReeds(L) {
-  const base = mix(env.ink, [46, 72, 44], 0.35 + L * 0.25), wind = Math.sin(T * 0.5) * 0.5 + weather.rain * 0.4, ox = -cam.x * kpx * 0.22;
+  const base = mix(env.ink, [46, 72, 44], 0.35 + L * 0.25), wind = Math.sin(T * TAU / 6) * 0.5 + weather.rain * 0.4, ox = -cam.x * kpx * 0.22;
   [reedsL, reedsR].forEach(set => set.forEach(rd => {
-    const sway = (Math.sin(T * 0.9 + rd.ph) * 0.06 + wind * 0.04) * rd.h + rd.push;
+    const sway = (Math.sin(T * TAU / 5.5 + rd.ph) * 0.06 + wind * 0.04) * rd.h + rd.push;
     const bx = rd.x + ox, tipX = bx + rd.bend * rd.h + sway, tipY = H - rd.h;
     g.lineCap = "round";
     // primeiro plano fora de foco: um traço largo e transparente por baixo do traço firme
@@ -1816,7 +1905,7 @@ function drawPier(L) {
   g.fillStyle = rgb(shade(wood, 0.85)); g.fillRect(lp.x - 7, lp.y, 14, H - lp.y);
   g.fillStyle = rgb(shade(wood, 1.15)); g.fillRect(lp.x - 7, lp.y, 3, H - lp.y);
   // lamparina
-  const on = env.lamp, fl = 0.85 + Math.sin(T * 9) * 0.06 + Math.sin(T * 13.7) * 0.05;
+  const on = env.lamp, fl = 0.9 + Math.sin(T * BREATH) * 0.06 + Math.sin(T * 2.1) * 0.02;
   if (on > 0.02) {
     g.save(); g.globalCompositeOperation = "lighter";
     const gl = g.createRadialGradient(lp.x, lp.y - 16, 0, lp.x, lp.y - 16, 150);
@@ -1871,10 +1960,10 @@ function drawFightMeter() {
   if (P.mode === "fight" && P.fish) {
     const fi = P.fish;
     meter.p = clamp(1 - (fi.d - 2.6) / Math.max(0.5, P.fightD0 - 2.6), 0, 1);
-    if (P.over > 0.4 || P.tension > 0.92) { meter.label = "linha no limite, descanse o dedo"; meter.col = [236, 127, 114]; }
-    else if (P.dVel > 0.12) { meter.label = "trazendo"; meter.col = [168, 216, 160]; }
-    else if (P.dVel < -0.12) { meter.label = "ele está levando linha"; meter.col = [242, 196, 107]; }
-    else { meter.label = "segurando"; meter.col = [243, 236, 224]; }
+    if (P.over > 0.4 || P.tension > 0.92) { meter.label = "linha no limite, descanse o dedo"; meter.col = [241, 223, 184]; }
+    else if (P.dVel > 0.12) { meter.label = "trazendo"; meter.col = [181, 207, 174]; }
+    else if (P.dVel < -0.12) { meter.label = "ele está levando linha"; meter.col = [184, 199, 204]; }
+    else { meter.label = "segurando"; meter.col = [236, 228, 210]; }
   }
   const w = Math.min(230, W * 0.58), x0 = W / 2 - w / 2, x1 = W / 2 + w / 2, y = H * 0.935 - (1 - a) * 10;
   const wob = (P.jolt || 0) * 4 * Math.sin(T * 50);
@@ -1902,26 +1991,43 @@ function drawFightMeter() {
     }
     g.globalAlpha = a;
   }
-  g.font = 'italic 15px "Cormorant Garamond", Georgia, serif'; g.textAlign = "center";
-  g.fillStyle = "rgba(0,0,0,.5)"; g.fillText(meter.label, W / 2 + 1, y + 21);
+  g.font = '300 14px "Quicksand", "Nunito", system-ui, sans-serif'; g.textAlign = "center";
+  g.fillStyle = "rgba(16,26,30,.5)"; g.fillText(meter.label, W / 2 + 1, y + 21);
   g.fillStyle = rgb(meter.col, 0.95); g.fillText(meter.label, W / 2, y + 20);
   g.restore();
 }
 // um rastro suave mostra que o jogo está sentindo o dedo
 function drawTouch() {
+  const dt = 1 / 60;
+  touchRings.forEach(r => { r.t += dt; });
+  touchRings = touchRings.filter(r => r.t < 1.8);
+  touchRings.forEach(r => {
+    const k = r.t / 1.8, e = 1 - Math.pow(1 - k, 3), R = 10 + e * 58;
+    g.strokeStyle = `rgba(236,228,210,${0.38 * (1 - k)})`; g.lineWidth = 1.4;
+    g.beginPath(); g.ellipse(r.x, r.y, R, r.water ? R * 0.42 : R, 0, 0, TAU); g.stroke();
+    if (k < 0.6) { g.strokeStyle = `rgba(197,211,194,${0.22 * (1 - k / 0.6)})`; g.beginPath(); g.ellipse(r.x, r.y, R * 0.55, (r.water ? R * 0.42 : R) * 0.55, 0, 0, TAU); g.stroke(); }
+  });
+  motesTap.forEach(m => { m.t += dt; m.x += m.vx * dt; m.y += m.vy * dt; m.vy *= 0.985; m.vx *= 0.98; });
+  motesTap = motesTap.filter(m => m.t < m.life);
+  motesTap.forEach(m => {
+    const a = Math.sin(Math.PI * m.t / m.life) * 0.7;
+    const gl = g.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 4);
+    gl.addColorStop(0, `rgba(241,223,184,${a})`); gl.addColorStop(1, "rgba(241,223,184,0)");
+    g.fillStyle = gl; g.fillRect(m.x - m.r * 4, m.y - m.r * 4, m.r * 8, m.r * 8);
+  });
   trail = trail.filter(p => T - p.t < 0.45);
   if (trail.length > 1) {
     g.lineCap = "round";
     for (let i = 1; i < trail.length; i++) {
       const a = trail[i - 1], b = trail[i], k = 1 - (T - b.t) / 0.45;
-      g.strokeStyle = `rgba(255,240,215,${0.22 * k})`; g.lineWidth = 2 + 4 * k;
+      g.strokeStyle = `rgba(236,228,210,${0.18 * k})`; g.lineWidth = 2 + 4 * k;
       g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
     }
     g.lineCap = "butt";
   }
   if (ptr.down) {
     const gl = g.createRadialGradient(ptr.x, ptr.y, 0, ptr.x, ptr.y, 34);
-    gl.addColorStop(0, "rgba(255,240,215,.22)"); gl.addColorStop(1, "rgba(255,240,215,0)");
+    gl.addColorStop(0, "rgba(236,228,210,.2)"); gl.addColorStop(1, "rgba(236,228,210,0)");
     g.fillStyle = gl; g.beginPath(); g.arc(ptr.x, ptr.y, 34, 0, TAU); g.fill();
   }
 }
@@ -1942,7 +2048,7 @@ function drawGrade() {
   if (paper) { g.globalCompositeOperation = "overlay"; g.globalAlpha = 0.42; g.fillStyle = paper; g.fillRect(0, 0, W, H); }
   g.restore();
   const vg = g.createRadialGradient(W / 2, H * 0.5, Math.min(W, H) * 0.32, W / 2, H * 0.5, Math.max(W, H) * 0.8);
-  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, rgb(shade(env.ink, 0.6), 0.5 + env.night * 0.15 + (cam.z - 1) * 1.2));
+  vg.addColorStop(0, "rgba(16,26,30,0)"); vg.addColorStop(1, rgb(shade(env.ink, 0.6), 0.5 + env.night * 0.15 + (cam.z - 1) * 1.2));
   g.fillStyle = vg; g.fillRect(0, 0, W, H);
 }
 
@@ -1968,7 +2074,7 @@ function drawFishSide(c, sp, x, y, L, silhouette) {
   anal.moveTo(x0 + L * 0.55, y + Hh * 0.38); anal.quadraticCurveTo(x0 + L * 0.66, y + Hh * 0.75, x0 + L * 0.72, y + Hh * 0.3); anal.closePath();
   const pect = new Path2D();
   pect.moveTo(x0 + L * 0.24, y + Hh * 0.1); pect.quadraticCurveTo(x0 + L * 0.34, y + Hh * 0.35, x0 + L * 0.38, y + Hh * 0.18); pect.closePath();
-  if (silhouette) { c.fillStyle = "rgba(70,60,45,.16)"; [tail, dorsal, anal, body].forEach(p => c.fill(p)); c.restore(); return; }
+  if (silhouette) { c.fillStyle = "rgba(236,228,210,.14)"; [tail, dorsal, anal, body].forEach(p => c.fill(p)); c.restore(); return; }
   const fin = sp.fin;
   c.fillStyle = fin; c.globalAlpha = 0.9; c.fill(tail); c.fill(dorsal); c.fill(anal); c.globalAlpha = 1;
   const gr = c.createLinearGradient(0, y - Hh / 2, 0, y + Hh / 2);
@@ -1977,16 +2083,16 @@ function drawFishSide(c, sp, x, y, L, silhouette) {
   c.save(); c.clip(body);
   drawPattern(c, sp, x0, y, L, Hh);
   const sh = c.createLinearGradient(0, y - Hh / 2, 0, y);
-  sh.addColorStop(0, "rgba(255,255,255,0)"); sh.addColorStop(0.7, "rgba(255,255,255,.14)"); sh.addColorStop(1, "rgba(255,255,255,0)");
+  sh.addColorStop(0, "rgba(246,243,232,0)"); sh.addColorStop(0.7, "rgba(246,243,232,.14)"); sh.addColorStop(1, "rgba(246,243,232,0)");
   c.fillStyle = sh; c.fillRect(x0, y - Hh / 2, L, Hh / 2);
   c.restore();
   c.fillStyle = fin; c.globalAlpha = 0.85; c.fill(pect); c.globalAlpha = 1;
-  c.strokeStyle = "rgba(0,0,0,.25)"; c.lineWidth = Math.max(1, L * 0.006);
+  c.strokeStyle = "rgba(16,26,30,.25)"; c.lineWidth = Math.max(1, L * 0.006);
   c.beginPath(); c.arc(x0 + L * 0.2, y, Hh * 0.38, -1.1, 1.1); c.stroke();
   const er = Math.max(2, Hh * 0.09);
   c.fillStyle = "#f4f0e2"; c.beginPath(); c.arc(x0 + L * 0.1, y - Hh * 0.1, er, 0, TAU); c.fill();
-  c.fillStyle = "#151515"; c.beginPath(); c.arc(x0 + L * 0.098, y - Hh * 0.1, er * 0.6, 0, TAU); c.fill();
-  c.fillStyle = "rgba(255,255,255,.8)"; c.beginPath(); c.arc(x0 + L * 0.092, y - Hh * 0.13, er * 0.18, 0, TAU); c.fill();
+  c.fillStyle = "#1d2629"; c.beginPath(); c.arc(x0 + L * 0.098, y - Hh * 0.1, er * 0.6, 0, TAU); c.fill();
+  c.fillStyle = "rgba(246,243,232,.8)"; c.beginPath(); c.arc(x0 + L * 0.092, y - Hh * 0.13, er * 0.18, 0, TAU); c.fill();
   if (sp.barbels) {
     c.strokeStyle = shadeHex(sp.top, 0.7); c.lineWidth = Math.max(1, L * 0.005);
     [[-0.2, 0.4], [0.1, 0.7], [0.15, 0.3]].forEach(([dy, k]) => { c.beginPath(); c.moveTo(x0 + L * 0.03, y + Hh * 0.1); c.quadraticCurveTo(x0 - L * 0.05 * k, y + Hh * (0.2 + dy), x0 - L * 0.12 * k, y + Hh * (0.5 + dy)); c.stroke(); });
@@ -2016,9 +2122,9 @@ function drawPattern(c, sp, x0, y, L, Hh) {
       for (let i = 0; i < 7; i++) { c.beginPath(); c.moveTo(x0 + L * 0.2, y - Hh * 0.35 + i * Hh * 0.1); c.lineTo(x0 + L * 0.85, y - Hh * 0.2 + i * Hh * 0.08); c.stroke(); } break;
     case "redScales":
       { const gr = c.createLinearGradient(x0 + L * 0.45, 0, x0 + L * 0.85, 0); gr.addColorStop(0, "rgba(168,50,42,0)"); gr.addColorStop(1, "rgba(168,50,42,.85)"); c.fillStyle = gr; c.fillRect(x0, y - Hh, L, Hh * 2); }
-      c.strokeStyle = "rgba(0,0,0,.18)"; c.lineWidth = 1;
+      c.strokeStyle = "rgba(16,26,30,.18)"; c.lineWidth = 1;
       for (let i = 0; i < 12; i++) for (let j = 0; j < 4; j++) { c.beginPath(); c.arc(x0 + L * (0.25 + i * 0.05), y - Hh * 0.3 + j * Hh * 0.18, Hh * 0.08, -1.2, 1.2); c.stroke(); } break;
-    case "darkBelly": { const gr = c.createLinearGradient(0, y, 0, y + Hh / 2); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(25,25,22,.75)"); c.fillStyle = gr; c.fillRect(x0, y, L, Hh); } break;
+    case "darkBelly": { const gr = c.createLinearGradient(0, y, 0, y + Hh / 2); gr.addColorStop(0, "rgba(16,26,30,0)"); gr.addColorStop(1, "rgba(25,25,22,.75)"); c.fillStyle = gr; c.fillRect(x0, y, L, Hh); } break;
   }
 }
 
@@ -2103,6 +2209,10 @@ $("btnStart").addEventListener("click", () => {
   setTimeout(() => setHint(learned ? "" : "Arraste para cima, a partir de baixo"), 1400);
   try { navigator.wakeLock && navigator.wakeLock.request("screen").catch(() => {}); } catch (e) {}
 });
+// o iPhone suspende o áudio sozinho: o primeiro toque depois disso o retoma
+document.addEventListener("pointerdown", () => {
+  if (P.mode !== "intro" && Snd.ctx && Snd.ctx.state === "suspended") Snd.ctx.resume();
+}, { passive: true });
 document.addEventListener("visibilitychange", () => {
   if (!Snd.ctx) return;
   if (document.hidden) Snd.ctx.suspend(); else Snd.ctx.resume();

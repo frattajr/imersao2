@@ -101,6 +101,25 @@ Fontes sobre as referências:
 - [A cor e a névoa em Firewatch](https://blogs.ulster.ac.uk/bethbuchanan/2021/03/05/ixd104-further-looking-into-the-art-of-firewatch)
 - [GRIS e seus prêmios (Notebookcheck)](https://www.notebookcheck.net/Award-winning-platformer-GRIS-is-down-to-its-lowest-price-ever-in-honor-of-studios-upcoming-release.899510.0.html)
 
+## Interface zen
+
+A interface usa variáveis CSS em `:root`:
+
+- **Paleta serena:** lago fundo `#213036` (cor principal, também no tema do PWA), sálvia, névoa, água e areia. Não há branco nem preto puros na interface nem no desenho do jogo.
+- **Vidro fosco:** a abertura, a ficha do peixe, o diário e os botões têm fundo translúcido, `backdrop-filter: blur(12px)`, borda de 1 px `rgba(255,255,255,.4)`, cantos de 24 px e sombras bem difusas.
+- **HUD fantasma:** a hora e os botões ficam com opacidade 0,35 enquanto você joga e voltam a 1 só com o ponteiro em cima ou o foco do teclado. O resto da tela fica livre para o lago.
+- **Tipografia leve:** Quicksand nos pesos 300 e 400, com `letter-spacing: 0.04em`, e só sombras suaves. As lembranças continuam escritas à mão (Caveat).
+- **Transições orgânicas:** `cubic-bezier(0.22, 1, 0.36, 1)` entre 500 e 800 ms.
+- **Atmosfera que respira:** o fundo da página se move num ciclo de 28 s, e uma aura de luz suave sobre a cena respira em 24 s.
+- **Ritmo de respiração:** o balanço da boia, dos juncos, das vitórias-régias, da vara e da lamparina, e o leve sobe-e-desce da câmera seguem ciclos de 4,5 a 6 s, sempre em seno (entrada e saída suaves).
+- **Toque:** cada toque deixa um anel de luz que se abre devagar (achatado sobre a água) e algumas partículas luminosas que sobem e somem. Na água, também faz ondas de verdade.
+- **Sem tensão:** a tela nunca treme. Onde antes havia tremor (mordida, fisgada, corrida, boia caindo), a câmera se aproxima um pouquinho e volta devagar. O medidor da briga não usa vermelho: "linha no limite" aparece em areia quente, e os trancos da vara ficaram mais macios.
+- **Som:**
+  - **Água:** o ruído marrom com filtro passa-baixa "respira", abrindo e fechando o filtro a cada 5 s.
+  - **Kalimba:** tocar na água, mexer a isca e a boia caindo tocam uma nota de kalimba na escala pentatônica do momento, com ataque lento, decaimento longo e reverberação.
+  - **Retomada:** o áudio volta no primeiro toque se o iPhone o suspender.
+- **Quem ativa reduzir movimento** no aparelho fica sem a respiração do fundo, a aura e as animações de entrada.
+
 ## O que deixa a cena viva
 
 - **Câmera:** desliza devagar, sempre suavizada.
