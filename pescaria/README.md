@@ -4,11 +4,24 @@ Jogo de pescaria calmo, feito para o celular. Os controles são gestos com o ded
 
 | Gesto | O que faz |
 | --- | --- |
-| **Segurar a boia e deslizar para cima** | Lança a boia. A força do gesto define a distância e o ângulo define a direção. |
-| **Soltar com o anel pequeno** | Enquanto você segura a boia, cada sombra de peixe ganha um anel que encolhe. Cair dentro dele dá *Legal*, *Ótimo* ou *Excelente*, e o peixe morde mais rápido e briga menos. A cor do anel mostra a raridade: verde, amarelo, laranja ou rosa. |
-| **Girar a boia antes de lançar** | Faz um arremesso em curva, que vale um bônus a mais. |
-| **Puxar para baixo** | Fisga o peixe quando a boia afunda. Se puxar enquanto ele ainda só belisca, ele foge. Sem peixe por perto, o mesmo gesto recolhe a boia. |
-| **Fazer círculos com o dedo** | Gira a carretilha. O arco mostra a tensão da linha: se ficar no vermelho, pare de girar e deixe o peixe correr, senão a linha arrebenta. |
+| **Tocar ou passar o dedo na água** | Faz uma gota e uma onda na água. As vitórias-régias balançam e os peixes por perto vêm ver. Com a boia na água, isso chama peixe mais rápido. |
+| **Arrastar a boia para cima** | Mira. Um círculo pontilhado na água mostra onde a boia vai cair: quanto mais alto o dedo, mais longe, e o lado do dedo define a direção. A mira é puxada de leve para a sombra mais próxima. |
+| **Soltar com o anel pequeno** | Lança. O peixe na mira ganha um anel que encolhe. Soltar com o anel pequeno dá *Legal*, *Ótimo* ou *Excelente*. A cor do anel mostra a raridade. |
+| **Girar a boia antes de soltar** | Arremesso em curva, que vale um bônus a mais. |
+| **Puxar de leve para baixo** | Fisga quando a boia afunda (há mais de 1 segundo para reagir). Se puxar cedo, o peixe só recua e volta. Se perder a hora, ele belisca de novo uma vez. Sem peixe por perto, o mesmo gesto recolhe a boia. |
+| **Fazer círculos pequenos** | Gira a carretilha. Com a linha no limite, a carretilha cede linha sozinha. Ela só arrebenta se você insistir girando forte por mais de 2 segundos. |
+| **Inclinar o dedo para o lado** | Quando o peixe corre, uma seta mostra para onde levar o dedo. Inclinar para o lado contrário segura a corrida e cansa o peixe mais rápido. |
+
+## Câmera
+
+A câmera desliza devagar, sempre com suavização:
+- **Mira:** acompanha o alvo, levanta o olhar para lances longos e aproxima um pouco.
+- **Arremesso:** segue a boia.
+- **Espera:** centraliza a boia.
+- **Briga:** acompanha o peixe e treme de leve quando ele dá uma corrida.
+- **Repouso:** olha para onde o dedo está e "respira" devagar.
+
+Morros, mata e juncos se movem em velocidades diferentes, o que dá profundidade. Quem ativa *reduzir movimento* no aparelho fica sem a respiração e sem o tremor.
 
 ## O que deixa o jogo relaxante
 

@@ -137,7 +137,7 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 </style>
 </head>
 <body>
-<canvas id="c" aria-label="Lagoa: arraste a boia para cima para lançar"></canvas>
+<canvas id="c" aria-label="Lagoa: arraste a boia para cima para mirar e solte para lançar"></canvas>
 
 <div class="hud">
   <div class="clock"><b id="phaseName">Entardecer</b><span id="tally">0 peixes hoje</span></div>
@@ -160,18 +160,18 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
     <ul class="gestures">
       <li class="g-up">
         <svg viewBox="0 0 52 52"><path class="g-stroke" d="M26 44V8"/><circle class="g-dot" cx="26" cy="26" r="6"/></svg>
-        <div><b>Deslize para cima</b><span>Segure a boia e arremesse em direção a uma sombra. Solte quando o anel colorido estiver pequeno.</span></div>
+        <div><b>Arraste para cima e solte</b><span>Um círculo na água mostra onde a boia vai cair. Leve até uma sombra e solte quando o anel colorido estiver pequeno.</span></div>
       </li>
       <li class="g-down">
         <svg viewBox="0 0 52 52"><path class="g-stroke" d="M26 8v36"/><circle class="g-dot" cx="26" cy="26" r="6"/></svg>
-        <div><b>Puxe para baixo</b><span>Quando a boia afundar, puxe rápido para fisgar. Cedo demais, o peixe se assusta.</span></div>
+        <div><b>Puxe de leve para baixo</b><span>Quando a boia afundar, um pequeno puxão fisga o peixe. Se puxar antes, ele só recua e volta.</span></div>
       </li>
       <li class="g-spin">
         <svg viewBox="0 0 52 52"><circle class="g-stroke" cx="26" cy="26" r="16"/><circle class="g-dot" cx="26" cy="10" r="6"/></svg>
-        <div><b>Gire o dedo</b><span>Faça círculos para girar a carretilha. Se a linha esticar demais, pare e deixe o peixe correr.</span></div>
+        <div><b>Faça círculos e incline</b><span>Círculos pequenos giram a carretilha. Quando o peixe correr para um lado, leve o dedo para o outro.</span></div>
       </li>
     </ul>
-    <p style="font-size:.85rem">Dica: gire a boia antes de lançar para um arremesso em curva.</p>
+    <p style="font-size:.85rem">Toque na água para chamar os peixes. Gire a boia antes de soltar para lançar em curva.</p>
     <button class="btn" id="btnStart">Ir para a beira do lago</button>
   </div>
 </div>
@@ -212,9 +212,10 @@ const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const rnd = (a, b) => a + Math.random() * (b - a);
-const pick = arr => arr[(Math.random() * arr.length) | 0];
 const ease = t => t * t * (3 - 2 * t);
+const damp = (k, dt) => 1 - Math.exp(-k * dt); // suavização independente do fps
 const wrapAng = a => { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; };
+const lerpAng = (a, b, t) => a + wrapAng(b - a) * clamp(t, 0, 1);
 const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 const mix = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
@@ -224,6 +225,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
+const calm = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } })();
 
 /* ============================================================
    Espécies (peixes de água doce do Brasil)
@@ -251,10 +253,10 @@ const SPECIES = [
   { id: "piau", nome: "Piau-três-pintas", sci: "Leporinus friderici", rar: 1, len: [20, 40], a: 1.5e-5, size: 0.55, speed: 1.2, pull: 0.6, when: "alvorada",
     top: "#8a8a6a", belly: "#ddd8b8", fin: "#c8a24a", aspect: 0.3, tail: "fork", pattern: "three",
     note: "Três manchas escuras no flanco, como pegadas. Belisca a isca várias vezes antes de pegar." },
-  { id: "pacu", nome: "Pacu", sci: "Piaractus mesopotamicus", rar: 1, len: [30, 70], a: 3.2e-5, size: 0.8, speed: 0.8, pull: 0.8, when: "dia",
+  { id: "pacu", nome: "Pacu", sci: "Piaractus mesopotamicus", rar: 1, len: [30, 70], a: 2.6e-5, size: 0.8, speed: 0.8, pull: 0.8, when: "dia",
     top: "#4f5552", belly: "#c7b48a", fin: "#c45a3a", aspect: 0.58, tail: "fork", pattern: "none",
     note: "Come frutas que caem na água. Corpo redondo e força de sobra na briga." },
-  { id: "tambaqui", nome: "Tambaqui", sci: "Colossoma macropomum", rar: 1, len: [40, 90], a: 3.4e-5, size: 0.95, speed: 0.7, pull: 0.9, when: null,
+  { id: "tambaqui", nome: "Tambaqui", sci: "Colossoma macropomum", rar: 1, len: [40, 90], a: 3.0e-5, size: 0.95, speed: 0.7, pull: 0.9, when: null,
     top: "#3a3e3a", belly: "#b9a77a", fin: "#2a2d2a", aspect: 0.56, tail: "fork", pattern: "darkBelly",
     note: "Gigante da Amazônia que quebra sementes com dentes quase humanos." },
   { id: "tucunare", nome: "Tucunaré", sci: "Cichla ocellaris", rar: 2, len: [30, 75], a: 1.9e-5, size: 0.85, speed: 1.3, pull: 1.0, when: "dia",
@@ -270,7 +272,6 @@ const SPECIES = [
     top: "#3d4a40", belly: "#9a8a6a", fin: "#a8322a", aspect: 0.22, tail: "round", pattern: "redScales",
     note: "Um dos maiores peixes de escama do mundo. Sobe à tona para respirar ar." }
 ];
-const SP = Object.fromEntries(SPECIES.map(s => [s.id, s]));
 
 /* ============================================================
    Ciclo do dia (12 min de jogo = um dia inteiro)
@@ -290,6 +291,7 @@ const KEYS = [
 
 let dayT = 0.5; // começa na tarde dourada
 const env = { top: [0, 0, 0], bot: [0, 0, 0], wFar: [0, 0, 0], wNear: [0, 0, 0], light: 1, stars: 0, name: "", night: 0, sunUp: 0 };
+const weather = { rain: 0, target: 0, next: rnd(120, 220) };
 function updateEnv() {
   let i = 0; while (i < KEYS.length - 2 && dayT >= KEYS[i + 1].t) i++;
   const a = KEYS[i], b = KEYS[i + 1], k = ease(clamp((dayT - a.t) / (b.t - a.t), 0, 1));
@@ -299,7 +301,6 @@ function updateEnv() {
   env.name = k < 0.5 ? a.name : b.name;
   env.night = clamp((0.62 - env.light) / 0.3, 0, 1);
   env.sunUp = dayT > 0.02 && dayT < 0.62 ? Math.sin((dayT - 0.02) / 0.6 * Math.PI) : 0;
-  // escurece com a chuva
   const r = weather.rain * 0.28;
   env.top = mix(env.top, [70, 78, 90], r); env.bot = mix(env.bot, [120, 128, 136], r * 0.9);
   env.wFar = mix(env.wFar, [90, 100, 108], r);
@@ -311,13 +312,21 @@ function timeWindow() {
 }
 
 /* ============================================================
-   Tela e projeção em perspectiva
+   Tela, câmera e projeção em perspectiva
    A água é um plano: x (metros para os lados) e d (metros à frente).
+   A câmera desliza para os lados (x), inclina (tilt, em px) e aproxima (z).
    ============================================================ */
 const cv = document.getElementById("c"), g = cv.getContext("2d");
-let W = 0, H = 0, DPR = 1, horizon = 0, nearY = 0, kpx = 0;
-function proj(x, d) { const s = 2 / d; return { x: W / 2 + x * kpx * s, y: horizon + (nearY - horizon) * s, s }; }
-function unproj(sx, sy) { const s = Math.max(0.02, (sy - horizon) / (nearY - horizon)); return { x: (sx - W / 2) / (kpx * s), d: 2 / s }; }
+let W = 0, H = 0, DPR = 1, horizon = 0, hz = 0, nearY = 0, kpx = 0;
+const cam = { x: 0, tilt: 0, z: 1, shake: 0, lookX: 0 };
+function proj(x, d) {
+  const s = 2 / d * cam.z;
+  return { x: W / 2 + (x - cam.x) * kpx * s, y: hz + (nearY - hz) * s, s };
+}
+function unproj(sx, sy) {
+  const s = Math.max(0.02, (sy - hz) / (nearY - hz));
+  return { x: (sx - W / 2) / (kpx * s) + cam.x, d: 2 * cam.z / s };
+}
 const D_MIN = 4.5, D_MAX = 23;
 const xMax = d => ((W / 2) - 24) * d / (2 * kpx);
 
@@ -327,13 +336,13 @@ function resize() {
   W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  horizon = Math.round(H * 0.33); nearY = H * 0.98;
+  horizon = Math.round(H * 0.33); hz = horizon; nearY = H * 0.98;
   kpx = Math.min(W, H * 0.62) / 3;
   buildScenery();
 }
 function ridge(step, base, amps, jag) {
   const ph = amps.map(() => rnd(0, TAU)), out = [];
-  for (let x = -step; x <= W + step; x += step) {
+  for (let x = -W * 0.5; x <= W * 1.5; x += step) {
     let h = base;
     amps.forEach((a, i) => { h += Math.sin(x / a[0] + ph[i]) * a[1]; });
     if (jag) h += (Math.random() * jag) * (Math.random() < 0.5 ? 1 : 0.4);
@@ -342,23 +351,23 @@ function ridge(step, base, amps, jag) {
   return out;
 }
 function buildScenery() {
-  const hs = H * 0.001;
-  hills = ridge(14, 52 * hs * 1.4, [[140, 22 * hs * 1.4], [60, 8 * hs * 1.4], [310, 30 * hs * 1.4]], 0);
-  trees = ridge(5, 20 * hs * 1.4, [[90, 6 * hs * 1.4], [37, 4 * hs * 1.4]], 14 * hs * 1.4);
+  const hs = H * 0.0014;
+  hills = ridge(14, 70 * hs, [[140, 18 * hs], [60, 7 * hs], [310, 22 * hs]], 0);
+  trees = ridge(5, 20 * hs, [[90, 6 * hs], [37, 4 * hs]], 14 * hs);
   const mkReeds = (x0, x1, n) => Array.from({ length: n }, () => ({
     x: rnd(x0, x1), h: rnd(0.14, 0.34) * H, bend: rnd(-0.25, 0.25), w: rnd(2, 4.5), ph: rnd(0, TAU),
-    cat: Math.random() < 0.28, shade: rnd(0.75, 1.15)
+    cat: Math.random() < 0.28, shade: rnd(0.75, 1.15), push: 0
   })).sort((a, b) => a.h - b.h);
-  reedsL = mkReeds(-10, W * 0.16, Math.round(16 + W / 60));
-  reedsR = mkReeds(W * 0.86, W + 10, Math.round(14 + W / 60));
+  reedsL = mkReeds(-W * 0.1, W * 0.16, Math.round(18 + W / 60));
+  reedsR = mkReeds(W * 0.86, W * 1.1, Math.round(16 + W / 60));
   pads = [];
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 10; i++) {
     const d = rnd(5, 18), side = Math.random() < 0.5 ? -1 : 1;
-    pads.push({ x: side * xMax(d) * rnd(0.55, 1.05), d, r: rnd(0.35, 0.7), rot: rnd(0, TAU), flower: Math.random() < 0.3 });
+    pads.push({ x: side * xMax(d) * rnd(0.55, 1.15), d, r: rnd(0.35, 0.7), rot: rnd(0, TAU), flower: Math.random() < 0.3, bob: 0, ph: rnd(0, TAU) });
   }
-  shimmer = Array.from({ length: 70 }, () => ({ x: rnd(-1, 1), d: rnd(3, 26), len: rnd(0.3, 1.4), ph: rnd(0, TAU), sp: rnd(0.6, 1.8) }));
+  shimmer = Array.from({ length: 70 }, () => ({ x: rnd(-1.2, 1.2), d: rnd(3, 26), len: rnd(0.3, 1.4), ph: rnd(0, TAU), sp: rnd(0.6, 1.8) }));
   glitter = Array.from({ length: 60 }, () => ({ u: Math.random(), v: Math.random(), ph: rnd(0, TAU), sp: rnd(2, 6) }));
-  stars = Array.from({ length: Math.round(W * horizon / 2600) }, () => ({ x: rnd(0, W), y: rnd(0, horizon * 0.92), r: rnd(0.4, 1.4), ph: rnd(0, TAU) }));
+  stars = Array.from({ length: Math.round(W * horizon / 2400) }, () => ({ x: rnd(-W * 0.2, W * 1.2), y: rnd(0, horizon * 0.95), r: rnd(0.4, 1.4), ph: rnd(0, TAU) }));
   flies = Array.from({ length: 22 }, () => ({ x: rnd(0, W), y: rnd(horizon - 20, H * 0.8), vx: rnd(-8, 8), vy: rnd(-5, 5), ph: rnd(0, TAU) }));
 }
 
@@ -367,7 +376,7 @@ function buildScenery() {
    ============================================================ */
 const Snd = {
   ctx: null, master: null, on: store.get("lagoSereno.som", true), noise: null, brown: null,
-  rainGain: null, windGain: null, waterGain: null, nextBird: 3, nextCricket: 1, nextFrog: 6, nextLap: 2,
+  rainGain: null, windGain: null, nextBird: 3, nextCricket: 1, nextFrog: 6, nextLap: 2,
   init() {
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
@@ -377,8 +386,7 @@ const Snd = {
     this.noise = c.createBuffer(1, len, c.sampleRate); this.brown = c.createBuffer(1, len, c.sampleRate);
     const n = this.noise.getChannelData(0), b = this.brown.getChannelData(0); let last = 0;
     for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; n[i] = w; last = (last + 0.02 * w) / 1.02; b[i] = last * 3.5; }
-    // água batendo na margem: ruído marrom abafado que respira devagar
-    this.waterGain = this.loop(this.brown, [["lowpass", 480, 0.7]], 0.32, [0.11, 0.12]);
+    this.loop(this.brown, [["lowpass", 480, 0.7]], 0.32, [0.11, 0.12]);
     this.loop(this.noise, [["bandpass", 900, 0.6]], 0.018, [0.23, 0.014]);
     this.windGain = this.loop(this.noise, [["bandpass", 380, 0.5]], 0.04, [0.05, 0.03]);
     this.rainGain = this.loop(this.noise, [["highpass", 1400, 0.7], ["lowpass", 6500, 0.7]], 0, null);
@@ -415,22 +423,22 @@ const Snd = {
     const gn = c.createGain(); s.connect(fl); fl.connect(gn); gn.connect(this.master); this.env(gn, vol, [att, dec], t);
     s.start(t, Math.random() * 3); s.stop(t + att + dec + 0.05);
   },
-  splash(size = 1) { this.burst(2400, 500, 0.8, 0.22 * size, 0.01, 0.35 + size * 0.25); this.tone("sine", 320, 90, 0.12 * size, 0.005, 0.2); },
-  plop(v = 1) { this.tone("sine", 700, 180, 0.12 * v, 0.004, 0.12); this.burst(1800, 900, 1.2, 0.04 * v, 0.004, 0.08); },
-  whoosh() { this.burst(400, 2600, 1.4, 0.12, 0.08, 0.35); },
-  tick() { this.tone("square", 2100, 0, 0.018, 0.001, 0.025, 0, 3200); },
-  snap() { this.burst(5000, 1800, 2, 0.2, 0.002, 0.12); this.tone("triangle", 160, 60, 0.15, 0.005, 0.25); },
+  splash(size = 1) { this.burst(2400, 500, 0.8, 0.2 * size, 0.01, 0.35 + size * 0.25); this.tone("sine", 320, 90, 0.1 * size, 0.005, 0.2); },
+  plop(v = 1) { this.tone("sine", 700, 180, 0.1 * v, 0.004, 0.12); this.burst(1800, 900, 1.2, 0.035 * v, 0.004, 0.08); },
+  drip(v = 1) { this.tone("sine", rnd(900, 1300), rnd(1600, 2100), 0.045 * v, 0.003, 0.09); },
+  whoosh() { this.burst(400, 2600, 1.4, 0.1, 0.08, 0.35); },
+  tick(v = 1) { this.tone("square", 2100, 0, 0.014 * v, 0.001, 0.025, 0, 3200); },
+  drag() { this.tone("square", 1500, 0, 0.012, 0.001, 0.02, 0, 2400); },
+  snap() { this.burst(5000, 1800, 2, 0.16, 0.002, 0.12); this.tone("triangle", 160, 60, 0.12, 0.005, 0.25); },
   chime() { [0, 2, 4, 7, 9].forEach((s, i) => this.tone("sine", 523.25 * Math.pow(2, s / 12), 0, 0.07, 0.01, 1.4, i * 0.11)); },
-  sad() { [7, 4, 0].forEach((s, i) => this.tone("sine", 392 * Math.pow(2, s / 12), 0, 0.05, 0.01, 0.9, i * 0.16)); },
+  soft() { [4, 7].forEach((s, i) => this.tone("sine", 523.25 * Math.pow(2, s / 12), 0, 0.035, 0.01, 0.6, i * 0.09)); },
+  sad() { [7, 4, 0].forEach((s, i) => this.tone("sine", 392 * Math.pow(2, s / 12), 0, 0.04, 0.01, 0.9, i * 0.16)); },
   bird() {
     const base = rnd(2400, 3600), n = (2 + Math.random() * 3) | 0;
-    for (let i = 0; i < n; i++) { this.tone("sine", base, base * rnd(1.2, 1.6), 0.028, 0.01, 0.09, i * rnd(0.12, 0.18)); }
+    for (let i = 0; i < n; i++) this.tone("sine", base, base * rnd(1.2, 1.6), 0.026, 0.01, 0.09, i * rnd(0.12, 0.18));
   },
-  cricket(v) { const f = rnd(4200, 4700); for (let i = 0; i < 3; i++) this.tone("sine", f, 0, 0.012 * v, 0.004, 0.03, i * 0.055); },
-  frog(v) {
-    if (!this.ctx) return; const c = this.ctx, t = c.currentTime, n = 3 + (Math.random() * 3 | 0);
-    for (let i = 0; i < n; i++) this.tone("sawtooth", rnd(95, 130), rnd(70, 90), 0.05 * v, 0.02, 0.09, i * 0.12, 480);
-  },
+  cricket(v) { const f = rnd(4200, 4700); for (let i = 0; i < 3; i++) this.tone("sine", f, 0, 0.011 * v, 0.004, 0.03, i * 0.055); },
+  frog(v) { const n = 3 + (Math.random() * 3 | 0); for (let i = 0; i < n; i++) this.tone("sawtooth", rnd(95, 130), rnd(70, 90), 0.045 * v, 0.02, 0.09, i * 0.12, 480); },
   lap() { this.burst(700, 300, 0.7, 0.05, 0.25, 0.7, 0, "lowpass"); },
   update(dt) {
     if (!this.ctx || !this.on) return;
@@ -445,15 +453,14 @@ const Snd = {
 };
 
 /* ============================================================
-   Mundo: tempo, peixes, ondulações, textos
+   Mundo: ondulações, textos, peixes
    ============================================================ */
-const weather = { rain: 0, target: 0, next: rnd(120, 220), drops: [] };
-let ripples = [], texts = [], fishes = [], splashes = [];
+let ripples = [], texts = [], fishes = [], splashes = [], sparks = [];
 let caughtToday = 0;
 const book = store.get("lagoSereno.caderno", {});
 
-function addRipple(x, d, max = 0.8, life = 1.6, a = 0.5) { ripples.push({ x, d, r: 0.02, max, life, t: 0, a }); }
-function addText(str, x, y, color = "#f3ece0", big = false) { texts.push({ str, x, y, color, t: 0, big }); }
+function addRipple(x, d, max = 0.8, life = 1.6, a = 0.5) { if (ripples.length < 90) ripples.push({ x, d, r: 0.02, max, life, t: 0, a }); }
+function addText(str, x, d, color = "#f3ece0", big = false, lift = 34) { texts.push({ str, x, d, color, t: 0, big, lift }); }
 
 function spawnWeight(sp) {
   let w = RARITY[sp.rar].peso;
@@ -466,41 +473,67 @@ function spawnFish(near) {
   let total = 0; const ws = SPECIES.map(s => (total += spawnWeight(s), total));
   const r = Math.random() * total, sp = SPECIES[ws.findIndex(v => v >= r)];
   const d = near ? clamp(near.d + rnd(-3, 3), D_MIN + 1, D_MAX - 1) : rnd(D_MIN + 1.5, D_MAX - 2);
-  const x = near ? clamp(near.x + rnd(-3, 3), -xMax(d) * 0.85, xMax(d) * 0.85) : rnd(-0.8, 0.8) * xMax(d);
+  const x = near ? clamp(near.x + rnd(-3, 3), -xMax(d) * 0.9, xMax(d) * 0.9) : rnd(-0.85, 0.85) * xMax(d);
   const len = Math.round(lerp(sp.len[0], sp.len[1], Math.pow(Math.random(), 1.6)));
   const rel = len / ((sp.len[0] + sp.len[1]) / 2);
-  fishes.push({
-    sp, len, x, d, hd: rnd(0, TAU), spd: rnd(0.25, 0.55) * sp.speed, turn: 0, wig: rnd(0, TAU),
-    size: sp.size * clamp(rel, 0.7, 1.35), alpha: 0, life: rnd(45, 100), state: "wander", t: 0, nib: 0, dive: 0
-  });
+  const fi = {
+    sp, len, x, d, hd: rnd(0, TAU), spd: rnd(0.25, 0.5) * sp.speed, turn: 0, wig: rnd(0, TAU),
+    size: sp.size * clamp(rel, 0.7, 1.35), alpha: 0, life: rnd(50, 110), state: "wander", t: 0, nib: 0,
+    curious: null, misses: 0, glow: 0
+  };
+  fishes.push(fi); return fi;
 }
 
 /* ============================================================
    Estado do jogador
    ============================================================ */
 const P = {
-  mode: "intro",      // intro, idle, aim, fly, float, fight, catch, retrieve, book
-  hand: { x: 0, y: 0 }, // posição da boia na mão (tela)
-  lure: { x: 0, y: 0 }, // posição atual na tela
-  aimT: 0, spin: 0, spinDir: 0, curved: false, lastDir: null,
-  fly: null, bob: { x: 0, d: 0, dip: 0, dipV: 0 }, bonus: 0, target: null,
-  fish: null, tension: 0, over: 0, slack: 0, crank: 0, crankAcc: 0, reelAng: 0, tickAcc: 0,
-  run: 0, runT: 0, runDir: 1, stamina: 1, nextRun: 2, jump: 0,
-  retrieveT: 0, retrieveFrom: null, waitT: 0, rodBend: 0, snapT: 0
+  mode: "intro",      // intro, idle, aim, fly, float, fight, catch, retrieve
+  lure: { x: 0, y: 0, vx: 0 }, swing: 0, swingV: 0,
+  aimT: 0, aimU: 0, aimPt: null, lock: null, spin: 0, spinDir: 0, curved: false, lastDir: null,
+  fly: null, bob: { x: 0, d: 0, dip: 0, dipV: 0, tilt: 0 }, bonus: 0, target: null,
+  fish: null, tension: 0, over: 0, crank: 0, crankAcc: 0, reelAng: 0, tickAcc: 0, steer: 0,
+  run: 0, runDir: 1, stamina: 1, nextRun: 2, jump: 0, ui: 0, counter: 0,
+  retrieveT: 0, retrieveFrom: null, waitT: 0, rodBend: 0, snapT: 0, idleT: 0, released: null
 };
-function handPos() { return { x: W / 2, y: H * 0.86 }; }
-function rodBase() { return { x: W * 0.9, y: H - 4 }; }
+const handPos = () => ({ x: W / 2, y: H * 0.86 });
+const rodBase = () => ({ x: W * 0.9, y: H - 4 });
 function rodTip() {
-  const b = rodBase(), bend = P.rodBend;
-  let tx = W * 0.66, ty = H * 0.58;
-  if (P.mode === "fight" && P.fish) { const fp = proj(P.fish.x, P.fish.d); tx = lerp(tx, fp.x, 0.18 * bend); }
-  return { x: tx + bend * 20, y: ty + bend * H * 0.12 };
+  const bend = P.rodBend;
+  let tx = W * 0.66 + P.steer * W * 0.08, ty = H * 0.58;
+  if (P.mode === "fight" && P.fish) { const fp = proj(P.fish.x, P.fish.d); tx = lerp(tx, fp.x, 0.15 * bend); }
+  return { x: tx + bend * 20, y: ty + bend * H * 0.1 };
+}
+
+/* ============================================================
+   Câmera: acompanha o que importa, sempre devagar
+   ============================================================ */
+function updateCamera(dt) {
+  let tx = 0, tt = 0, tz = 1, k = 1.8;
+  const far = d => (clamp(d, D_MIN, D_MAX) - D_MIN) / (D_MAX - D_MIN);
+  switch (P.mode) {
+    case "idle": tx = cam.lookX; break;
+    case "aim": if (P.aimPt) { tx = P.aimPt.x * 0.35; tt = far(P.aimPt.d) * H * 0.045; tz = 1.03; } break;
+    case "fly": tx = P.fly.x * 0.45; tt = far(P.fly.d) * H * 0.06; tz = lerp(1.03, 1.08, ease(clamp(P.fly.t, 0, 1))); k = 2.4; break;
+    case "float": tx = P.bob.x * 0.45 + cam.lookX * 0.5; tt = far(P.bob.d) * H * 0.06; tz = 1.08; break;
+    case "fight": if (P.fish) { tx = P.fish.x * 0.5 + P.steer * 0.35; tt = far(P.fish.d) * H * 0.05; tz = 1.1 + P.tension * 0.03; k = 2.2; } break;
+    case "catch": tx = cam.x * 0.98; tz = 1.12; break;
+    case "retrieve": tx = cam.x * 0.5; tz = 1.02; break;
+  }
+  if (!calm) { tx += Math.sin(T * 0.21) * 0.14; tt += Math.sin(T * 0.33) * 2.5; tz += Math.sin(T * 0.17) * 0.006; }
+  tx = clamp(tx, -2.6, 2.6);
+  cam.x += (tx - cam.x) * damp(k, dt);
+  cam.tilt += (tt - cam.tilt) * damp(k * 0.8, dt);
+  cam.z += (tz - cam.z) * damp(1.5, dt);
+  cam.shake *= Math.exp(-dt * 5);
+  if (calm) cam.shake = 0;
+  hz = horizon + cam.tilt;
 }
 
 /* ============================================================
    Gestos
    ============================================================ */
-const ptr = { id: null, down: false, x: 0, y: 0, hist: [], startX: 0, startY: 0, t0: 0 };
+const ptr = { id: null, down: false, x: 0, y: 0, hist: [], startX: 0, startY: 0, t0: 0, trail: 0 };
 function ptrVel(ms = 90) {
   const h = ptr.hist, now = performance.now();
   let i = h.length - 1; while (i > 0 && now - h[i - 1].t < ms) i--;
@@ -508,18 +541,35 @@ function ptrVel(ms = 90) {
   if (!a || !b || b.t === a.t) return { vx: 0, vy: 0 };
   return { vx: (b.x - a.x) / (b.t - a.t), vy: (b.y - a.y) / (b.t - a.t) };
 }
+// toque na água: uma gota, uma onda e os peixes por perto ficam curiosos
+function touchWater(sx, sy, strong) {
+  if (sy < hz + 6) return;
+  const w = unproj(sx, sy);
+  if (w.d > D_MAX + 4) return;
+  addRipple(w.x, w.d, strong ? 0.7 : 0.35, strong ? 1.6 : 1.1, strong ? 0.6 : 0.35);
+  if (!strong) return;
+  Snd.drip(0.8);
+  pads.forEach(pd => { if (Math.hypot(pd.x - w.x, pd.d - w.d) < 2.2) pd.bob = 1; });
+  fishes.forEach(fi => {
+    if (fi.state !== "wander") return;
+    if (Math.hypot(fi.x - w.x, fi.d - w.d) < 4.5) fi.curious = { x: w.x, d: w.d, t: rnd(1.6, 2.6) };
+  });
+  if (P.mode === "float" && !P.target && Math.hypot(w.x - P.bob.x, w.d - P.bob.d) < 4) P.waitT += 3;
+}
 cv.addEventListener("pointerdown", e => {
   if (ptr.down) return;
-  cv.setPointerCapture(e.pointerId);
-  Object.assign(ptr, { id: e.pointerId, down: true, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, t0: performance.now(), hist: [{ x: e.clientX, y: e.clientY, t: performance.now() }] });
-  P.lastDir = null;
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  const now = performance.now();
+  Object.assign(ptr, { id: e.pointerId, down: true, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, t0: now, hist: [{ x: e.clientX, y: e.clientY, t: now }], trail: 0 });
+  P.lastDir = null; P.idleT = 0;
   if (P.mode === "idle") {
     const hp = handPos();
-    if (Math.hypot(e.clientX - hp.x, e.clientY - hp.y) < Math.max(80, W * 0.16) || e.clientY > H * 0.6) {
-      P.mode = "aim"; P.aimT = 0; P.spin = 0; P.curved = false; P.grab = { dx: hp.x - e.clientX, dy: hp.y - e.clientY };
-      buzz(6); setHint("Deslize para cima e solte");
-    }
-  }
+    if (Math.hypot(e.clientX - hp.x, e.clientY - hp.y) < Math.max(90, W * 0.18) || e.clientY > H * 0.66) {
+      P.mode = "aim"; P.aimT = 0; P.spin = 0; P.curved = false; P.aimPt = null; P.lock = null; P.aimU = 0;
+      P.grab = { dx: P.lure.x - e.clientX, dy: P.lure.y - e.clientY };
+      buzz(5); setHint("Arraste para cima e mire");
+    } else touchWater(e.clientX, e.clientY, true);
+  } else if (P.mode === "float") touchWater(e.clientX, e.clientY, true);
 });
 cv.addEventListener("pointermove", e => {
   if (!ptr.down || e.pointerId !== ptr.id) return;
@@ -528,114 +578,141 @@ cv.addEventListener("pointermove", e => {
   const now = performance.now();
   ptr.hist.push({ x: ptr.x, y: ptr.y, t: now }); if (ptr.hist.length > 24) ptr.hist.shift();
   const dx = ptr.x - px, dy = ptr.y - py, len = Math.hypot(dx, dy);
-  // giro: soma a variação de direção do traço (círculo completo = 2π)
-  if (len > 1.5) {
+  // giro: soma a variação de direção do traço (um círculo completo = 2π)
+  if (len > 1.2) {
     const a = Math.atan2(dy, dx);
     if (P.lastDir !== null) {
       const da = wrapAng(a - P.lastDir);
-      if (Math.abs(da) < 1.3) {
+      if (Math.abs(da) < 1.4) {
         if (P.mode === "fight") P.crankAcc += da;
-        if (P.mode === "aim") { P.spin += da; }
+        if (P.mode === "aim") P.spin += da;
       }
     }
     P.lastDir = a;
   }
-  if (P.mode === "aim") {
-    if (!P.curved && Math.abs(P.spin) > TAU * 1.1) { P.curved = true; P.spinDir = Math.sign(P.spin); Snd.tone("sine", 880, 1320, 0.05, 0.01, 0.2); buzz(12); }
+  if (P.mode === "aim" && !P.curved && Math.abs(P.spin) > TAU * 1.1) {
+    P.curved = true; P.spinDir = Math.sign(P.spin); Snd.tone("sine", 880, 1320, 0.05, 0.01, 0.2); buzz(10);
   }
-  // fisgar: puxão rápido para baixo
-  if ((P.mode === "float") && now - ptr.t0 < 450 && ptr.y - ptr.startY > Math.max(55, H * 0.07)) {
-    const v = ptrVel(); if (v.vy > 0.45) { ptr.down = false; onPullDown(); }
+  // rastro leve do dedo sobre a água
+  if ((P.mode === "idle" || P.mode === "float") && len > 2 && now - ptr.trail > 70) { ptr.trail = now; touchWater(ptr.x, ptr.y, false); }
+  // fisgar: um puxão curto para baixo já basta
+  if (P.mode === "float" && now - ptr.t0 < 600 && ptr.y - ptr.startY > Math.max(32, H * 0.04)) {
+    const v = ptrVel(); if (v.vy > 0.22) { ptr.down = false; onPullDown(); }
   }
 });
 function endPointer(e) {
   if (!ptr.down || e.pointerId !== ptr.id) return;
   ptr.down = false;
   if (P.mode === "aim") {
-    const v = ptrVel();
-    const moved = ptr.startY - ptr.y;
-    if (v.vy < -0.5 && moved > 25) cast(v); else { P.mode = "idle"; setHint(hintFor()); }
+    if (P.aimPt && P.aimU > 0.06) cast(); else { P.mode = "idle"; setHint(hintFor()); }
   } else if (P.mode === "float") {
     const v = ptrVel();
-    if (v.vy > 0.6 && ptr.y - ptr.startY > 40) onPullDown();
+    if (v.vy > 0.3 && ptr.y - ptr.startY > 28) onPullDown();
   }
 }
 cv.addEventListener("pointerup", endPointer);
 cv.addEventListener("pointercancel", endPointer);
 
 /* ============================================================
-   Ações
+   Mira: o dedo aponta, um círculo mostra onde a boia vai cair
    ============================================================ */
-function ringPhase() { return 1 - ((P.aimT % 1.7) / 1.7); }
-function cast(v) {
-  const scale = H / 760;
-  const speed = -v.vy / scale;
-  const d = clamp(D_MIN + (speed - 0.5) * 6.2, D_MIN, D_MAX);
-  const end = proj(0, d);
-  const travel = ptr.y - end.y;
-  const tx = ptr.x + (v.vx / -v.vy) * travel;
-  let x = unproj(tx, end.y).x;
-  x = clamp(x, -xMax(d) * 0.95, xMax(d) * 0.95);
-  P.fly = { x0: P.lure.x, y0: P.lure.y, x, d, t: 0, dur: 0.6 + d * 0.025, ring: ringPhase(), curved: P.curved, dir: P.spinDir || 1 };
+const RING_CYCLE = 2.2;
+function ringPhase() { return 1 - ((P.aimT % RING_CYCLE) / RING_CYCLE); }
+function updateAim(dt) {
+  P.aimT += dt;
+  const hp = handPos();
+  // a boia acompanha o dedo, com um leve atraso
+  const tx = ptr.x + P.grab.dx * 0.6, ty = Math.max(H * 0.5, ptr.y + P.grab.dy * 0.6);
+  const nx = lerp(P.lure.x, tx, damp(18, dt)), ny = lerp(P.lure.y, ty, damp(18, dt));
+  P.lure.vx = (nx - P.lure.x) / Math.max(dt, 1e-3); P.lure.x = nx; P.lure.y = ny;
+  // quanto mais para cima, mais longe
+  const u = clamp((ptr.startY - ptr.y) / (H * 0.4), 0, 1);
+  P.aimU = lerp(P.aimU, u, damp(14, dt));
+  if (P.aimU < 0.06) { P.aimPt = null; P.lock = null; return; }
+  const d = lerp(D_MIN, D_MAX, Math.pow(P.aimU, 1.1));
+  const side = clamp((ptr.x - W / 2) / (W * 0.42), -1.1, 1.1);
+  let x = cam.x + side * xMax(d) * 0.95;
+  // ímã suave: puxa a mira para a sombra mais próxima
+  let best = null, bd = 1e9;
+  fishes.forEach(fi => { if (fi.state !== "wander" || fi.alpha < 0.4) return; const dd = Math.hypot(fi.x - x, fi.d - d); if (dd < bd) { bd = dd; best = fi; } });
+  let ax = x, ad = d;
+  if (best) {
+    const R = best.size * 1.5 + 1.8, pull = clamp(1 - bd / R, 0, 1);
+    if (pull > 0) { const k = ease(pull) * 0.8; ax = lerp(x, best.x, k); ad = lerp(d, best.d, k); }
+    if (pull > 0.25) { if (P.lock !== best) { P.lock = best; Snd.tick(1.5); buzz(4); } } else P.lock = null;
+  } else P.lock = null;
+  ax = clamp(ax, -xMax(ad), xMax(ad));
+  if (!P.aimPt) P.aimPt = { x: ax, d: ad };
+  P.aimPt.x = lerp(P.aimPt.x, ax, damp(12, dt)); P.aimPt.d = lerp(P.aimPt.d, ad, damp(12, dt));
+  setHint(P.lock ? "Solte quando o anel estiver pequeno" : "Leve o círculo até uma sombra");
+}
+function cast() {
+  const a = P.aimPt;
+  P.fly = { x0: P.lure.x, y0: P.lure.y, x: a.x, d: a.d, t: 0, dur: 0.75 + a.d * 0.025, ring: ringPhase(), lock: P.lock, curved: P.curved, dir: P.spinDir || 1 };
   P.mode = "fly"; setHint("");
-  Snd.whoosh(); buzz(8);
+  Snd.whoosh(); buzz(6);
 }
 function landLure() {
-  const f = P.fly; P.bob = { x: f.x, d: f.d, dip: 0, dipV: 0 };
+  const f = P.fly; P.bob = { x: f.x, d: f.d, dip: 0.6, dipV: 0, tilt: 0 };
   addRipple(f.x, f.d, 1.1, 1.8, 0.7); addRipple(f.x, f.d, 0.6, 1.2, 0.5);
-  Snd.splash(0.45);
+  Snd.splash(0.4); cam.shake = 1.5;
   P.mode = "float"; P.waitT = 0; P.bonus = 0; P.target = null;
-  // avalia o arremesso contra o anel do peixe mais próximo
-  let best = null, bd = 1e9;
-  fishes.forEach(fi => { if (fi.state !== "wander") return; const dd = Math.hypot(fi.x - f.x, fi.d - f.d); if (dd < bd) { bd = dd; best = fi; } });
-  const p = proj(f.x, f.d);
-  if (best) {
-    const outer = best.size * 1.5, inner = outer * (0.25 + 0.75 * f.ring);
-    if (bd < outer) {
-      P.target = best; best.state = "approach";
-      let label = "Na mira";
-      if (bd < inner) {
-        if (f.ring < 0.34) { P.bonus = 3; label = "Excelente!"; }
-        else if (f.ring < 0.67) { P.bonus = 2; label = "Ótimo!"; }
-        else { P.bonus = 1; label = "Legal!"; }
-      }
-      if (f.curved) { P.bonus += 1; addText("Curva!", p.x, p.y - 58, "#f2d36b"); }
-      addText(label, p.x, p.y - 34, RARITY[best.sp.rar].cor, P.bonus >= 3);
-    } else if (f.curved) addText("Curva!", p.x, p.y - 40, "#f2d36b");
-  }
-  setHint(P.target ? "Espere a boia afundar…" : "Espere um peixe chegar perto");
+  const fi = f.lock && fishes.includes(f.lock) && f.lock.state === "wander" ? f.lock : null;
+  if (fi) {
+    const dist = Math.hypot(fi.x - f.x, fi.d - f.d);
+    const outer = fi.size * 1.5, inner = outer * (0.25 + 0.75 * f.ring);
+    P.target = fi; fi.state = "approach"; fi.curious = null;
+    let label = "Boa!";
+    if (dist < Math.max(inner, 0.35)) {
+      if (f.ring < 0.34) { P.bonus = 3; label = "Excelente!"; }
+      else if (f.ring < 0.67) { P.bonus = 2; label = "Ótimo!"; }
+      else { P.bonus = 1; label = "Legal!"; }
+    }
+    if (f.curved) { P.bonus += 1; addText("Curva!", f.x, f.d, "#f2d36b", false, 60); }
+    addText(label, f.x, f.d, RARITY[fi.sp.rar].cor, P.bonus >= 3);
+    if (P.bonus >= 2) burstSparks(f.x, f.d, RARITY[fi.sp.rar].cor);
+  } else if (f.curved) addText("Curva!", f.x, f.d, "#f2d36b");
+  setHint(P.target ? "Ele viu a isca. Espere a boia afundar" : "Toque na água perto da boia para chamar");
 }
+function burstSparks(x, d, col) {
+  for (let i = 0; i < 14; i++) sparks.push({ x, d, a: rnd(0, TAU), v: rnd(30, 80), t: 0, col });
+}
+
+/* ============================================================
+   Fisgar, brigar, pegar
+   ============================================================ */
 function onPullDown() {
   if (P.mode !== "float") return;
   const fi = P.target;
   if (fi && fi.state === "bite") {
     P.mode = "fight"; P.fish = fi; fi.state = "hooked";
-    P.tension = 0.35; P.over = 0; P.slack = 0; P.stamina = 1; P.run = 0; P.nextRun = rnd(0.8, 2); P.crank = 0; P.crankAcc = 0;
-    const p = proj(fi.x, fi.d);
-    addText("Fisgou!", p.x, p.y - 40, "#f3ece0", true);
-    Snd.splash(0.9); buzz([30, 40, 30]);
-    setHint("Gire o dedo em círculos para recolher");
+    Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.4, 2.6), crank: 0, crankAcc: 0, ui: 0, steer: 0, counter: 0 });
+    addText("Fisgou!", fi.x, fi.d, "#f3ece0", true);
+    Snd.splash(0.8); buzz([20, 30, 20]); cam.shake = 3;
+    setHint("Faça círculos com o dedo para recolher");
     return;
   }
   if (fi && (fi.state === "nibble" || fi.state === "approach")) {
-    const p = proj(P.bob.x, P.bob.d);
-    addText("Cedo demais", p.x, p.y - 34, "#b9c3c8");
-    scare(fi);
+    // sem castigo: o peixe só recua um pouco e volta
+    P.bob.dipV -= 3; addRipple(P.bob.x, P.bob.d, 0.4, 0.8, 0.4);
+    addText("Calma…", P.bob.x, P.bob.d, "#b9c3c8");
+    fi.state = "backoff"; fi.t = 0; fi.hd = Math.atan2(fi.d - P.bob.d, fi.x - P.bob.x); fi.spd = 0.7;
+    setHint("Espere a boia afundar de verdade");
+    return;
   }
   retrieve();
 }
-function scare(fi) { fi.state = "flee"; fi.hd = Math.atan2(fi.d - P.bob.d, fi.x - P.bob.x) + rnd(-0.5, 0.5); fi.spd = 2.4; fi.life = 1.2; addRipple(fi.x, fi.d, 0.9, 1.2, 0.5); Snd.splash(0.3); }
 function retrieve() {
   const p = P.mode === "fight" && P.fish ? proj(P.fish.x, P.fish.d) : proj(P.bob.x, P.bob.d);
   P.retrieveFrom = { x: p.x, y: p.y }; P.retrieveT = 0; P.mode = "retrieve"; P.target = null; P.fish = null;
   setHint("");
 }
 function loseFish(msg) {
-  const fi = P.fish; const p = proj(fi.x, fi.d);
-  addText(msg, p.x, p.y - 40, "#b9c3c8");
-  fi.state = "flee"; fi.spd = 2.6; fi.life = 1.5; fi.hd = Math.atan2(fi.d - 1, fi.x) + rnd(-0.6, 0.6);
-  Snd.sad(); buzz(60);
-  P.snapT = msg.includes("arrebentou") ? 1 : 0;
+  const fi = P.fish;
+  addText(msg, fi.x, fi.d, "#b9c3c8");
+  fi.state = "flee"; fi.spd = 2.2; fi.life = 1.5; fi.hd = Math.atan2(fi.d - 1, fi.x) + rnd(-0.6, 0.6);
+  Snd.sad(); buzz(40);
+  P.snapT = 1;
   retrieve();
 }
 function landFish() {
@@ -647,8 +724,8 @@ function landFish() {
   rec.n++; rec.best = Math.max(rec.best, fi.len); rec.kg = Math.max(rec.kg, kg);
   book[sp.id] = rec; store.set("lagoSereno.caderno", book);
   caughtToday++; updateTally();
-  P.mode = "catch"; P.fish = null; P.target = null;
-  Snd.splash(1); Snd.chime(); buzz([20, 50, 20, 50, 40]);
+  P.mode = "catch"; P.released = fi; P.fish = null; P.target = null;
+  Snd.splash(0.9); Snd.chime(); buzz([15, 40, 15, 40, 30]);
   showCatch(sp, fi.len, kg, isNew, isRec);
 }
 
@@ -659,172 +736,196 @@ let last = performance.now(), T = 0;
 function update(dt) {
   T += dt;
   dayT = (dayT + dt / DAY_SECONDS) % 1;
-  // tempo: às vezes chove de leve
   if ((weather.next -= dt) < 0) { weather.target = weather.target ? 0 : (Math.random() < 0.45 ? 1 : 0); weather.next = weather.target ? rnd(60, 120) : rnd(150, 280); }
   weather.rain = lerp(weather.rain, weather.target, dt * 0.08);
   updateEnv();
-  if (Math.random() < weather.rain * dt * 18) { const d = rnd(D_MIN, D_MAX); addRipple(rnd(-1, 1) * xMax(d), d, rnd(0.15, 0.35), 0.9, 0.35); }
+  updateCamera(dt);
+  if (Math.random() < weather.rain * dt * 18) { const d = rnd(D_MIN, D_MAX); addRipple(cam.x + rnd(-1, 1) * xMax(d), d, rnd(0.15, 0.35), 0.9, 0.35); }
 
-  // população de peixes
   const want = 6 + (W > 900 ? 2 : 0);
   if (fishes.filter(f => f.state !== "flee").length < want && Math.random() < dt * 0.6) spawnFish();
-  // salto ocasional ao longe
-  if (Math.random() < dt * 0.025 && P.mode !== "fight") { const d = rnd(10, D_MAX); const x = rnd(-0.8, 0.8) * xMax(d); splashes.push({ x, d, t: 0, big: rnd(0.6, 1.2) }); }
+  if (Math.random() < dt * 0.025 && P.mode !== "fight") { const d = rnd(10, D_MAX); splashes.push({ x: cam.x + rnd(-0.8, 0.8) * xMax(d), d, t: 0, big: rnd(0.6, 1.2) }); }
 
   fishes.forEach(fi => updateFish(fi, dt));
   fishes = fishes.filter(f => f.alpha > 0 || f.t < 1);
 
-  ripples.forEach(r => { r.t += dt; r.r = r.max * ease(clamp(r.t / r.life, 0, 1)); });
+  ripples.forEach(r => { r.t += dt; r.r = r.max * (1 - Math.pow(1 - clamp(r.t / r.life, 0, 1), 2)); });
   ripples = ripples.filter(r => r.t < r.life);
-  texts.forEach(t => t.t += dt); texts = texts.filter(t => t.t < 1.6);
-  splashes.forEach(s => { if (s.t === 0) { addRipple(s.x, s.d, 0.9 * s.big, 1.8, 0.5); Snd.plop(0.25); } s.t += dt; if (s.t > 0.55 && !s.done) { s.done = true; addRipple(s.x, s.d, 1.2 * s.big, 2.2, 0.6); Snd.splash(0.18 * s.big); } });
+  texts.forEach(t => t.t += dt); texts = texts.filter(t => t.t < 1.8);
+  sparks.forEach(s => s.t += dt); sparks = sparks.filter(s => s.t < 0.9);
+  splashes.forEach(s => { if (s.t === 0) { addRipple(s.x, s.d, 0.9 * s.big, 1.8, 0.5); Snd.plop(0.22); } s.t += dt; if (s.t > 0.55 && !s.done) { s.done = true; addRipple(s.x, s.d, 1.2 * s.big, 2.2, 0.6); Snd.splash(0.15 * s.big); } });
   splashes = splashes.filter(s => s.t < 0.9);
+  pads.forEach(pd => { pd.bob *= Math.exp(-dt * 1.5); });
+
+  // olhar: no repouso, a câmera acompanha de leve onde o dedo está
+  cam.lookX = lerp(cam.lookX, ptr.down && (P.mode === "idle" || P.mode === "float") ? (ptr.x - W / 2) / W * 1.4 : 0, damp(2, dt));
 
   const hp = handPos();
   switch (P.mode) {
-    case "idle": P.lure.x = lerp(P.lure.x, hp.x, dt * 12); P.lure.y = lerp(P.lure.y, hp.y + Math.sin(T * 1.6) * 3, dt * 12); break;
-    case "aim": {
-      P.aimT += dt;
-      const tx = ptr.x + P.grab.dx * 0.5, ty = ptr.y + P.grab.dy * 0.5;
-      P.lure.x = lerp(P.lure.x, tx, dt * 25); P.lure.y = lerp(P.lure.y, ty, dt * 25);
+    case "idle": {
+      P.idleT += dt;
+      const nx = lerp(P.lure.x, hp.x, damp(8, dt));
+      P.lure.vx = (nx - P.lure.x) / Math.max(dt, 1e-3); P.lure.x = nx;
+      P.lure.y = lerp(P.lure.y, hp.y + Math.sin(T * 1.6) * 3, damp(8, dt));
       break;
     }
-    case "fly": {
-      const f = P.fly; f.t += dt / f.dur;
-      if (f.t >= 1) { landLure(); break; }
-      break;
-    }
+    case "aim": updateAim(dt); break;
+    case "fly": P.fly.t += dt / P.fly.dur; if (P.fly.t >= 1) landLure(); break;
     case "float": updateFloat(dt); break;
     case "fight": updateFight(dt); break;
-    case "retrieve": {
-      P.retrieveT += dt / 0.7;
-      if (P.retrieveT >= 1) { P.mode = "idle"; P.lure.x = hp.x; P.lure.y = hp.y + 40; setHint(hintFor()); }
+    case "retrieve":
+      P.retrieveT += dt / 0.9;
+      if (P.retrieveT >= 1) { P.mode = "idle"; P.lure.x = hp.x; P.lure.y = hp.y + 30; P.idleT = 0; setHint(hintFor()); }
       break;
-    }
   }
-  P.rodBend = lerp(P.rodBend, P.mode === "fight" ? 0.35 + P.tension * 0.65 : P.mode === "float" ? 0.08 + P.bob.dip * 0.2 : 0, dt * 6);
+  if (P.mode !== "idle" && P.mode !== "aim") P.lure.vx = 0;
+  // a boia na mão balança como um pêndulo
+  P.swingV += (clamp(-P.lure.vx * 0.0012, -0.7, 0.7) - P.swing) * 40 * dt - P.swingV * 5 * dt;
+  P.swing += P.swingV * dt;
+  P.rodBend = lerp(P.rodBend, P.mode === "fight" ? 0.3 + P.tension * 0.7 : P.mode === "float" ? 0.08 + Math.max(0, P.bob.dip) * 0.2 : 0, damp(5, dt));
+  if (P.mode !== "fight") P.steer = lerp(P.steer, 0, damp(3, dt));
   if (P.snapT > 0) P.snapT -= dt;
+  P.ui = lerp(P.ui, P.mode === "fight" ? 1 : 0, damp(5, dt));
 
-  // bichos de luz
   flies.forEach(f => {
     f.vx += rnd(-20, 20) * dt; f.vy += rnd(-14, 14) * dt; f.vx *= 0.98; f.vy *= 0.98;
+    if (ptr.down) { const dx = ptr.x - f.x, dy = ptr.y - f.y, dd = Math.hypot(dx, dy); if (dd < 160) { f.vx += dx / dd * 30 * dt; f.vy += dy / dd * 30 * dt; } }
     f.x += f.vx * dt; f.y += f.vy * dt;
     if (f.x < 0) f.x = W; if (f.x > W) f.x = 0; if (f.y < horizon - 30) f.vy += 6; if (f.y > H * 0.82) f.vy -= 6;
   });
+  // os juncos se afastam do dedo
+  if (ptr.down) [reedsL, reedsR].forEach(set => set.forEach(rd => { if (Math.abs(ptr.x - rd.x) < 50 && ptr.y > H - rd.h) rd.push = lerp(rd.push, Math.sign(rd.x - ptr.x) * 18, damp(6, dt)); }));
+  [reedsL, reedsR].forEach(set => set.forEach(rd => { rd.push *= Math.exp(-dt * 1.8); }));
   Snd.update(dt);
 }
 
 function updateFish(fi, dt) {
   fi.t += dt; fi.wig += dt * (3 + fi.spd * 5);
+  fi.glow = lerp(fi.glow, P.mode === "aim" && P.lock === fi ? 1 : 0, damp(8, dt));
   if (fi.state === "hooked") return;
-  if (fi.state === "flee") { fi.alpha = Math.max(0, fi.alpha - dt * 0.8); fi.life -= dt; }
-  else { fi.alpha = Math.min(1, fi.alpha + dt * 0.5); }
+  if (fi.state === "flee") { fi.alpha = Math.max(0, fi.alpha - dt * 0.7); fi.life -= dt; }
+  else fi.alpha = Math.min(1, fi.alpha + dt * 0.5);
   if (fi.state === "wander") {
     fi.life -= dt;
-    if (fi.life < 0 && fi !== P.target) { fi.state = "flee"; fi.life = 2; fi.spd *= 0.7; }
-    fi.turn += rnd(-1, 1) * dt * 1.4; fi.turn *= 0.97; fi.hd += fi.turn * dt;
-    const xm = xMax(fi.d) * 0.85;
+    if (fi.life < 0 && fi !== P.target && fi !== P.lock) { fi.state = "flee"; fi.life = 2; fi.spd *= 0.7; }
+    if (fi.curious) {
+      fi.curious.t -= dt;
+      const dx = fi.curious.x - fi.x, dd = fi.curious.d - fi.d, dist = Math.hypot(dx, dd);
+      fi.hd = lerpAng(fi.hd, Math.atan2(dd, dx), dt * 2);
+      fi.spd = lerp(fi.spd, dist > 0.6 ? 0.7 * fi.sp.speed : 0.1, damp(2, dt));
+      if (fi.curious.t < 0) fi.curious = null;
+    } else {
+      fi.turn += rnd(-1, 1) * dt * 1.2; fi.turn *= 0.97; fi.hd += fi.turn * dt;
+      fi.spd = lerp(fi.spd, 0.35 * fi.sp.speed, damp(0.5, dt));
+    }
+    const xm = xMax(fi.d) * 1.05;
     if (fi.x > xm) fi.hd = lerpAng(fi.hd, Math.PI, dt * 1.5);
     if (fi.x < -xm) fi.hd = lerpAng(fi.hd, 0, dt * 1.5);
     if (fi.d < D_MIN + 1) fi.hd = lerpAng(fi.hd, Math.PI / 2, dt * 1.5);
     if (fi.d > D_MAX - 1) fi.hd = lerpAng(fi.hd, -Math.PI / 2, dt * 1.5);
-    // nota a boia na água
     if (P.mode === "float" && !P.target) {
       const dd = Math.hypot(fi.x - P.bob.x, fi.d - P.bob.d);
-      if (dd < 5.5 && Math.random() < dt * (0.12 + P.waitT * 0.02)) { fi.state = "approach"; P.target = fi; setHint("Algo se aproxima…"); }
+      if (dd < 6 && Math.random() < dt * (0.14 + P.waitT * 0.025)) { fi.state = "approach"; fi.curious = null; P.target = fi; setHint("Uma sombra se aproxima…"); }
     }
+  }
+  if (fi.state === "backoff") {
+    fi.spd = lerp(fi.spd, 0.15, damp(2, dt));
+    if (fi.t > 1.3) { fi.state = "approach"; }
   }
   if (fi.state === "approach") {
     const dx = P.bob.x - fi.x, dd = P.bob.d - fi.d, dist = Math.hypot(dx, dd);
-    fi.hd = lerpAng(fi.hd, Math.atan2(dd, dx), dt * 2.2);
-    fi.spd = lerp(fi.spd, clamp(dist * 0.5, 0.25, 0.9) * fi.sp.speed, dt * 2);
+    fi.hd = lerpAng(fi.hd, Math.atan2(dd, dx), dt * 2);
+    fi.spd = lerp(fi.spd, clamp(dist * 0.45, 0.2, 0.8) * fi.sp.speed, damp(2, dt));
     if (dist < 0.35 + fi.size * 0.35) {
-      fi.state = "nibble"; fi.nib = fi.sp.id === "piau" ? 4 : (P.bonus >= 2 ? 1 : 1 + (Math.random() * 3 | 0));
-      fi.t = 0; fi.next = rnd(0.6, 1.4) - P.bonus * 0.12; fi.spd = 0.05;
+      fi.state = "nibble"; fi.nib = fi.sp.id === "piau" ? 3 : (P.bonus >= 2 ? 1 : 1 + (Math.random() * 2 | 0));
+      fi.t = 0; fi.next = rnd(0.7, 1.3) - P.bonus * 0.12; fi.spd = 0.05;
     }
   }
   if (fi.state === "nibble") {
     fi.hd = lerpAng(fi.hd, Math.atan2(P.bob.d - fi.d, P.bob.x - fi.x), dt * 3);
     if (fi.t > fi.next) {
       if (fi.nib > 0) {
-        fi.nib--; fi.t = 0; fi.next = rnd(0.7, 1.5);
-        P.bob.dipV += 2.2; addRipple(P.bob.x, P.bob.d, 0.35, 0.8, 0.45); Snd.plop(0.5); buzz(5);
-        setHint("Calma… ainda está beliscando");
+        fi.nib--; fi.t = 0; fi.next = rnd(0.8, 1.5);
+        P.bob.dipV += 2.4; P.bob.tilt = rnd(-0.3, 0.3); addRipple(P.bob.x, P.bob.d, 0.35, 0.8, 0.45); Snd.plop(0.45); buzz(4);
+        setHint("Beliscou… ainda não");
       } else {
-        fi.state = "bite"; fi.t = 0; fi.window = 0.85 + P.bonus * 0.22 + (fi.sp.rar === 0 ? 0.15 : 0);
-        P.bob.dipV += 9; addRipple(P.bob.x, P.bob.d, 0.8, 1.2, 0.7); Snd.plop(1.2); Snd.splash(0.35); buzz([25, 30, 25]);
-        const p = proj(P.bob.x, P.bob.d); addText("!", p.x, p.y - 30, "#f3ece0", true);
-        setHint("Puxe para baixo agora!");
+        fi.state = "bite"; fi.t = 0; fi.window = 1.3 + P.bonus * 0.2 + (fi.sp.rar === 0 ? 0.2 : 0);
+        P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.2, 0.7); Snd.plop(1.1); Snd.splash(0.3); buzz([20, 30, 20]);
+        addText("!", P.bob.x, P.bob.d, "#f3ece0", true, 30); cam.shake = 2;
+        setHint("Agora! Puxe de leve para baixo");
       }
     }
   }
-  if (fi.state === "bite") {
-    P.bob.dip = Math.max(P.bob.dip, 1.4);
-    if (fi.t > fi.window) {
-      const p = proj(P.bob.x, P.bob.d); addText("Escapou…", p.x, p.y - 34, "#b9c3c8");
-      fi.state = "flee"; fi.spd = 2.2; fi.life = 1.4; fi.hd = rnd(0, TAU); P.target = null; Snd.sad();
-      setHint("Espere outro peixe ou puxe para recolher");
+  if (fi.state === "bite" && fi.t > fi.window) {
+    fi.misses++;
+    if (fi.misses < 2) {
+      // segunda chance: ele volta a beliscar
+      fi.state = "nibble"; fi.nib = 1; fi.t = 0; fi.next = rnd(1, 1.6);
+      setHint("Ele soltou… mas continua por perto");
+    } else {
+      addText("Foi embora", P.bob.x, P.bob.d, "#b9c3c8");
+      fi.state = "flee"; fi.spd = 1.6; fi.life = 1.6; fi.hd = rnd(0, TAU); P.target = null; Snd.sad();
+      setHint("Outros peixes vão aparecer. Toque na água para chamar");
     }
   }
   if (fi.state !== "nibble" && fi.state !== "bite") {
     fi.x += Math.cos(fi.hd) * fi.spd * dt; fi.d += Math.sin(fi.hd) * fi.spd * dt;
   }
 }
-function lerpAng(a, b, t) { return a + wrapAng(b - a) * clamp(t, 0, 1); }
 
 function updateFloat(dt) {
   P.waitT += dt;
   const b = P.bob;
-  // mola da boia
-  b.dipV += (-b.dip * 18 - b.dipV * 4.5) * dt; b.dip += b.dipV * dt;
-  if (P.target && P.target.state === "bite") b.dip = Math.max(b.dip, 1.3);
-  if (Math.random() < dt * 0.4) addRipple(b.x, b.d, 0.25, 1.2, 0.25);
-  if (!P.target && P.waitT > 9 && Math.random() < dt * 0.15) spawnFish(b);
+  b.dipV += (-b.dip * 16 - b.dipV * 4) * dt; b.dip += b.dipV * dt;
+  b.tilt *= Math.exp(-dt * 2);
+  if (P.target && P.target.state === "bite") b.dip = lerp(b.dip, 1.35, damp(10, dt));
+  if (Math.random() < dt * 0.4) addRipple(b.x, b.d, 0.25, 1.2, 0.22);
+  if (!P.target && P.waitT > 8 && Math.random() < dt * 0.15) spawnFish(b);
 }
 
 function updateFight(dt) {
   const fi = P.fish, sp = fi.sp;
-  // velocidade de giro (rad/s), suavizada
+  // círculos pequenos já giram a carretilha
   const rate = Math.abs(P.crankAcc) / Math.max(dt, 1e-3);
   P.reelAng += P.crankAcc; P.tickAcc += Math.abs(P.crankAcc); P.crankAcc = 0;
-  P.crank = lerp(P.crank, ptr.down ? rate : 0, clamp(dt * 7, 0, 1));
+  P.crank = lerp(P.crank, ptr.down ? rate : 0, damp(6, dt));
   while (P.tickAcc > 0.7) { P.tickAcc -= 0.7; Snd.tick(); }
-  const r = clamp(P.crank / 11, 0, 1.6);
+  const r = clamp(P.crank / 8, 0, 1.4);
+  // inclinar: o dedo para um lado puxa a vara para aquele lado
+  P.steer = lerp(P.steer, ptr.down ? clamp((ptr.x - W / 2) / (W * 0.33), -1, 1) : 0, damp(4, dt));
   // corridas do peixe
   P.nextRun -= dt;
   if (P.run <= 0 && P.nextRun < 0) {
-    P.run = rnd(1.1, 2.4) * (0.5 + P.stamina * 0.5); P.runDir = Math.random() < 0.5 ? -1 : 1; P.nextRun = rnd(1.8, 4.2);
-    addRipple(fi.x, fi.d, 1.2, 1.2, 0.7); Snd.splash(0.5);
+    P.run = rnd(1.2, 2.4) * (0.5 + P.stamina * 0.5); P.runDir = Math.random() < 0.5 ? -1 : 1; P.nextRun = rnd(2.2, 4.5);
+    addRipple(fi.x, fi.d, 1.2, 1.2, 0.7); Snd.splash(0.45); cam.shake = 2.5; buzz(10);
     if (sp.rar >= 2 || Math.random() < 0.35) P.jump = 1;
   }
   const running = P.run > 0; if (running) P.run -= dt;
-  const pull = sp.pull * (0.45 + 0.55 * P.stamina) * (1 - P.bonus * 0.07);
-  const target = r * (0.42 + pull * 0.35) + (running ? pull * 0.75 : 0.08) * (r > 0.08 ? 1 : 0.4);
-  P.tension = lerp(P.tension, target, clamp(dt * 2.4, 0, 1));
-  // linha entra / sai
-  const reelIn = r * 1.5 * (running ? 0.3 : 1) * (1 + P.bonus * 0.06);
-  const out = running ? pull * (r < 0.1 ? 0.9 : 0.25) : 0;
+  P.counter = lerp(P.counter, running ? clamp(-P.steer * P.runDir, 0, 1) : 0, damp(5, dt));
+  const pull = sp.pull * 0.8 * (0.45 + 0.55 * P.stamina) * (1 - P.bonus * 0.07) * (running ? 1 - P.counter * 0.6 : 1);
+  const target = r * (0.38 + pull * 0.3) + (running ? pull * 0.7 : 0.08) * (r > 0.08 ? 1 : 0.4);
+  P.tension = lerp(P.tension, target, damp(1.6, dt));
+  // fricção: com a linha muito esticada, a carretilha cede linha sozinha
+  let out = running ? pull * (r < 0.1 ? 0.8 : 0.22) : 0;
+  if (P.tension > 0.92) { out += (P.tension - 0.92) * 3; P.tension = lerp(P.tension, 0.95, damp(1.2, dt)); if (Math.random() < dt * 14) Snd.drag(); }
+  const reelIn = r * 1.6 * (running ? 0.35 + P.counter * 0.4 : 1) * (1 + P.bonus * 0.06);
   fi.d = clamp(fi.d - (reelIn - out) * dt, 2, D_MAX + 2);
-  fi.x += (running ? P.runDir * pull * 1.3 : -fi.x * 0.25 * r) * dt;
-  fi.x = clamp(fi.x, -xMax(fi.d) * 0.9, xMax(fi.d) * 0.9);
+  fi.x += (running ? P.runDir * pull * 1.2 * (1 - P.counter * 0.7) : -fi.x * 0.3 * Math.max(r, 0.2)) * dt;
+  fi.x = clamp(fi.x, -xMax(fi.d) * 1.05, xMax(fi.d) * 1.05);
   fi.hd = running ? lerpAng(fi.hd, P.runDir > 0 ? 0.3 : Math.PI - 0.3, dt * 4) : lerpAng(fi.hd, -Math.PI / 2, dt * 2);
-  P.stamina = Math.max(0, P.stamina - dt * (0.03 + r * 0.05 * (running ? 1.6 : 1)) / (0.6 + sp.pull * 0.5));
-  if (P.jump > 0) { P.jump -= dt * 1.4; if (P.jump <= 0) { addRipple(fi.x, fi.d, fi.size * 1.2, 1.5, 0.7); Snd.splash(0.6); } }
+  P.stamina = Math.max(0, P.stamina - dt * (0.035 + r * 0.05 + P.counter * 0.06) / (0.6 + sp.pull * 0.5));
+  if (P.jump > 0) { P.jump -= dt * 1.3; if (P.jump <= 0) { addRipple(fi.x, fi.d, fi.size * 1.2, 1.5, 0.7); Snd.splash(0.55); } }
   if (Math.random() < dt * 3) addRipple(fi.x + rnd(-0.2, 0.2), fi.d + rnd(-0.2, 0.2), 0.3 + fi.size * 0.3, 0.8, 0.45);
 
-  // dicas e perigo
-  if (P.tension > 1) {
-    P.over += dt; if (Math.random() < dt * 8) buzz(8);
-    setHint("A linha vai arrebentar! Pare de girar");
-  } else {
-    P.over = Math.max(0, P.over - dt * 0.8);
-    if (P.tension > 0.82) setHint("Linha esticada… vá com calma");
-    else if (P.tension < 0.12 && r < 0.08) setHint("Linha frouxa. Gire para recolher");
-    else setHint(running ? "Ele está correndo! Segure firme" : "Isso, continue girando");
-  }
-  if (P.tension < 0.12 && r < 0.08) P.slack += dt; else P.slack = Math.max(0, P.slack - dt * 2);
-  if (P.over > 0.7) { Snd.snap(); loseFish("A linha arrebentou"); return; }
-  if (P.slack > 6) { loseFish("Soltou do anzol"); return; }
+  // só arrebenta se insistir girando forte com a linha no limite
+  if (P.tension > 0.9 && r > 0.6) { P.over += dt; if (Math.random() < dt * 5) buzz(6); }
+  else P.over = Math.max(0, P.over - dt);
+  if (running && P.counter < 0.3) setHint(P.runDir > 0 ? "Ele foi para a direita: leve o dedo para a esquerda" : "Ele foi para a esquerda: leve o dedo para a direita");
+  else if (running) setHint("Isso, segure assim");
+  else if (P.over > 0.6) setHint("Devagar… a linha está no limite");
+  else if (r < 0.08) setHint("Faça círculos com o dedo");
+  else setHint(P.stamina < 0.3 ? "Ele está cansando, falta pouco" : "Isso, continue girando");
+  if (P.over > 2.2) { Snd.snap(); loseFish("A linha arrebentou"); return; }
   if (fi.d <= 2.6) landFish();
 }
 
@@ -833,141 +934,142 @@ function updateFight(dt) {
    ============================================================ */
 function draw() {
   const L = env.light;
+  g.save();
+  if (cam.shake > 0.05) g.translate(Math.sin(T * 37) * cam.shake, Math.cos(T * 31) * cam.shake * 0.6);
   // céu
-  const sky = g.createLinearGradient(0, 0, 0, horizon);
+  const sky = g.createLinearGradient(0, 0, 0, hz);
   sky.addColorStop(0, rgb(env.top)); sky.addColorStop(1, rgb(env.bot));
-  g.fillStyle = sky; g.fillRect(0, 0, W, horizon + 1);
-  // estrelas
+  g.fillStyle = sky; g.fillRect(-10, -10, W + 20, hz + 11);
+  const skyX = -cam.x * kpx * 0.04;
   if (env.stars > 0.01) {
-    stars.forEach(s => { g.fillStyle = `rgba(255,250,235,${env.stars * (0.5 + 0.5 * Math.sin(T * 1.3 + s.ph)) * 0.85})`; g.fillRect(s.x, s.y, s.r, s.r); });
+    stars.forEach(s => { if (s.y + cam.tilt * 0.3 > hz) return; g.fillStyle = `rgba(255,250,235,${env.stars * (0.5 + 0.5 * Math.sin(T * 1.3 + s.ph)) * 0.85})`; g.fillRect(s.x + skyX, s.y + cam.tilt * 0.3, s.r, s.r); });
   }
-  // sol e lua
-  const sunA = (dayT - 0.02) / 0.6, sunX = W * lerp(0.1, 0.9, sunA), sunY = horizon - Math.sin(clamp(sunA, 0, 1) * Math.PI) * horizon * 0.82 + 10;
+  const sunA = (dayT - 0.02) / 0.6, sunX = W * lerp(0.1, 0.9, sunA) + skyX, sunY = hz - Math.sin(clamp(sunA, 0, 1) * Math.PI) * horizon * 0.82 + 10;
   if (sunA > -0.05 && sunA < 1.05) {
     const sc = mix([255, 214, 150], [255, 248, 230], env.sunUp);
     const glow = g.createRadialGradient(sunX, sunY, 0, sunX, sunY, H * 0.28);
     glow.addColorStop(0, rgb(sc, 0.55 * (1 - weather.rain * 0.7))); glow.addColorStop(1, rgb(sc, 0));
-    g.fillStyle = glow; g.fillRect(0, 0, W, horizon);
+    g.fillStyle = glow; g.fillRect(-10, -10, W + 20, hz + 10);
     g.fillStyle = rgb(sc, 1 - weather.rain * 0.6); g.beginPath(); g.arc(sunX, sunY, Math.max(14, H * 0.025), 0, TAU); g.fill();
   }
-  const moonA = ((dayT + 1 - 0.64) % 1) / 0.4;
+  const moonA = ((dayT + 1 - 0.64) % 1) / 0.4, moonX = W * lerp(0.85, 0.15, moonA) + skyX;
   if (moonA >= 0 && moonA <= 1) {
-    const mx = W * lerp(0.85, 0.15, moonA), my = horizon - Math.sin(moonA * Math.PI) * horizon * 0.7 + 8, mr = Math.max(10, H * 0.018);
-    const mg = g.createRadialGradient(mx, my, 0, mx, my, mr * 6); mg.addColorStop(0, "rgba(220,228,255,.25)"); mg.addColorStop(1, "rgba(220,228,255,0)");
-    g.fillStyle = mg; g.fillRect(mx - mr * 6, my - mr * 6, mr * 12, mr * 12);
-    g.fillStyle = "#eef0ff"; g.beginPath(); g.arc(mx, my, mr, 0, TAU); g.fill();
-    g.fillStyle = rgb(env.top, 0.9); g.beginPath(); g.arc(mx + mr * 0.45, my - mr * 0.2, mr * 0.85, 0, TAU); g.fill();
+    const my = hz - Math.sin(moonA * Math.PI) * horizon * 0.7 + 8, mr = Math.max(10, H * 0.018);
+    const mg = g.createRadialGradient(moonX, my, 0, moonX, my, mr * 6); mg.addColorStop(0, "rgba(220,228,255,.25)"); mg.addColorStop(1, "rgba(220,228,255,0)");
+    g.fillStyle = mg; g.fillRect(moonX - mr * 6, my - mr * 6, mr * 12, mr * 12);
+    g.fillStyle = "#eef0ff"; g.beginPath(); g.arc(moonX, my, mr, 0, TAU); g.fill();
+    g.fillStyle = rgb(env.top, 0.9); g.beginPath(); g.arc(moonX + mr * 0.45, my - mr * 0.2, mr * 0.85, 0, TAU); g.fill();
   }
   drawBirds();
-  // morros e mata
   const hillC = mix(mix(env.bot, env.top, 0.45), [20, 30, 34], 0.45 + env.night * 0.3);
   const treeC = mix(hillC, [12, 22, 20], 0.55);
-  fillRidge(hills, hillC, 1);
-  fillRidge(trees, treeC, 1);
+  fillRidge(hills, hillC, 0.08);
+  fillRidge(trees, treeC, 0.14);
   // água
-  const water = g.createLinearGradient(0, horizon, 0, H);
+  const water = g.createLinearGradient(0, hz, 0, H);
   water.addColorStop(0, rgb(env.wFar)); water.addColorStop(0.35, rgb(mix(env.wFar, env.wNear, 0.6))); water.addColorStop(1, rgb(env.wNear));
-  g.fillStyle = water; g.fillRect(0, horizon, W, H - horizon);
-  // reflexo da mata
-  g.save(); g.globalAlpha = 0.45; reflectRidge(trees, treeC, hills, hillC); g.restore();
-  // brilho do sol / lua na água
-  const lightX = env.sunUp > 0.02 ? sunX : (moonA >= 0 && moonA <= 1 ? W * lerp(0.85, 0.15, moonA) : -1);
+  g.fillStyle = water; g.fillRect(-10, hz, W + 20, H - hz + 10);
+  g.save(); g.globalAlpha = 0.45; reflectRidge(hills, hillC, 0.08); reflectRidge(trees, treeC, 0.14); g.restore();
+  const lightX = env.sunUp > 0.02 ? sunX : (moonA >= 0 && moonA <= 1 ? moonX : -1);
   if (lightX > 0) {
     const col = env.sunUp > 0.02 ? mix([255, 210, 150], [255, 245, 225], env.sunUp) : [210, 220, 255];
     const k = (env.sunUp > 0.02 ? 0.9 : 0.5) * (1 - weather.rain * 0.7);
     glitter.forEach(p => {
-      const y = horizon + 2 + Math.pow(p.v, 1.6) * (H * 0.55);
-      const spread = 6 + (y - horizon) * 0.35;
+      const y = hz + 2 + Math.pow(p.v, 1.6) * (H * 0.55);
+      const spread = 6 + (y - hz) * 0.35;
       const x = lightX + (p.u - 0.5) * spread * 2;
       const a = k * Math.max(0, Math.sin(T * p.sp + p.ph)) * (1 - p.v * 0.6);
-      g.fillStyle = rgb(col, a); g.fillRect(x, y, 2 + (y - horizon) * 0.04, 1.2);
+      g.fillStyle = rgb(col, a); g.fillRect(x, y, 2 + (y - hz) * 0.04, 1.2);
     });
   }
-  // cintilação
   const shimC = mix(env.bot, [255, 255, 255], 0.3);
   shimmer.forEach(s => {
-    s.x += Math.sin(T * 0.2 + s.ph) * 0.0004;
-    const x = s.x * xMax(s.d), p = proj(x, s.d), w = s.len * kpx * p.s;
+    const x = s.x * xMax(s.d) + Math.sin(T * 0.2 + s.ph) * 0.3, p = proj(x, s.d), w = s.len * kpx * p.s;
     const a = (0.08 + 0.1 * Math.sin(T * s.sp + s.ph)) * L;
-    if (a <= 0) return;
+    if (a <= 0 || p.y > H + 5) return;
     g.strokeStyle = rgb(shimC, a); g.lineWidth = Math.max(0.6, p.s * 2);
     g.beginPath(); g.moveTo(p.x - w / 2, p.y); g.lineTo(p.x + w / 2, p.y); g.stroke();
   });
   drawPads(L);
   drawRipples();
-  // peixes (sombras debaixo d'água), do mais longe ao mais perto
   fishes.slice().sort((a, b) => b.d - a.d).forEach(drawShadow);
   splashes.forEach(drawJump);
-  if (P.mode === "aim") drawRings();
+  if (P.mode === "aim") drawAim();
   drawBobberInWater();
+  drawSparks();
+  g.restore();
+  // primeiro plano preso à câmera (vara, juncos, mão)
   drawLineAndRod();
   drawReeds(L);
   drawRain();
   drawFlies();
   drawLureInHand();
   drawTexts();
-  if (P.mode === "fight") drawFightUI();
-  // vinheta
+  if (P.ui > 0.02 && P.fish) drawFightUI();
   const vg = g.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.35, W / 2, H * 0.55, Math.max(W, H) * 0.8);
-  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, `rgba(4,8,16,${0.35 + env.night * 0.25})`);
+  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, `rgba(4,8,16,${0.33 + env.night * 0.25 + (cam.z - 1) * 0.8})`);
   g.fillStyle = vg; g.fillRect(0, 0, W, H);
 }
-function fillRidge(pts, col) {
-  g.fillStyle = rgb(col); g.beginPath(); g.moveTo(-10, horizon + 1);
-  pts.forEach(([x, h]) => g.lineTo(x, horizon - h)); g.lineTo(W + 10, horizon + 1); g.closePath(); g.fill();
+function fillRidge(pts, col, par) {
+  const ox = -cam.x * kpx * par;
+  g.fillStyle = rgb(col); g.beginPath(); g.moveTo(-W * 0.5 + ox, hz + 1);
+  pts.forEach(([x, h]) => g.lineTo(x + ox, hz - h)); g.lineTo(W * 1.5 + ox, hz + 1); g.closePath(); g.fill();
 }
-function reflectRidge(tp, tc, hp, hc) {
-  [[hp, hc], [tp, tc]].forEach(([pts, col]) => {
-    g.fillStyle = rgb(col); g.beginPath(); g.moveTo(-10, horizon);
-    pts.forEach(([x, h], i) => g.lineTo(x + Math.sin(T * 1.5 + i * 0.7) * 1.2, horizon + h * 0.75)); g.lineTo(W + 10, horizon); g.closePath(); g.fill();
-  });
+function reflectRidge(pts, col, par) {
+  const ox = -cam.x * kpx * par;
+  g.fillStyle = rgb(col); g.beginPath(); g.moveTo(-W * 0.5 + ox, hz);
+  pts.forEach(([x, h], i) => g.lineTo(x + ox + Math.sin(T * 1.5 + i * 0.7) * 1.2, hz + h * 0.75)); g.lineTo(W * 1.5 + ox, hz); g.closePath(); g.fill();
 }
 const birds = Array.from({ length: 4 }, () => ({ x: -100, y: 0, v: 0, ph: rnd(0, TAU) }));
 function drawBirds() {
   if (env.sunUp < 0.1) return;
   birds.forEach(b => {
     if (b.x < -60 || b.x > W + 60) { if (Math.random() < 0.002) { b.x = -40; b.y = rnd(horizon * 0.15, horizon * 0.6); b.v = rnd(18, 38); } return; }
-    b.x += b.v / 60; const f = Math.sin(T * 7 + b.ph) * 4;
+    b.x += b.v / 60; const f = Math.sin(T * 7 + b.ph) * 4, y = b.y + cam.tilt * 0.3;
     g.strokeStyle = "rgba(30,36,44,.6)"; g.lineWidth = 1.4; g.beginPath();
-    g.moveTo(b.x - 7, b.y - f); g.quadraticCurveTo(b.x - 3, b.y - 2, b.x, b.y); g.quadraticCurveTo(b.x + 3, b.y - 2, b.x + 7, b.y - f); g.stroke();
+    g.moveTo(b.x - 7, y - f); g.quadraticCurveTo(b.x - 3, y - 2, b.x, y); g.quadraticCurveTo(b.x + 3, y - 2, b.x + 7, y - f); g.stroke();
   });
 }
+const squash = s => 0.22 + s * 0.3;
 function drawPads(L) {
   pads.forEach(pd => {
-    const p = proj(pd.x, pd.d), rx = pd.r * kpx * p.s, ry = rx * (0.22 + p.s * 0.3);
-    if (p.x < -rx || p.x > W + rx) return;
+    const p = proj(pd.x, pd.d + Math.sin(T * 0.3 + pd.ph) * 0.05), rx = pd.r * kpx * p.s, ry = rx * squash(p.s);
+    if (p.x < -rx || p.x > W + rx || p.y > H + ry) return;
+    const lift = pd.bob * Math.sin(T * 9) * ry * 0.4;
     const c = shade([62, 104, 64], 0.55 + L * 0.5);
     g.fillStyle = rgb(c); g.beginPath();
-    g.ellipse(p.x, p.y, rx, ry, 0, pd.rot + 0.3, pd.rot + TAU - 0.15); g.lineTo(p.x, p.y); g.closePath(); g.fill();
+    g.ellipse(p.x, p.y + lift, rx, ry, 0, pd.rot + 0.3, pd.rot + TAU - 0.15); g.lineTo(p.x, p.y + lift); g.closePath(); g.fill();
     g.strokeStyle = rgb(shade(c, 1.3), 0.5); g.lineWidth = 1; g.stroke();
     if (pd.flower) {
       const fr = rx * 0.32;
       g.fillStyle = rgb(mix([240, 170, 190], [120, 90, 110], 1 - L));
-      for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; g.beginPath(); g.ellipse(p.x + Math.cos(a) * fr * 0.5, p.y - fr * 0.3 + Math.sin(a) * fr * 0.2, fr * 0.45, fr * 0.22, a, 0, TAU); g.fill(); }
-      g.fillStyle = "rgba(250,220,120,.9)"; g.beginPath(); g.arc(p.x, p.y - fr * 0.35, fr * 0.2, 0, TAU); g.fill();
+      for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; g.beginPath(); g.ellipse(p.x + Math.cos(a) * fr * 0.5, p.y + lift - fr * 0.3 + Math.sin(a) * fr * 0.2, fr * 0.45, fr * 0.22, a, 0, TAU); g.fill(); }
+      g.fillStyle = "rgba(250,220,120,.9)"; g.beginPath(); g.arc(p.x, p.y + lift - fr * 0.35, fr * 0.2, 0, TAU); g.fill();
     }
   });
 }
 function drawRipples() {
   const c = mix(env.bot, [255, 255, 255], 0.45);
   ripples.forEach(r => {
-    const p = proj(r.x, r.d), rx = r.r * kpx * p.s, ry = rx * (0.22 + p.s * 0.3);
-    const a = r.a * (1 - r.t / r.life);
-    if (rx < 0.5) return;
+    const p = proj(r.x, r.d), rx = r.r * kpx * p.s, ry = rx * squash(p.s);
+    const a = r.a * Math.pow(1 - r.t / r.life, 1.4);
+    if (rx < 0.5 || p.y - ry > H) return;
     g.strokeStyle = rgb(c, a); g.lineWidth = Math.max(0.7, p.s * 2.2);
     g.beginPath(); g.ellipse(p.x, p.y, rx, ry, 0, 0, TAU); g.stroke();
   });
 }
-function screenHeading(fi) {
-  const a = proj(fi.x, fi.d), b = proj(fi.x + Math.cos(fi.hd) * 0.5, fi.d + Math.sin(fi.hd) * 0.5);
-  return { p: a, ang: Math.atan2(b.y - a.y, b.x - a.x), fore: clamp(Math.hypot(b.x - a.x, b.y - a.y) / (0.5 * kpx * a.s), 0.3, 1) };
-}
 function drawShadow(fi) {
   if (fi.alpha <= 0.01) return;
-  const { p, ang } = screenHeading(fi);
+  const p = proj(fi.x, fi.d), b = proj(fi.x + Math.cos(fi.hd) * 0.5, fi.d + Math.sin(fi.hd) * 0.5);
+  const ang = Math.atan2(b.y - p.y, b.x - p.x);
   const len = fi.size * kpx * p.s, wid = len * 0.3;
-  const sink = fi.state === "hooked" ? 0 : Math.sin(fi.t * 0.7 + fi.wig * 0.1) * 0.08;
-  const a = fi.alpha * (0.5 - sink) * (fi.state === "hooked" ? 1.2 : 1);
+  if (p.x < -len || p.x > W + len) return;
+  const a = fi.alpha * (0.5 - Math.sin(fi.t * 0.7) * 0.06) * (fi.state === "hooked" ? 1.2 : 1);
+  if (fi.glow > 0.02) {
+    const gl = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, len);
+    gl.addColorStop(0, rgb(hex(RARITY[fi.sp.rar].cor), 0.28 * fi.glow)); gl.addColorStop(1, rgb(hex(RARITY[fi.sp.rar].cor), 0));
+    g.fillStyle = gl; g.beginPath(); g.ellipse(p.x, p.y, len, len * squash(p.s) * 1.4, 0, 0, TAU); g.fill();
+  }
   g.save(); g.translate(p.x, p.y); g.rotate(ang);
   const wag = Math.sin(fi.wig) * 0.35 * (fi.state === "hooked" ? 2 : 1);
   g.fillStyle = `rgba(6,14,20,${a})`;
@@ -988,22 +1090,55 @@ function drawJump(s) {
   g.beginPath(); g.moveTo(-len / 2, 0); g.lineTo(-len * 0.72, -len * 0.16); g.lineTo(-len * 0.72, len * 0.16); g.fill();
   g.restore();
 }
-function drawRings() {
+function curvePoint(x0, y0, x1, y1, k, bend) {
+  const cx = lerp(x0, x1, 0.5) + bend, cy = Math.min(y0, y1) - H * 0.26;
+  return { x: (1 - k) * (1 - k) * x0 + 2 * (1 - k) * k * cx + k * k * x1, y: (1 - k) * (1 - k) * y0 + 2 * (1 - k) * k * cy + k * k * y1 };
+}
+function drawAim() {
   const ph = ringPhase();
+  // anéis: o peixe na mira ganha o anel que encolhe; os outros, só um contorno discreto
   fishes.forEach(fi => {
     if (fi.state !== "wander" || fi.alpha < 0.3) return;
-    const p = proj(fi.x, fi.d), outer = fi.size * 1.5 * kpx * p.s, inner = outer * (0.25 + 0.75 * ph);
-    const sq = 0.22 + p.s * 0.3, col = RARITY[fi.sp.rar].cor;
-    g.lineWidth = 1.5; g.strokeStyle = `rgba(255,255,255,${0.5 * fi.alpha})`;
+    const p = proj(fi.x, fi.d), outer = fi.size * 1.5 * kpx * p.s, sq = squash(p.s);
+    const locked = P.lock === fi;
+    g.lineWidth = 1.5; g.strokeStyle = `rgba(255,255,255,${(locked ? 0.6 : 0.22) * fi.alpha})`;
     g.beginPath(); g.ellipse(p.x, p.y, outer, outer * sq, 0, 0, TAU); g.stroke();
-    g.lineWidth = Math.max(2, 4 * p.s + 1.5); g.strokeStyle = col; g.globalAlpha = 0.9 * fi.alpha;
-    g.beginPath(); g.ellipse(p.x, p.y, inner, inner * sq, 0, 0, TAU); g.stroke(); g.globalAlpha = 1;
+    if (!locked) return;
+    const inner = outer * (0.25 + 0.75 * ph);
+    g.lineWidth = Math.max(2.5, 4 * p.s + 2); g.strokeStyle = RARITY[fi.sp.rar].cor;
+    g.beginPath(); g.ellipse(p.x, p.y, inner, inner * sq, 0, 0, TAU); g.stroke();
   });
+  if (!P.aimPt) return;
+  // trajetória pontilhada e o alvo
+  const end = proj(P.aimPt.x, P.aimPt.d), bend = P.curved ? P.spinDir * W * 0.28 : 0;
+  g.fillStyle = "rgba(243,236,224,.55)";
+  for (let i = 1; i < 18; i++) {
+    const k = ((i + (T * 2.2) % 1) / 18);
+    const q = curvePoint(P.lure.x, P.lure.y, end.x, end.y, k, bend);
+    g.globalAlpha = 0.25 + 0.6 * Math.sin(k * Math.PI);
+    g.beginPath(); g.arc(q.x, q.y, lerp(3, 1.5, k), 0, TAU); g.fill();
+  }
+  g.globalAlpha = 1;
+  const rr = 0.45 * kpx * end.s * (1 + Math.sin(T * 4) * 0.06), sq = squash(end.s);
+  g.strokeStyle = P.lock ? RARITY[P.lock.sp.rar].cor : "rgba(243,236,224,.8)"; g.lineWidth = 2;
+  g.setLineDash([5, 5]); g.lineDashOffset = -T * 12;
+  g.beginPath(); g.ellipse(end.x, end.y, rr, rr * sq, 0, 0, TAU); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle = "rgba(243,236,224,.7)"; g.beginPath(); g.ellipse(end.x, end.y, 2.5, 2.5 * sq + 0.8, 0, 0, TAU); g.fill();
+}
+function drawSparks() {
+  sparks.forEach(s => {
+    const p = proj(s.x, s.d), k = s.t / 0.9, dist = s.v * k * (1.5 - k * 0.5);
+    g.fillStyle = s.col; g.globalAlpha = 1 - k;
+    g.beginPath(); g.arc(p.x + Math.cos(s.a) * dist, p.y + Math.sin(s.a) * dist * 0.5 - k * 20, 2.2 * (1 - k * 0.5), 0, TAU); g.fill();
+  });
+  g.globalAlpha = 1;
 }
 function bobberR(s) { return Math.max(4, 26 * Math.pow(s, 0.7)); }
-function drawBobber(x, y, r, spin = 0, under = 0) {
-  g.save(); g.translate(x, y); g.rotate(spin);
-  if (under > 0) { g.beginPath(); g.rect(-r * 2, -r * 3, r * 4, r * 3 + r * (1 - under) * 0.9); g.clip(); }
+function drawBobber(x, y, r, rot = 0, under = 0) {
+  g.save(); g.translate(x, y);
+  if (under > 0) { g.beginPath(); g.rect(-r * 3, -r * 4, r * 6, r * 4 + r * (1 - under) * 0.9); g.clip(); }
+  g.rotate(rot);
   g.fillStyle = "#f4efe6"; g.beginPath(); g.arc(0, 0, r, 0, Math.PI); g.fill();
   g.fillStyle = "#e4573d"; g.beginPath(); g.arc(0, 0, r, Math.PI, TAU); g.fill();
   g.fillStyle = "#2a2a2a"; g.fillRect(-r, -r * 0.08, r * 2, r * 0.16);
@@ -1014,31 +1149,29 @@ function drawBobber(x, y, r, spin = 0, under = 0) {
 function drawBobberInWater() {
   if (P.mode !== "float") return;
   const p = proj(P.bob.x, P.bob.d), r = bobberR(p.s);
-  const bobY = p.y + Math.sin(T * 2.2) * r * 0.08 + P.bob.dip * r * 0.55;
+  const y = p.y + Math.sin(T * 2.2) * r * 0.08 + P.bob.dip * r * 0.55;
   g.fillStyle = "rgba(0,0,0,.18)"; g.beginPath(); g.ellipse(p.x, p.y + r * 0.1, r * 1.3, r * 0.35, 0, 0, TAU); g.fill();
-  drawBobber(p.x, bobY - r * 0.3, r, Math.sin(T * 1.7) * 0.08, clamp(0.35 + P.bob.dip * 0.5, 0, 1));
+  drawBobber(p.x, y - r * 0.3, r, Math.sin(T * 1.7) * 0.08 + P.bob.tilt, clamp(0.35 + P.bob.dip * 0.5, 0, 1));
 }
 function drawLineAndRod() {
   const tip = rodTip(), base = rodBase();
   let end = null;
-  if (P.mode === "float") { const p = proj(P.bob.x, P.bob.d); end = { x: p.x, y: p.y - bobberR(p.s) * 1.2 }; }
-  else if (P.mode === "fight" && P.fish) { const p = proj(P.fish.x, P.fish.d); end = p; }
+  if (P.mode === "float") { const p = proj(P.bob.x, P.bob.d); end = { x: p.x, y: p.y - bobberR(p.s) * 1.2 + P.bob.dip * bobberR(p.s) * 0.5 }; }
+  else if (P.mode === "fight" && P.fish) end = proj(P.fish.x, P.fish.d);
   else if (P.mode === "fly") end = flyPos();
   else if (P.mode === "retrieve") end = retrievePos();
-  else if (P.mode === "idle" || P.mode === "aim") end = { x: P.lure.x, y: P.lure.y - 26 };
+  else if (P.mode === "idle" || P.mode === "aim") end = { x: P.lure.x + Math.sin(P.swing) * 26 * 1.7, y: P.lure.y - Math.cos(P.swing) * 26 * 1.7 };
   if (end) {
     const sag = P.mode === "fight" ? (1 - P.tension) * 40 : P.mode === "float" ? 30 : 12;
-    g.strokeStyle = `rgba(240,240,235,${P.mode === "fight" && P.tension > 0.9 ? 0.95 : 0.5})`;
-    g.lineWidth = P.mode === "fight" && P.tension > 0.9 ? 1.4 : 1;
+    const tight = P.mode === "fight" && P.tension > 0.85;
+    g.strokeStyle = `rgba(240,240,235,${tight ? 0.9 : 0.5})`; g.lineWidth = tight ? 1.4 : 1;
     g.beginPath(); g.moveTo(tip.x, tip.y); g.quadraticCurveTo((tip.x + end.x) / 2, Math.max(tip.y, end.y) + sag, end.x, end.y); g.stroke();
   }
-  // vara
   const ctrl = { x: lerp(base.x, tip.x, 0.5) + P.rodBend * 18, y: lerp(base.y, tip.y, 0.5) + P.rodBend * 30 };
   g.lineCap = "round";
   g.strokeStyle = "#1c1611"; g.lineWidth = 11; g.beginPath(); g.moveTo(base.x, base.y); g.lineTo(lerp(base.x, ctrl.x, 0.35), lerp(base.y, ctrl.y, 0.35)); g.stroke();
   g.strokeStyle = "#5a3e2a"; g.lineWidth = 5; g.beginPath(); g.moveTo(base.x, base.y); g.quadraticCurveTo(ctrl.x, ctrl.y, tip.x, tip.y); g.stroke();
   g.strokeStyle = "rgba(255,230,190,.25)"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(base.x - 2, base.y); g.quadraticCurveTo(ctrl.x - 2, ctrl.y, tip.x - 1, tip.y); g.stroke();
-  // carretilha
   const rp = { x: lerp(base.x, ctrl.x, 0.28) - 14, y: lerp(base.y, ctrl.y, 0.28) };
   g.fillStyle = "#2d3236"; g.beginPath(); g.arc(rp.x, rp.y, 15, 0, TAU); g.fill();
   g.strokeStyle = "#8b949a"; g.lineWidth = 3; g.beginPath(); g.moveTo(rp.x, rp.y); g.lineTo(rp.x + Math.cos(P.reelAng) * 13, rp.y + Math.sin(P.reelAng) * 13); g.stroke();
@@ -1050,39 +1183,43 @@ function drawLineAndRod() {
   }
 }
 function flyPos() {
-  const f = P.fly, end = proj(f.x, f.d), k = clamp(f.t, 0, 1);
-  const cx = lerp(f.x0, end.x, 0.5) + (f.curved ? f.dir * W * 0.28 : 0), cy = Math.min(f.y0, end.y) - H * 0.28;
-  const x = (1 - k) * (1 - k) * f.x0 + 2 * (1 - k) * k * cx + k * k * end.x;
-  const y = (1 - k) * (1 - k) * f.y0 + 2 * (1 - k) * k * cy + k * k * end.y;
-  return { x, y, r: lerp(26, bobberR(end.s), ease(k)) };
+  const f = P.fly, end = proj(f.x, f.d), k = clamp(f.t, 0, 1), ke = 1 - Math.pow(1 - k, 1.6);
+  const q = curvePoint(f.x0, f.y0, end.x, end.y, ke, f.curved ? f.dir * W * 0.28 : 0);
+  return { x: q.x, y: q.y, r: lerp(26, bobberR(end.s), ease(k)) };
 }
 function retrievePos() {
   const k = ease(clamp(P.retrieveT, 0, 1)), hp = handPos(), f = P.retrieveFrom;
-  return { x: lerp(f.x, hp.x, k), y: lerp(f.y, hp.y + 40, k) - Math.sin(k * Math.PI) * 30 };
+  return { x: lerp(f.x, hp.x, k), y: lerp(f.y, hp.y + 30, k) - Math.sin(k * Math.PI) * 30 };
 }
 function drawLureInHand() {
   if (P.mode === "idle" || P.mode === "aim") {
     const r = 26;
+    // convite para tocar: um anel que respira quando nada acontece
+    if (P.mode === "idle" && P.idleT > 2.5) {
+      const k = (T * 0.8) % 1;
+      g.strokeStyle = `rgba(243,236,224,${0.35 * (1 - k)})`; g.lineWidth = 2;
+      g.beginPath(); g.arc(P.lure.x, P.lure.y, r + 6 + k * 26, 0, TAU); g.stroke();
+    }
     if (P.mode === "aim" && P.curved) {
       g.strokeStyle = "rgba(242,211,107,.8)"; g.lineWidth = 2;
       for (let i = 0; i < 3; i++) { const a = T * 9 + i * 2.1; g.beginPath(); g.arc(P.lure.x, P.lure.y, r + 10, a, a + 0.9); g.stroke(); }
     }
-    g.fillStyle = "rgba(0,0,0,.25)"; g.beginPath(); g.ellipse(P.lure.x, P.lure.y + r + 8, r * 0.9, 6, 0, 0, TAU); g.fill();
-    drawBobber(P.lure.x, P.lure.y, r, P.mode === "aim" && P.curved ? T * 14 : Math.sin(T * 1.4) * 0.1);
+    g.fillStyle = "rgba(0,0,0,.22)"; g.beginPath(); g.ellipse(P.lure.x, P.lure.y + r + 8, r * 0.9, 6, 0, 0, TAU); g.fill();
+    drawBobber(P.lure.x, P.lure.y, r, P.mode === "aim" && P.curved ? T * 14 : P.swing + Math.sin(T * 1.4) * 0.06);
   } else if (P.mode === "fly") {
-    const p = flyPos(); drawBobber(p.x, p.y, p.r, P.fly.curved ? T * 14 : P.fly.t * 4);
+    const p = flyPos(); drawBobber(p.x, p.y, p.r, P.fly.curved ? T * 14 : P.fly.t * 3);
   } else if (P.mode === "retrieve") {
-    const p = retrievePos(); drawBobber(p.x, p.y, lerp(8, 24, ease(P.retrieveT)), P.retrieveT * 3);
+    const p = retrievePos(); drawBobber(p.x, p.y, lerp(8, 26, ease(P.retrieveT)), P.retrieveT * 2);
   }
 }
 function drawReeds(L) {
-  const base = shade([46, 72, 44], 0.35 + L * 0.6), wind = Math.sin(T * 0.6) * 0.5 + weather.rain * 0.4;
+  const base = shade([46, 72, 44], 0.35 + L * 0.6), wind = Math.sin(T * 0.6) * 0.5 + weather.rain * 0.4, ox = -cam.x * kpx * 0.22;
   [reedsL, reedsR].forEach(set => set.forEach(rd => {
-    const sway = (Math.sin(T * 1.1 + rd.ph) * 0.06 + wind * 0.04) * rd.h;
-    const tipX = rd.x + rd.bend * rd.h + sway, tipY = H - rd.h;
+    const sway = (Math.sin(T * 1.1 + rd.ph) * 0.06 + wind * 0.04) * rd.h + rd.push;
+    const bx = rd.x + ox, tipX = bx + rd.bend * rd.h + sway, tipY = H - rd.h;
     g.strokeStyle = rgb(shade(base, rd.shade)); g.lineWidth = rd.w; g.lineCap = "round";
-    g.beginPath(); g.moveTo(rd.x, H + 10); g.quadraticCurveTo(rd.x + sway * 0.2, H - rd.h * 0.5, tipX, tipY); g.stroke();
-    if (rd.cat) { g.fillStyle = rgb(shade([92, 62, 40], 0.4 + L * 0.6)); g.beginPath(); g.ellipse(tipX - (tipX - rd.x) * 0.06, tipY + rd.h * 0.1, rd.w * 1.3, rd.h * 0.06, (tipX - rd.x) / rd.h * 0.5, 0, TAU); g.fill(); }
+    g.beginPath(); g.moveTo(bx, H + 10); g.quadraticCurveTo(bx + sway * 0.2, H - rd.h * 0.5, tipX, tipY); g.stroke();
+    if (rd.cat) { g.fillStyle = rgb(shade([92, 62, 40], 0.4 + L * 0.6)); g.beginPath(); g.ellipse(tipX - (tipX - bx) * 0.06, tipY + rd.h * 0.1, rd.w * 1.3, rd.h * 0.06, (tipX - bx) / rd.h * 0.5, 0, TAU); g.fill(); }
   }));
   g.lineCap = "butt";
 }
@@ -1091,7 +1228,7 @@ function drawRain() {
   g.strokeStyle = `rgba(210,220,230,${0.28 * weather.rain})`; g.lineWidth = 1; g.beginPath();
   const n = Math.round(120 * weather.rain);
   for (let i = 0; i < n; i++) {
-    const x = ((i * 97.13 + T * 60) % (W + 40)) - 20, y = ((i * 53.7 + T * (520 + (i % 5) * 40)) % (H + 40)) - 20;
+    const x = ((i * 97.13 + T * 60 - cam.x * 40) % (W + 40) + W + 40) % (W + 40) - 20, y = ((i * 53.7 + T * (520 + (i % 5) * 40)) % (H + 40)) - 20;
     g.moveTo(x, y); g.lineTo(x - 3, y + 14);
   }
   g.stroke();
@@ -1108,40 +1245,45 @@ function drawFlies() {
 }
 function drawTexts() {
   texts.forEach(t => {
-    const k = t.t / 1.6, a = k < 0.15 ? k / 0.15 : 1 - Math.max(0, (k - 0.6) / 0.4);
-    const sz = (t.big ? 30 : 21) * (1 + Math.max(0, 0.15 - k) * 2);
+    const p = proj(t.x, t.d), k = t.t / 1.8, a = k < 0.12 ? k / 0.12 : 1 - Math.max(0, (k - 0.55) / 0.45);
+    const pop = 1 + Math.sin(clamp(k / 0.15, 0, 1) * Math.PI) * 0.18;
+    const sz = (t.big ? 30 : 21) * pop, y = p.y - t.lift - ease(clamp(k, 0, 1)) * 28;
     g.font = `${sz}px "Young Serif", Georgia, serif`; g.textAlign = "center";
-    g.fillStyle = `rgba(0,0,0,${0.35 * a})`; g.fillText(t.str, t.x + 1, t.y - k * 30 + 2);
-    g.globalAlpha = a; g.fillStyle = t.color; g.fillText(t.str, t.x, t.y - k * 30); g.globalAlpha = 1;
+    g.fillStyle = `rgba(0,0,0,${0.35 * a})`; g.fillText(t.str, p.x + 1, y + 2);
+    g.globalAlpha = a; g.fillStyle = t.color; g.fillText(t.str, p.x, y); g.globalAlpha = 1;
   });
 }
 function drawFightUI() {
-  const cx = W / 2, cy = H * 0.86, R = Math.min(64, W * 0.16);
-  // arco de tensão
+  const fi = P.fish, a = P.ui;
+  const cx = W / 2, cy = H * 0.86 + (1 - a) * 30, R = Math.min(64, W * 0.16);
+  g.save(); g.globalAlpha = a;
   const start = Math.PI * 0.8, span = Math.PI * 1.4;
   g.lineCap = "round"; g.lineWidth = 9; g.strokeStyle = "rgba(10,16,26,.45)";
   g.beginPath(); g.arc(cx, cy, R, start, start + span); g.stroke();
   const tcol = P.tension > 0.85 ? "#ec6f8e" : P.tension > 0.6 ? "#f2d36b" : "#9fe3a8";
   g.strokeStyle = tcol; g.beginPath(); g.arc(cx, cy, R, start, start + span * clamp(P.tension, 0.02, 1)); g.stroke();
-  // zona de perigo
   g.lineWidth = 2; g.strokeStyle = "rgba(236,111,142,.6)"; g.beginPath(); g.arc(cx, cy, R + 9, start + span * 0.85, start + span); g.stroke();
-  // carretilha virtual
   g.lineWidth = 2; g.strokeStyle = "rgba(243,236,224,.35)"; g.beginPath(); g.arc(cx, cy, R * 0.55, 0, TAU); g.stroke();
   const hx = cx + Math.cos(P.reelAng) * R * 0.55, hy = cy + Math.sin(P.reelAng) * R * 0.55;
   g.fillStyle = "#f3ece0"; g.beginPath(); g.arc(hx, hy, 7, 0, TAU); g.fill();
-  // distância
   g.font = '600 13px "Figtree", system-ui, sans-serif'; g.textAlign = "center"; g.fillStyle = "rgba(243,236,224,.85)";
-  g.fillText(`${Math.max(0, P.fish.d - 2.6).toFixed(1).replace(".", ",")} m`, cx, cy + 5);
-  // energia do peixe
+  g.fillText(`${Math.max(0, fi.d - 2.6).toFixed(1).replace(".", ",")} m`, cx, cy + 5);
+  // setas: para que lado inclinar quando o peixe corre
+  if (P.run > 0) {
+    const dir = -P.runDir, ax = cx + dir * (R + 34), pulse = 0.6 + 0.4 * Math.sin(T * 8);
+    g.globalAlpha = a * (P.counter > 0.3 ? 0.9 : pulse);
+    g.fillStyle = P.counter > 0.3 ? "#9fe3a8" : "#f3ece0";
+    g.beginPath(); g.moveTo(ax + dir * 14, cy); g.lineTo(ax - dir * 6, cy - 13); g.lineTo(ax - dir * 6, cy + 13); g.closePath(); g.fill();
+    g.globalAlpha = a;
+  }
   const bw = Math.min(160, W * 0.4), by = cy + R + 22;
   g.fillStyle = "rgba(10,16,26,.45)"; g.fillRect(cx - bw / 2, by, bw, 5);
-  g.fillStyle = RARITY[P.fish.sp.rar].cor; g.fillRect(cx - bw / 2, by, bw * P.stamina, 5);
-  g.lineCap = "butt";
-  // salto do peixe fisgado
+  g.fillStyle = RARITY[fi.sp.rar].cor; g.fillRect(cx - bw / 2, by, bw * P.stamina, 5);
+  g.lineCap = "butt"; g.restore();
   if (P.jump > 0) {
-    const p = proj(P.fish.x, P.fish.d), k = 1 - P.jump, len = P.fish.size * kpx * p.s, h = Math.sin(k * Math.PI) * len * 0.9;
+    const p = proj(fi.x, fi.d), k = 1 - P.jump, len = fi.size * kpx * p.s, h = Math.sin(k * Math.PI) * len * 0.9;
     g.save(); g.translate(p.x, p.y - h); g.rotate((k - 0.5) * 1.4 * P.runDir);
-    drawFishSide(g, P.fish.sp, 0, 0, len, false);
+    drawFishSide(g, fi.sp, 0, 0, len, false);
     g.restore();
   }
 }
@@ -1178,13 +1320,11 @@ function drawFishSide(c, sp, x, y, L, silhouette) {
   c.fillStyle = gr; c.fill(body);
   c.save(); c.clip(body);
   drawPattern(c, sp, x0, y, L, Hh);
-  // brilho
   const sh = c.createLinearGradient(0, y - Hh / 2, 0, y);
   sh.addColorStop(0, "rgba(255,255,255,0)"); sh.addColorStop(0.7, "rgba(255,255,255,.12)"); sh.addColorStop(1, "rgba(255,255,255,0)");
   c.fillStyle = sh; c.fillRect(x0, y - Hh / 2, L, Hh / 2);
   c.restore();
   c.fillStyle = fin; c.globalAlpha = 0.85; c.fill(pect); c.globalAlpha = 1;
-  // guelra e olho
   c.strokeStyle = "rgba(0,0,0,.25)"; c.lineWidth = Math.max(1, L * 0.006);
   c.beginPath(); c.arc(x0 + L * 0.2, y, Hh * 0.38, -1.1, 1.1); c.stroke();
   const er = Math.max(2, Hh * 0.09);
@@ -1237,7 +1377,7 @@ function setHint(s) {
   hintEl.textContent = s; hintEl.classList.remove("off");
 }
 function hintFor() {
-  return caughtToday === 0 && Object.keys(book).length === 0 ? "Segure a boia e deslize para cima" : "Deslize para lançar · gire antes para curvar";
+  return caughtToday === 0 && Object.keys(book).length === 0 ? "Toque na boia e arraste para cima" : "Arraste a boia para cima · toque na água para chamar";
 }
 function updateTally() { $("tally").textContent = caughtToday === 1 ? "1 peixe hoje" : `${caughtToday} peixes hoje`; }
 const fmtKg = kg => kg < 1 ? `${Math.round(kg * 1000)} g` : `${kg.toFixed(kg < 10 ? 2 : 1).replace(".", ",")} kg`;
@@ -1253,13 +1393,18 @@ function showCatch(sp, len, kg, isNew, isRec) {
   gl.addColorStop(0, rgb(hex(RARITY[sp.rar].cor), 0.22)); gl.addColorStop(1, "rgba(0,0,0,0)");
   cc.fillStyle = gl; cc.fillRect(0, 0, c.width, c.height);
   drawFishSide(cc, sp, c.width / 2, c.height / 2, c.width * 0.78, false);
-  $("catch").hidden = false; setHint("");
-  setTimeout(() => $("btnRelease").focus({ preventScroll: true }), 50);
+  setTimeout(() => { $("catch").hidden = false; setHint(""); $("btnRelease").focus({ preventScroll: true }); }, 450);
 }
 $("btnRelease").addEventListener("click", () => {
   $("catch").hidden = true;
-  addRipple(0, 3.4, 1.4, 2, 0.6); addRipple(0, 3.4, 0.8, 1.4, 0.5); Snd.splash(0.6);
-  P.mode = "idle"; P.lure.x = W / 2; P.lure.y = H + 40; setHint(hintFor());
+  // o peixe volta nadando para o fundo
+  const fi = P.released;
+  if (fi) {
+    Object.assign(fi, { x: cam.x, d: 3.6, hd: Math.PI / 2 + rnd(-0.3, 0.3), spd: 1.6, state: "flee", life: 2, alpha: 1, t: 1, curious: null });
+    fishes.push(fi); P.released = null;
+  }
+  addRipple(cam.x, 3.6, 1.4, 2, 0.6); addRipple(cam.x, 3.6, 0.8, 1.4, 0.5); Snd.splash(0.5); Snd.soft();
+  P.mode = "idle"; P.idleT = 0; P.lure.x = W / 2; P.lure.y = H + 40; setHint(hintFor());
 });
 
 function openBook() {
@@ -1288,7 +1433,7 @@ syncSoundBtn();
 
 $("btnStart").addEventListener("click", () => {
   Snd.init(); if (Snd.ctx && Snd.ctx.state === "suspended") Snd.ctx.resume();
-  $("intro").hidden = true; P.mode = "idle"; setHint(hintFor());
+  $("intro").hidden = true; P.mode = "idle"; P.idleT = 0; setHint(hintFor());
   try { navigator.wakeLock && navigator.wakeLock.request("screen").catch(() => {}); } catch (e) {}
 });
 document.addEventListener("visibilitychange", () => {
@@ -1299,15 +1444,16 @@ document.addEventListener("visibilitychange", () => {
 /* ============================================================
    Laço principal
    ============================================================ */
+let phaseShown = "";
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   update(dt); draw();
-  $("phaseName").textContent = env.name;
+  if (env.name !== phaseShown) { phaseShown = env.name; $("phaseName").textContent = env.name; }
   requestAnimationFrame(frame);
 }
 window.addEventListener("resize", resize);
 resize();
-for (let i = 0; i < 6; i++) { spawnFish(); fishes[i].alpha = 1; }
+for (let i = 0; i < 6; i++) spawnFish().alpha = 1;
 P.lure.x = W / 2; P.lure.y = H * 0.86;
 updateTally();
 requestAnimationFrame(t => { last = t; frame(t); });
