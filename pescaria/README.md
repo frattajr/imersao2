@@ -9,10 +9,26 @@ Os gestos imitam o corpo de quem pesca. A parte de baixo da tela é a mão na va
 | Gesto | O que acontece |
 | --- | --- |
 | **Tocar na parte de baixo e arrastar para cima** | A boia vem para a mão e fica logo acima do dedo. Uma luz aparece na água sempre à mesma distância acima do dedo e segue cada movimento, sem atraso; a ponta da vara aponta para ela. A câmera fica parada enquanto você mira, para a água não escorregar debaixo do dedo. Perto de uma sombra, a luz é puxada de leve para ela. |
-| **Soltar** | A boia sai do ponto onde o dedo soltou e faz um arco até a luz, enquanto a vara chicoteia para a frente. Soltar sem ter arrastado não lança nada. |
+| **Soltar** | A boia sai do ponto onde o dedo soltou e faz um arco até a luz, enquanto a vara chicoteia para a frente. |
+| **Voltar o dedo para baixo antes de soltar** | Desiste do lançamento: a luz some e, ao soltar, a boia volta a balançar na ponta da vara. |
 | **Tocar ou passar o dedo na água** | Gotas e ondas. As vitórias-régias balançam e os peixes por perto vêm ver. |
-| **Um toque curto para cima, com a boia na água** | Dá vida à isca: a boia mexe e atrai quem estiver por perto. |
-| **Puxar firme quando a boia afunda** | Fisga, para cima ou para baixo. Puxar cedo só faz o peixe recuar e voltar; perder a hora dá uma segunda chance. Sem peixe por perto, puxar para baixo recolhe a boia. |
+
+**Enquanto espera**, a vara fica na sua mão: ela balança de leve sozinha e, segurando na parte de baixo da tela, segue o dedo. Cada movimento chama a atenção dos peixes por perto, que vêm nadando ver:
+
+| Movimento de vara | O que acontece |
+| --- | --- |
+| **Um toquinho para cima** | A boia dá um pulo e faz ondas. |
+| **Arrastar para os lados** | A linha puxa a boia pela água, deixando um rastro. |
+| **Pequenos círculos** | Recolhe a linha devagar; a isca andando também atrai. Se a boia já estiver no fundo, girar fisga. |
+| **Puxar a vara para baixo** | Recolhe de uma vez: a boia volta deslizando pela água até a ponta da vara, mesmo com um peixe se aproximando. Basta um puxão curto, de uns 4 cm. |
+| **Puxar firme quando a boia afunda** | Fisga, para cima ou para baixo. Puxar enquanto ele ainda belisca só faz o peixe recuar e voltar; perder a hora dá uma segunda chance. |
+
+Os movimentos de vara valem quando o dedo começa na parte de baixo da tela; mais acima, o dedo só toca a água. Na primeira espera de cada visita aparecem duas dicas curtas: uma sobre chamar os peixes e outra sobre recolher.
+
+**Com o peixe fisgado:**
+
+| Gesto | O que acontece |
+| --- | --- |
 | **Pequenos círculos** | Giram a carretilha de madeira. Não há barra de tensão: você sente pela vara que verga, pela linha que brilha e treme, pelo som da linha esticada e pela vibração do celular (veja abaixo). Só arrebenta se insistir girando forte por mais de 2 segundos. |
 | **Levar o dedo para o lado** | Quando o peixe corre, levar o dedo para o lado contrário segura a corrida e o cansa mais rápido. A câmera inclina junto. |
 | **Deslizar a página para baixo** | Devolve o peixe: ele desce na linha, toca a água e nada para o fundo. |
@@ -28,7 +44,8 @@ Cada momento tem a sua sensação, pensada como o que a mão sentiria segurando 
 | Chegar ao lago, tocar na água | Um toque leve. |
 | Pegar a boia e mirar | Pequenos entalhes a cada 2,5 m que a luz avança, e um duplo toque quando ela encontra uma sombra. |
 | Lançar | A linha correndo: pulsos que vão perdendo força. Um toque quando a boia cai. |
-| Mexer a isca, beliscada | Toques curtos e leves. |
+| Mexer a isca, beliscada | Toques curtos e leves; ao arrastar a boia para os lados, um toque a cada trecho do rastro. |
+| Recolher | Puxando a vara, uma sequência de toques que vão diminuindo enquanto a boia desliza; girando, a catraca da carretilha. |
 | Mordida | Uma batida forte e, enquanto a boia fica no fundo, puxadas de tempos em tempos. |
 | Fisgar | Um tranco de três batidas. |
 | Briga | A catraca da carretilha a cada volta, mais firme quanto mais esticada a linha. Quando o peixe corre, um tremor contínuo que acelera com a tensão; com a linha no limite, o zumbido rápido da fricção soltando linha. Saltos e corridas têm batidas próprias. |

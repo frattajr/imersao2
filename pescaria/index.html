@@ -594,6 +594,7 @@ const Haptics = {
   cast() { this.play([14, 30, 9, 45, 6, 60, 4, 80, 3]); },     // a linha correndo e perdendo força
   land() { this.play([18]); },
   twitchLure() { this.play([6, 40, 4]); },
+  skim() { this.play([10, 30, 8, 30, 7, 30, 6, 30, 5, 30, 4]); },
   nibble() { this.play(Math.random() < 0.5 ? [8] : [6, 50, 6]); },
   bite() { this.play([40, 60, 25]); },
   tug() { this.tick(16, 200); },                                // puxadas enquanto a boia está no fundo
@@ -699,7 +700,7 @@ function whipAngle(t) {
 }
 function rodGeom() {
   const b = rodBase(), L = H * 0.46;
-  const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + Math.sin(T * 0.7) * 0.006 - P.twitch * 0.05;
+  const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + Math.sin(T * 0.7) * 0.006 + (P.mode === "float" ? Math.sin(T * 0.9) * 0.012 + Math.sin(T * 2.3) * 0.004 : 0) - P.twitch * 0.05;
   const bend = P.rodBend;
   const tip = { x: b.x + Math.sin(a) * L - bend * 14, y: b.y - Math.cos(a) * L + bend * H * 0.085 };
   const ctrl = { x: lerp(b.x, tip.x, 0.55) + bend * 24 + Math.sin(a) * 6, y: lerp(b.y, tip.y, 0.55) + bend * 34 };
@@ -733,7 +734,7 @@ function updateCamera(dt) {
   switch (P.mode) {
     case "idle": case "aim": tx = cam.x; tt = cam.tilt; tz = cam.z; k = 0.6; break;
     case "fly": tx = P.fly.x * 0.45; tt = far(P.fly.d) * H * 0.06; tz = lerp(1.02, 1.07, ease(clamp(P.fly.t, 0, 1))); k = 1.8; break;
-    case "float": tx = P.bob.x * 0.45; tt = far(P.bob.d) * H * 0.06; tz = 1.07; break;
+    case "float": case "skim": tx = P.bob.x * 0.45; tt = far(P.bob.d) * H * 0.06; tz = 1.07; break;
     case "fight": if (P.fish) { tx = P.fish.x * 0.5 + P.steer * 0.35; tt = far(P.fish.d) * H * 0.05; tz = 1.09 + P.tension * 0.03; roll = -P.steer * 0.012; k = 1.8; } break;
     case "land": case "catch": case "release": tx = cam.x * 0.98; tt = -H * 0.02; tz = 1.13; k = 0.9; break;
     case "retrieve": tx = cam.x * 0.6; tz = 1.02; break;
@@ -777,8 +778,8 @@ cv.addEventListener("pointerdown", e => {
   if (ptr.down) return;
   try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   const now = performance.now();
-  Object.assign(ptr, { id: e.pointerId, down: true, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, t0: now, hist: [{ x: e.clientX, y: e.clientY, t: now }], trail: 0, used: false, twitched: false });
-  P.lastDir = null; P.idleT = 0; trail = [{ x: e.clientX, y: e.clientY, t: T }];
+  Object.assign(ptr, { id: e.pointerId, down: true, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, t0: now, hist: [{ x: e.clientX, y: e.clientY, t: now }], trail: 0, used: false, twitched: false, spin: 0 });
+  P.lastDir = null; P.aimCancel = false; P.sweepAcc = 0; P.idleT = 0; trail = [{ x: e.clientX, y: e.clientY, t: T }];
   if (P.mode === "idle") {
     if (e.clientY > ZONE) { P.mode = "aim"; P.aimPt = null; P.lock = null; P.aimU = 0; P.aimArmed = false; P.aimK = e.clientY - proj(0, D_MIN).y; P.notch = 0; Haptics.grab(); Snd.creak(); }
     else touchWater(e.clientX, e.clientY, true);
@@ -798,30 +799,35 @@ cv.addEventListener("pointermove", e => {
     trail.push({ x: ptr.x, y: ptr.y, t: T }); if (trail.length > 80) trail.shift();
     const dx = ptr.x - px, dy = ptr.y - py, len = Math.hypot(dx, dy);
     moved += len;
+    if (P.mode === "float" && ptr.startY > ZONE - 20) P.sweepAcc = (P.sweepAcc || 0) + dx;
     // carretilha: soma a variação de direção do traço (um círculo completo = 2π)
     if (len > 1) {
       const a = Math.atan2(dy, dx);
-      if (P.lastDir != null) { const da = wrapAng(a - P.lastDir); if (Math.abs(da) < 1.4 && P.mode === "fight") P.crankAcc += da; }
+      if (P.lastDir != null) { const da = wrapAng(a - P.lastDir); if (Math.abs(da) < 1.4) { ptr.spin += da; if (P.mode === "fight" || P.mode === "float") P.crankAcc += da; } }
       P.lastDir = a;
     }
   });
   if ((P.mode === "idle" || P.mode === "float") && ptr.y < ZONE && moved > 2 && now - ptr.trail > 70) { ptr.trail = now; touchWater(ptr.x, ptr.y, false); }
   if (P.mode === "float") floatGesture();
 });
-function floatGesture() {
+function floatGesture(ending) {
   if (ptr.used) return;
-  const dy = ptr.y - ptr.startY, v = ptrVel(), fi = P.target;
+  const dy = ptr.y - ptr.startY, v = ptrVel(), fi = P.target, circling = Math.abs(ptr.spin) > 2.2;
   if (fi && fi.state === "bite" && Math.abs(dy) > 18) { ptr.used = true; hook(); return; }
-  if (fi && (fi.state === "nibble" || fi.state === "approach") && Math.abs(dy) > 34 && Math.abs(v.vy) > 0.35) { ptr.used = true; tooSoon(fi); return; }
-  if ((!fi || fi.state === "approach") && dy > 90) { ptr.used = true; retrieve(); return; }
-  if (!ptr.twitched && dy < -14 && ptr.startY > ZONE * 0.9) { ptr.twitched = true; twitch(); }
+  if (circling) return; // círculos recolhem devagar (updateFloat)
+  // puxar a vara para trás: a boia volta deslizando pela água
+  if (ptr.startY > ZONE - 20 && dy > 40 && (v.vy > 0.2 || dy > 60 || ending)) {
+    if (fi && fi.state === "nibble" && dy < 90) { ptr.used = true; tooSoon(fi); return; }
+    ptr.used = true; skim(); return;
+  }
+  if (!ptr.twitched && dy < -14 && ptr.startY > ZONE - 20 && Math.abs(ptr.spin) < 1) { ptr.twitched = true; twitch(); }
 }
 function endPointer(e) {
   if (!ptr.down || e.pointerId !== ptr.id) return;
   ptr.down = false;
   if (P.mode === "aim") {
-    if (P.aimArmed && P.aimPt) cast(); else { P.mode = "idle"; }
-  } else if (P.mode === "float") floatGesture();
+    if (P.aimArmed && P.aimPt) cast(); else { P.mode = "idle"; if (P.aimCancel) { Haptics.play(6); setHint("", true); } }
+  } else if (P.mode === "float") floatGesture(true);
 }
 cv.addEventListener("pointerup", endPointer);
 cv.addEventListener("pointercancel", endPointer);
@@ -844,6 +850,7 @@ function setHint(s, always) {
 function updateAim(dt) {
   // a luz fica sempre à mesma distância acima do dedo: o dedo aponta a água
   if (ptr.startY - ptr.y > 16) P.aimArmed = true;
+  else if (P.aimArmed && ptr.y > ptr.startY - 6) { P.aimArmed = false; P.aimCancel = true; Haptics.tick(6, 0); }
   const near = proj(0, D_MIN).y, far = proj(0, D_MAX).y;
   const w = unproj(ptr.x, clamp(ptr.y - P.aimK, far, near));
   const d = clamp(w.d, D_MIN, D_MAX), x = clamp(w.x, -xMax(d) * 1.05, xMax(d) * 1.05);
@@ -854,7 +861,7 @@ function updateAim(dt) {
   if (!P.aimArmed) {
     P.aimPt = null; P.lock = null;
     pointRod(ptr.x, near, 12, dt); P.rodBack = lerp(P.rodBack, 0, damp(10, dt));
-    setHint("Arraste para cima, devagar"); return;
+    setHint(P.aimCancel ? "Solte aqui para guardar a boia" : "Arraste para cima, devagar", P.aimCancel); return;
   }
   // ímã leve: só perto de uma sombra, e sem tirar a luz de baixo do dedo
   let best = null, bd = 1e9;
@@ -888,6 +895,7 @@ function landLure() {
   addRipple(f.x, f.d, 1.1, 2.2, 0.6); addRipple(f.x, f.d, 0.55, 1.5, 0.45);
   Snd.plop(0.9); cam.shake = 1.2; Haptics.land();
   P.mode = "float"; P.waitT = 0; P.bonus = 0; P.target = null;
+  Object.assign(P, { crank: 0, crankAcc: 0, crankWin: [], tickAcc: 0, sweepAcc: 0, sweepDist: 0, floatT: 0 });
   const fi = f.lock && fishes.includes(f.lock) && f.lock.state === "wander" ? f.lock : null;
   if (fi) {
     P.target = fi; fi.state = "approach"; fi.curious = null;
@@ -895,6 +903,30 @@ function landLure() {
   }
   setHint(P.target ? "Agora, espere. Olhe a boia" : "Toque na água perto da boia para chamar");
 }
+// movimento de vara chama a atenção de quem está por perto
+function attract(x, d, R, k) {
+  P.waitT += k * 5;
+  fishes.forEach(fi => { if (fi.state === "wander" && Math.hypot(fi.x - x, fi.d - d) < R && Math.random() < k) fi.curious = { x, d, t: 2.5 }; });
+}
+function skim() {
+  const fi = P.target;
+  if (fi) { fi.state = "wander"; fi.curious = null; fi.spd = 0.5; }
+  P.target = null; P.mode = "skim"; P.skimT = 0;
+  Snd.whoosh(); Haptics.skim(); setHint("", true);
+}
+function updateSkim(dt) {
+  const b = P.bob;
+  b.d = Math.max(2.8, b.d - 9 * dt); b.x = lerp(b.x, cam.x * 0.5, damp(1.5, dt));
+  b.dip = Math.sin(T * 22) * 0.25; b.tilt = Math.sin(T * 9) * 0.2;
+  P.reelAng += dt * 30;
+  if ((P.skimT -= dt) < 0) { P.skimT = 0.05; addRipple(b.x, b.d + 0.1, 0.3, 0.9, 0.4); Snd.click(0.6); }
+  if (b.d <= 2.81) retrieve();
+}
+function flashHint(text, secs) {
+  setHint(text, true);
+  setTimeout(() => { if (hintNow === text) setHint("", true); }, secs * 1000);
+}
+const waitTips = { call: false, back: false };
 function twitch() {
   // dar vida à isca: a boia mexe e os peixes por perto notam
   P.twitch = 1; P.bob.dipV += 3; P.bob.tilt = rnd(-0.25, 0.25);
@@ -1019,6 +1051,7 @@ function update(dt) {
     case "aim": updateAim(dt); break;
     case "fly": P.fly.t += dt / P.fly.dur; if (P.fly.t >= 1) landLure(); break;
     case "float": updateFloat(dt); break;
+    case "skim": updateSkim(dt); break;
     case "fight": updateFight(dt); break;
     case "land": if ((Haptics.beatT -= dt) < 0) { Haptics.heart(); Haptics.beatT = 0.95; } P.landT += dt / 1.8; if (P.landT >= 1 && P.mode === "land") { P.landT = 1; finishLand(); } break;
     case "release":
@@ -1037,7 +1070,7 @@ function update(dt) {
       break;
   }
   if (P.mode === "fly") { const fp = flyPos(); pointRod(fp.x, fp.y, 5, dt, 0.5); P.rodBack = lerp(P.rodBack, 0, damp(5, dt)); }
-  else if (P.mode === "float") { const bp = proj(P.bob.x, P.bob.d); pointRod(bp.x, bp.y, 4, dt, 0.6); }
+  else if (P.mode === "float" || P.mode === "skim") { const bp = proj(P.bob.x, P.bob.d), hold = ptr.down && ptr.startY > ZONE - 20; pointRod(hold ? lerp(bp.x, ptr.x, 0.6) : bp.x, bp.y, hold ? 12 : 4, dt, 0.6); }
   else if (P.mode === "fight" && P.fish) { const fp = proj(P.fish.x, P.fish.d); pointRod(ptr.down ? lerp(fp.x, ptr.x, 0.5) : fp.x, fp.y, 10, dt, 0.7); P.rodBack = lerp(P.rodBack, 0, damp(5, dt)); }
   else if (P.mode !== "idle" && P.mode !== "aim") { P.rodA = lerp(P.rodA, -0.3, damp(3, dt)); P.rodBack = lerp(P.rodBack, 0, damp(4, dt)); }
   if (P.whipT >= 0) {
@@ -1145,9 +1178,41 @@ function updateFish(fi, dt) {
 }
 
 function updateFloat(dt) {
-  P.waitT += dt;
-  P.rodBack = lerp(P.rodBack, ptr.down && ptr.startY > ZONE * 0.9 ? clamp(Math.abs(ptr.y - ptr.startY) / 160, 0, 0.5) : 0, damp(16, dt));
-  const b = P.bob;
+  P.waitT += dt; P.floatT += dt;
+  // puxar o dedo para baixo leva a vara para trás na hora
+  const holding = ptr.down && ptr.startY > ZONE - 20;
+  P.rodBack = lerp(P.rodBack, holding ? clamp((ptr.y - ptr.startY) / 110, -0.15, 0.6) : 0, damp(16, dt));
+  const b = P.bob, fi = P.target;
+  // círculos: recolhe devagar, e a isca andando chama os peixes
+  P.crankWin.push({ t: T, a: P.crankAcc });
+  while (P.crankWin.length && T - P.crankWin[0].t > 0.18) P.crankWin.shift();
+  const rate = Math.abs(P.crankWin.reduce((sum, c) => sum + c.a, 0)) / 0.18;
+  P.reelAng += P.crankAcc; P.tickAcc += Math.abs(P.crankAcc); P.crankAcc = 0;
+  P.crank = lerp(P.crank, holding ? rate : 0, damp(12, dt));
+  while (P.tickAcc > 0.9) { P.tickAcc -= 0.9; if (!holding) continue; Snd.click(0.7); Haptics.click(0.15); }
+  const r = clamp(P.crank / 8, 0, 1.3);
+  if (r > 0.05) {
+    if (fi && fi.state === "bite" && r > 0.2) { hook(); return; }
+    if (fi && fi.state === "nibble") fi.state = "approach";
+    b.d -= r * 1.5 * dt; b.x = lerp(b.x, 0, damp(r * 0.3, dt));
+    if (Math.random() < dt * 8 * r) addRipple(b.x, b.d + 0.15, 0.22, 0.9, 0.35);
+    attract(b.x, b.d, 6, dt * r);
+    if (b.d <= 3) { retrieve(); return; }
+  }
+  // arrastar para os lados: a linha puxa a boia e deixa um rastro na água
+  if (P.sweepAcc) {
+    const p = proj(b.x, b.d), m = P.sweepAcc / (kpx * p.s) * 0.35;
+    P.sweepAcc = 0;
+    if (!(fi && fi.state === "bite")) {
+      b.x = clamp(b.x + m, -xMax(b.d), xMax(b.d)); b.d = Math.max(3.2, b.d - Math.abs(m) * 0.2);
+      b.tilt = clamp(b.tilt + m * 1.5, -0.5, 0.5);
+      if (fi && fi.state === "nibble") fi.state = "approach";
+      P.sweepDist += Math.abs(m);
+      if (P.sweepDist > 0.25) { P.sweepDist = 0; addRipple(b.x, b.d, 0.3, 1.2, 0.42); Haptics.tick(5, 70); Snd.drip(0.3); attract(b.x, b.d, 6, 0.35); }
+    }
+  }
+  if (!fi && !waitTips.call && P.floatT > 6) { waitTips.call = true; flashHint("Mexa a vara para chamar: um toquinho para cima ou arraste para os lados", 6); }
+  else if (!waitTips.back && P.floatT > 18) { waitTips.back = true; flashHint("Para recolher, puxe a vara para baixo ou faça círculos", 6); }
   b.dipV += (-b.dip * 14 - b.dipV * 3.6) * dt; b.dip += b.dipV * dt;
   b.tilt *= Math.exp(-dt * 1.6);
   if (P.target && P.target.state === "bite") { b.dip = lerp(b.dip, 1.5, damp(8, dt)); if ((Haptics.tugT -= dt) < 0) { Haptics.tug(); Haptics.tugT = rnd(0.3, 0.45); } }
@@ -1462,7 +1527,7 @@ function floatShape(r) {
 }
 function drawFloatFree(x, y, r, rot) { g.save(); g.translate(x, y); g.rotate(rot); floatShape(r); g.restore(); }
 function drawBobberInWater() {
-  if (P.mode !== "float") return;
+  if (P.mode !== "float" && P.mode !== "skim") return;
   const p = proj(P.bob.x, P.bob.d), r = Math.max(3, 17 * Math.pow(p.s, 0.7));
   const wl = p.y, sink = clamp(P.bob.dip * 0.55, -0.2, 1.15);
   const cy = wl - r * 0.15 + sink * r * 1.6 + Math.sin(T * 2) * r * 0.05;
@@ -1476,14 +1541,14 @@ function drawBobberInWater() {
 function drawLineAndRod() {
   const { base, tip, ctrl } = rodGeom();
   let end = null;
-  if (P.mode === "float") { const p = proj(P.bob.x, P.bob.d), r = Math.max(3, 17 * Math.pow(p.s, 0.7)); end = { x: p.x, y: p.y - r * 2.2 + clamp(P.bob.dip * 0.55, -0.2, 1.15) * r * 1.6 }; }
+  if (P.mode === "float" || P.mode === "skim") { const p = proj(P.bob.x, P.bob.d), r = Math.max(3, 17 * Math.pow(p.s, 0.7)); end = { x: p.x, y: p.y - r * 2.2 + clamp(P.bob.dip * 0.55, -0.2, 1.15) * r * 1.6 }; }
   else if (P.mode === "fight" && P.fish) end = proj(P.fish.x, P.fish.d);
   else if (P.mode === "fly") end = flyPos();
   else if (P.mode === "retrieve") end = retrievePos();
   else if (P.held) { const h = heldPos(); end = { x: h.x, y: h.y - heldLen() * 0.5 }; }
   else end = { x: P.hang.x, y: P.hang.y };
   // a linha pega luz e treme quando estica
-  const sag = P.mode === "fight" ? (1 - P.tension) * 40 : P.mode === "float" ? 34 : P.held || P.mode === "idle" ? 0 : P.mode === "aim" ? 22 : 14;
+  const sag = P.mode === "fight" ? (1 - P.tension) * 40 : P.mode === "float" ? 34 : P.mode === "skim" ? 8 : P.held || P.mode === "idle" ? 0 : P.mode === "aim" ? 22 : 14;
   const c = { x: (tip.x + end.x) / 2, y: Math.max(tip.y, end.y) + sag };
   const quiver = P.mode === "fight" ? Math.max(0, P.tension - 0.5) * 3 : 0;
   const la = 0.35 + env.light * 0.2 + (P.mode === "fight" ? P.tension * 0.35 : 0);
