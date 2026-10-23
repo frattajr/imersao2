@@ -1,55 +1,70 @@
-# Lago Sereno — pescaria com gestos
+# Lago Sereno
 
-Jogo de pescaria calmo, feito para o celular. Os controles são gestos com o dedo, no estilo da captura do Pokémon GO.
+Um jogo de pescaria para o celular que é mais lugar do que jogo. Você está sentado num trapiche, com uma vara de bambu na mão, e o dia passa devagar sobre o lago. Não há placar, medidor nem contador. O que você pesca vira uma lembrança escrita à mão num diário, e todo peixe volta para a água.
 
-| Gesto | O que faz |
+## Gestos
+
+Os gestos imitam o corpo de quem pesca. A parte de baixo da tela é a mão na vara; a parte de cima é a água.
+
+| Gesto | O que acontece |
 | --- | --- |
-| **Tocar ou passar o dedo na água** | Faz uma gota e uma onda na água. As vitórias-régias balançam e os peixes por perto vêm ver. Com a boia na água, isso chama peixe mais rápido. |
-| **Arrastar a boia para cima** | Mira. Um círculo pontilhado na água mostra onde a boia vai cair: quanto mais alto o dedo, mais longe, e o lado do dedo define a direção. A mira é puxada de leve para a sombra mais próxima. |
-| **Soltar com o anel pequeno** | Lança. O peixe na mira ganha um anel que encolhe. Soltar com o anel pequeno dá *Legal*, *Ótimo* ou *Excelente*. A cor do anel mostra a raridade. |
-| **Girar a boia antes de soltar** | Arremesso em curva, que vale um bônus a mais. |
-| **Puxar de leve para baixo** | Fisga quando a boia afunda (há mais de 1 segundo para reagir). Se puxar cedo, o peixe só recua e volta. Se perder a hora, ele belisca de novo uma vez. Sem peixe por perto, o mesmo gesto recolhe a boia. |
-| **Fazer círculos pequenos** | Gira a carretilha. Com a linha no limite, a carretilha cede linha sozinha. Ela só arrebenta se você insistir girando forte por mais de 2 segundos. |
-| **Inclinar o dedo para o lado** | Quando o peixe corre, uma seta mostra para onde levar o dedo. Inclinar para o lado contrário segura a corrida e cansa o peixe mais rápido. |
+| **Arrastar para cima, a partir de baixo** | Você levanta a vara. A boia pendurada na ponta balança como um pêndulo de verdade e uma luz suave aparece na água: quanto mais alto o dedo, mais longe ela vai. O lado do dedo aponta a direção, e a luz é puxada de leve para a sombra de peixe mais próxima. |
+| **Soltar** | A vara vai para trás e chicoteia para a frente; a linha canta e a boia faz um arco até a luz. |
+| **Tocar ou passar o dedo na água** | Gotas e ondas. As vitórias-régias balançam e os peixes por perto vêm ver. |
+| **Um toque curto para cima, com a boia na água** | Dá vida à isca: a boia mexe e atrai quem estiver por perto. |
+| **Puxar firme quando a boia afunda** | Fisga, para cima ou para baixo. Puxar cedo só faz o peixe recuar e voltar; perder a hora dá uma segunda chance. Sem peixe por perto, puxar para baixo recolhe a boia. |
+| **Pequenos círculos** | Giram a carretilha de madeira. Não há barra de tensão: você sente pela vara que verga, pela linha que brilha e treme, pelo som da linha esticada e pela vibração do celular. Só arrebenta se insistir girando forte por mais de 2 segundos. |
+| **Levar o dedo para o lado** | Quando o peixe corre, levar o dedo para o lado contrário segura a corrida e o cansa mais rápido. A câmera inclina junto. |
+| **Deslizar a página para baixo** | Devolve o peixe: ele desce na linha, toca a água e nada para o fundo. |
 
-## Câmera
+As dicas aparecem só até a primeira pesca. Depois, o jogo fica em silêncio e só fala se a linha estiver no limite.
 
-A câmera desliza devagar, sempre com suavização:
-- **Mira:** acompanha o alvo, levanta o olhar para lances longos e aproxima um pouco.
-- **Arremesso:** segue a boia.
-- **Espera:** centraliza a boia.
-- **Briga:** acompanha o peixe e treme de leve quando ele dá uma corrida.
-- **Repouso:** olha para onde o dedo está e "respira" devagar.
+## O que deixa a cena viva
 
-Morros, mata e juncos se movem em velocidades diferentes, o que dá profundidade. Quem ativa *reduzir movimento* no aparelho fica sem a respiração e sem o tremor.
+- **Câmera:** desliza devagar, sempre suavizada.
+  - Na mira, acompanha a luz; no ar, segue a boia; na espera, centraliza a boia.
+  - Na briga, acompanha o peixe e inclina com o dedo.
+  - Quando o peixe sai da água, aproxima.
+  - Em repouso, respira de leve.
+- **Profundidade:** morros, mata e juncos se movem em velocidades diferentes. Quem ativa *reduzir movimento* no aparelho fica sem respiração, tremor, inclinação e grão.
+- **Luz:** 12 minutos de jogo equivalem a um dia inteiro.
+  - Hora dourada com raios de sol e partículas no ar.
+  - Coluna de luz do sol ou da lua na água.
+  - Névoa ao amanhecer e à noite.
+  - Estrelas, vaga-lumes e uma lamparina no trapiche que acende ao entardecer e se reflete na água.
+  - De vez em quando, chuva fina.
+- **Natureza:** folhas caem e ficam boiando, pássaros cruzam o céu e peixes sobem para beijar a superfície. De longe, às vezes um peixe salta.
+- **Som e música,** sintetizados na hora (Web Audio), sem arquivos:
+  - **Ambiente:** água, vento, chuva, pássaros, grilos e sapos com reverberação de lago aberto.
+  - **Piano:** toca notas soltas que mudam com a hora do dia e fica mais baixo durante a briga.
+  - **Ao tirar um peixe da água:** uma frase curta.
+- **Palavras:** a cada minuto e pouco, nos momentos de quietude, aparece um verso curto que muda com a hora e o tempo.
 
-## O que deixa o jogo relaxante
+## Diário do lago
 
-- **Ciclo de dia:** 12 minutos de jogo equivalem a um dia inteiro (alvorada, dia, pôr do sol, noite com estrelas e vaga-lumes). De vez em quando cai uma chuva leve.
-- **Som ambiente sintetizado na hora** (Web Audio), sem arquivos para baixar. Tem água batendo, vento e chuva, passarinhos de dia, grilos e sapos à noite, além dos sons da boia, da carretilha e do respingo.
-- **Vibração** ao fisgar, ao beliscar e quando a linha estica (nos aparelhos que suportam).
-- **Pesque e solte:** todo peixe volta para o lago e fica anotado no **Caderno de pesca**, com quantidade e recorde de tamanho.
+Cada peixe vira uma página com:
+- a data e a hora do dia;
+- uma lembrança escrita à mão (por exemplo, "Uma tilápia de 35 cm, no pôr do sol. A primeira vez que vi uma de perto.");
+- medidas, nome científico e uma nota sobre a espécie.
 
-## Espécies
+O diário guarda as últimas lembranças e mostra os 11 peixes brasileiros: os que você já viu e os que ainda não viu, com dicas de quando costumam aparecer.
 
-São 11 peixes de água doce do Brasil, com nome científico, tamanho real e peso calculado pelo comprimento. Alguns aparecem mais em certos horários:
-
-- **Comum:** Lambari, Acará (dia), Tilápia.
-- **Incomum:** Traíra (noite), Piau-três-pintas (alvorada e fim de tarde), Pacu (dia), Tambaqui.
-- **Raro:** Tucunaré (dia), Dourado (alvorada e fim de tarde), Pintado (noite).
-- **Lendário:** Pirarucu.
+- **Comuns:** Lambari, Acará (de dia), Tilápia.
+- **Pouco comuns:** Traíra (à noite), Piau-três-pintas (ao amanhecer e no fim da tarde), Pacu (de dia), Tambaqui.
+- **Raros:** Tucunaré (de dia), Dourado (ao amanhecer e no fim da tarde), Pintado (à noite).
+- **Lenda do lago:** Pirarucu.
 
 ## Como abrir
 
 Não precisa de instalação nem de compilação: é uma página só (`index.html`).
 
 - **No computador:** abra `pescaria/index.html` no navegador.
-- **No celular:** publique a pasta em qualquer hospedagem estática com HTTPS (GitHub Pages, Netlify, Vercel). Depois toque em *Adicionar à tela inicial*: o jogo abre em tela cheia e funciona sem internet (`sw.js` guarda os arquivos no aparelho).
+- **No celular:** publique a pasta em qualquer hospedagem estática com HTTPS (GitHub Pages, Netlify, Vercel) e toque em *Adicionar à tela inicial*. O jogo abre em tela cheia e funciona sem internet (`sw.js` guarda os arquivos no aparelho).
 
 ## Arquivos
 
-- `index.html`: o jogo inteiro (desenho em canvas, gestos, som e caderno).
+- `index.html`: o jogo inteiro (desenho em canvas, gestos, som, música e diário).
 - `manifest.webmanifest`, `icon.svg`: dados para instalar como app.
 - `sw.js`: cache para jogar offline.
 
-O caderno fica salvo no `localStorage` do navegador.
+O diário fica salvo no `localStorage` do navegador.
