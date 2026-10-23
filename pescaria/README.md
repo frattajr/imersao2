@@ -33,7 +33,12 @@ Os movimentos de vara valem quando o dedo começa na parte de baixo da tela; mai
 | **Levar o dedo para o lado** | Quando o peixe corre, levar o dedo para o lado contrário segura a corrida e o cansa mais rápido. A câmera inclina junto. |
 | **Deslizar a página para baixo** | Devolve o peixe: ele desce na linha, toca a água e nada para o fundo. |
 
-As dicas aparecem só até a primeira pesca. Depois, o jogo fica em silêncio e só fala se a linha estiver no limite.
+As dicas aparecem só até a primeira pesca. Depois, o jogo fica em silêncio, com três exceções que sempre aparecem:
+- **Mordida:** "Agora! Puxe a vara", em letra maior, com anéis de luz pulsando na água onde a boia afundou e duas notas de piano subindo. Há 1,8 s para reagir, e perder a hora dá uma segunda chance com aviso.
+- **Fisgada:** "Fisgou!", com três notas e um anel na água.
+- **Linha no limite:** o aviso para descansar o dedo.
+
+**O dedo apoiado não atrapalha:** o giro da carretilha só conta quando o dedo descreve um arco em volta de um centro, com pelo menos 9 px de raio. O tremor de um dedo parado na vara não recolhe a linha nem afasta o peixe.
 
 ## Vibração
 

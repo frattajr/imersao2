@@ -63,8 +63,9 @@ button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .hint {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 9vh); width: min(30ch, calc(100% - 40px));
   font-family: var(--f-poem); font-style: italic; font-size: 1.2rem; line-height: 1.3; color: var(--ink);
-  text-shadow: 0 1px 12px rgba(0,0,0,.65); transition-duration: 1s;
+  text-shadow: 0 1px 12px rgba(0,0,0,.65); transition-duration: .4s;
 }
+.hint.alert { font-size: 1.75rem; font-weight: 500; letter-spacing: .01em; text-shadow: 0 0 18px rgba(255,220,170,.55), 0 1px 12px rgba(0,0,0,.7); transition-duration: .15s; }
 .off { opacity: 0; }
 
 /* Abertura: o título pousa sobre a cena, sem caixa */
@@ -527,6 +528,9 @@ const Snd = {
   creak() { this.tone("sawtooth", rnd(130, 170), rnd(110, 140), 0.012, 0.05, 0.25, 0, 600); },
   drag() { this.burst(4200, 3800, 6, 0.012, 0.001, 0.02); },
   snap() { this.burst(5000, 1800, 2, 0.1, 0.002, 0.12); },
+  // mordida: duas notas que sobem, claras sobre o ambiente
+  biteCall() { const sc = this.scale(); this.piano(sc.notes[2] + 12, 0.09, 0, 2.2); this.piano(sc.notes[4] + 12, 0.08, 0.14, 2.6); this.plop(1.2); },
+  hookCall() { const sc = this.scale(); [0, 2, 4].forEach((k, i) => this.piano(sc.notes[k] + 12, 0.07, i * 0.08, 2)); },
   sad() { const sc = this.scale(); [4, 2, 0].forEach((k, i) => this.piano(sc.notes[k], 0.05, i * 0.5, 4)); },
   bird() { const base = rnd(2400, 3600), n = (2 + Math.random() * 3) | 0; for (let i = 0; i < n; i++) this.tone("sine", base, base * rnd(1.2, 1.6), 0.02, 0.01, 0.09, i * rnd(0.12, 0.18), null, true); },
   cricket(v) { const f = rnd(4200, 4700); for (let i = 0; i < 3; i++) this.tone("sine", f, 0, 0.009 * v, 0.004, 0.03, i * 0.055); },
@@ -795,13 +799,13 @@ cv.addEventListener("pointermove", e => {
     const px = ptr.x, py = ptr.y;
     ptr.x = ce.clientX; ptr.y = ce.clientY;
     const t = ce.timeStamp > 0 && Math.abs(ce.timeStamp - now) < 1000 ? ce.timeStamp : now;
-    ptr.hist.push({ x: ptr.x, y: ptr.y, t }); if (ptr.hist.length > 48) ptr.hist.shift();
+    ptr.hist.push({ x: ptr.x, y: ptr.y, t }); if (ptr.hist.length > 160) ptr.hist.shift();
     trail.push({ x: ptr.x, y: ptr.y, t: T }); if (trail.length > 80) trail.shift();
     const dx = ptr.x - px, dy = ptr.y - py, len = Math.hypot(dx, dy);
     moved += len;
-    if (P.mode === "float" && ptr.startY > ZONE - 20) P.sweepAcc = (P.sweepAcc || 0) + dx;
+    if (P.mode === "float" && ptr.startY > ZONE - 20 && Math.abs(dx) >= 2) P.sweepAcc = (P.sweepAcc || 0) + dx;
     // carretilha: soma a variação de direção do traço (um círculo completo = 2π)
-    if (len > 1) {
+    if (len >= 3) {
       const a = Math.atan2(dy, dx);
       if (P.lastDir != null) { const da = wrapAng(a - P.lastDir); if (Math.abs(da) < 1.4) { ptr.spin += da; if (P.mode === "fight" || P.mode === "float") P.crankAcc += da; } }
       P.lastDir = a;
@@ -836,12 +840,14 @@ cv.addEventListener("pointercancel", endPointer);
    Dicas: só enquanto a pessoa aprende; depois, silêncio
    ============================================================ */
 const hintEl = document.getElementById("hint");
-let hintNow = "";
+let hintNow = "", flashUntil = 0;
 function setHint(s, always) {
+  if (!always && performance.now() < flashUntil) return; // um aviso importante ainda está na tela
   if (!always && learned) s = "";
   if (s === hintNow) return; hintNow = s;
   if (!s) { hintEl.classList.add("off"); return; }
   hintEl.textContent = s; hintEl.classList.remove("off");
+  hintEl.classList.toggle("alert", s.startsWith("Agora!") || s.startsWith("Fisgou!"));
 }
 
 /* ============================================================
@@ -923,8 +929,8 @@ function updateSkim(dt) {
   if (b.d <= 2.81) retrieve();
 }
 function flashHint(text, secs) {
-  setHint(text, true);
-  setTimeout(() => { if (hintNow === text) setHint("", true); }, secs * 1000);
+  setHint(text, true); flashUntil = performance.now() + secs * 1000;
+  setTimeout(() => { if (hintNow === text) { flashUntil = 0; setHint("", true); } }, secs * 1000);
 }
 const waitTips = { call: false, back: false };
 function twitch() {
@@ -942,8 +948,9 @@ function hook() {
   const fi = P.target;
   P.mode = "fight"; P.fish = fi; fi.state = "hooked";
   Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0 });
-  P.twitch = 1.4; Snd.splash(0.7); Haptics.hooked(); cam.shake = 2.5; Snd.songStart();
-  setHint("Pequenos círculos com o dedo");
+  P.twitch = 1.4; Snd.splash(0.7); Snd.hookCall(); Haptics.hooked(); cam.shake = 2.5; Snd.songStart();
+  flashHint(learned ? "Fisgou!" : "Fisgou! Agora, pequenos círculos com o dedo", learned ? 1.8 : 3.5);
+  addRipple(fi.x, fi.d, 1.4, 1.4, 0.75); addRipple(fi.x, fi.d, 0.8, 1, 0.6);
 }
 function tooSoon(fi) {
   P.bob.dipV -= 3; addRipple(P.bob.x, P.bob.d, 0.4, 1, 0.4); Haptics.soon();
@@ -1163,20 +1170,40 @@ function updateFish(fi, dt) {
         P.bob.dipV += 2.2; P.bob.tilt = rnd(-0.3, 0.3); addRipple(P.bob.x, P.bob.d, 0.35, 1, 0.42); Snd.plop(0.4); Haptics.nibble();
         setHint("Ainda não… ele está só provando");
       } else {
-        fi.state = "bite"; fi.t = 0; fi.window = 1.4 + P.bonus * 0.2 + (fi.sp.rar === 0 ? 0.2 : 0);
+        fi.state = "bite"; fi.t = 0; fi.window = 1.8 + P.bonus * 0.2 + (fi.sp.rar === 0 ? 0.2 : 0);
         P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.4, 0.6); Snd.plop(1.1); Haptics.bite(); Haptics.tugT = 0.45; cam.shake = 1.5;
-        setHint("Agora. Um gesto firme");
+        setHint("Agora! Puxe a vara", true); Snd.biteCall();
       }
     }
   }
   if (fi.state === "bite" && fi.t > fi.window) {
     fi.misses++;
-    if (fi.misses < 2) { fi.state = "nibble"; fi.nib = 1; fi.t = 0; fi.next = rnd(1.2, 1.8); setHint("Ele soltou… mas continua por perto"); }
-    else { fi.state = "flee"; fi.spd = 1.2; fi.life = 2; fi.hd = rnd(0, TAU); P.target = null; setHint("Outros virão. Toque na água para chamar"); }
+    if (fi.misses < 2) { fi.state = "nibble"; fi.nib = 1; fi.t = 0; fi.next = rnd(1.2, 1.8); flashHint("Ele soltou a isca… mas continua por perto", 3); }
+    else { fi.state = "flee"; fi.spd = 1.2; fi.life = 2; fi.hd = rnd(0, TAU); P.target = null; flashHint("Foi embora. Outros virão", 3); }
   }
   if (fi.state !== "nibble" && fi.state !== "bite") { fi.x += Math.cos(fi.hd) * fi.spd * dt; fi.d += Math.sin(fi.hd) * fi.spd * dt; }
 }
 
+// giro da carretilha: o dedo precisa descrever um arco em volta de um centro.
+// Um dedo apoiado tremendo fica parado no lugar (raio pequeno) e não gira nada.
+function circleRate() {
+  if (!ptr.down) return 0;
+  const now = performance.now(), pts = ptr.hist.filter(p => now - p.t < 550);
+  if (pts.length < 4) return 0;
+  let cx = 0, cy = 0;
+  pts.forEach(p => { cx += p.x; cy += p.y; }); cx /= pts.length; cy /= pts.length;
+  let R = 0; pts.forEach(p => { R += Math.hypot(p.x - cx, p.y - cy); }); R /= pts.length;
+  if (R < 9) return 0;
+  let sum = 0, prev = null;
+  pts.forEach(p => {
+    if (Math.hypot(p.x - cx, p.y - cy) < R * 0.4) return;
+    const ang = Math.atan2(p.y - cy, p.x - cx);
+    if (prev != null) { const da = wrapAng(ang - prev); if (Math.abs(da) < 1.2) sum += da; }
+    prev = ang;
+  });
+  const span = Math.max(0.12, (pts[pts.length - 1].t - pts[0].t) / 1000);
+  return sum / span;
+}
 function updateFloat(dt) {
   P.waitT += dt; P.floatT += dt;
   // puxar o dedo para baixo leva a vara para trás na hora
@@ -1184,10 +1211,8 @@ function updateFloat(dt) {
   P.rodBack = lerp(P.rodBack, holding ? clamp((ptr.y - ptr.startY) / 110, -0.15, 0.6) : 0, damp(16, dt));
   const b = P.bob, fi = P.target;
   // círculos: recolhe devagar, e a isca andando chama os peixes
-  P.crankWin.push({ t: T, a: P.crankAcc });
-  while (P.crankWin.length && T - P.crankWin[0].t > 0.18) P.crankWin.shift();
-  const rate = Math.abs(P.crankWin.reduce((sum, c) => sum + c.a, 0)) / 0.18;
-  P.reelAng += P.crankAcc; P.tickAcc += Math.abs(P.crankAcc); P.crankAcc = 0;
+  const spinRate = circleRate(), rate = Math.abs(spinRate);
+  P.reelAng += spinRate * dt; P.tickAcc += rate * dt; P.crankAcc = 0;
   P.crank = lerp(P.crank, holding ? rate : 0, damp(12, dt));
   while (P.tickAcc > 0.9) { P.tickAcc -= 0.9; if (!holding) continue; Snd.click(0.7); Haptics.click(0.15); }
   const r = clamp(P.crank / 8, 0, 1.3);
@@ -1200,13 +1225,13 @@ function updateFloat(dt) {
     if (b.d <= 3) { retrieve(); return; }
   }
   // arrastar para os lados: a linha puxa a boia e deixa um rastro na água
-  if (P.sweepAcc) {
+  if (Math.abs(P.sweepAcc || 0) <= 1.5) P.sweepAcc = 0;
+  if (Math.abs(P.sweepAcc) > 1.5) {
     const p = proj(b.x, b.d), m = P.sweepAcc / (kpx * p.s) * 0.35;
     P.sweepAcc = 0;
     if (!(fi && fi.state === "bite")) {
       b.x = clamp(b.x + m, -xMax(b.d), xMax(b.d)); b.d = Math.max(3.2, b.d - Math.abs(m) * 0.2);
       b.tilt = clamp(b.tilt + m * 1.5, -0.5, 0.5);
-      if (fi && fi.state === "nibble") fi.state = "approach";
       P.sweepDist += Math.abs(m);
       if (P.sweepDist > 0.25) { P.sweepDist = 0; addRipple(b.x, b.d, 0.3, 1.2, 0.42); Haptics.tick(5, 70); Snd.drip(0.3); attract(b.x, b.d, 6, 0.35); }
     }
@@ -1223,10 +1248,8 @@ function updateFloat(dt) {
 function updateFight(dt) {
   const fi = P.fish, sp = fi.sp;
   // velocidade do giro medida numa janela curta, para não oscilar entre um toque e outro
-  P.crankWin.push({ t: T, a: P.crankAcc });
-  while (P.crankWin.length && T - P.crankWin[0].t > 0.18) P.crankWin.shift();
-  const rate = Math.abs(P.crankWin.reduce((sum, c) => sum + c.a, 0)) / 0.18;
-  P.reelAng += P.crankAcc; P.tickAcc += Math.abs(P.crankAcc); P.crankAcc = 0;
+  const spinRate = circleRate(), rate = Math.abs(spinRate);
+  P.reelAng += spinRate * dt; P.tickAcc += rate * dt; P.crankAcc = 0;
   P.crank = lerp(P.crank, ptr.down ? rate : 0, damp(12, dt));
   while (P.tickAcc > 0.9) { P.tickAcc -= 0.9; Snd.click(); Haptics.click(P.tension); }
   const r = clamp(P.crank / 8, 0, 1.3);
@@ -1537,6 +1560,18 @@ function drawBobberInWater() {
   g.save(); g.beginPath(); g.rect(p.x - r * 3, wl - r * 4, r * 6, r * 4); g.clip();
   g.translate(p.x, cy); g.rotate(P.bob.tilt + Math.sin(T * 1.3) * 0.05); floatShape(r); g.restore();
   g.strokeStyle = "rgba(255,255,255,.25)"; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, wl, r * 0.7, r * 0.18, 0, 0, TAU); g.stroke();
+  if (P.target && P.target.state === "bite") {
+    // a água pisca em anéis de luz onde a boia afundou
+    const R = Math.max(18, 1.1 * kpx * p.s);
+    for (let i = 0; i < 3; i++) {
+      const k = ((T * 1.6) + i / 3) % 1;
+      g.strokeStyle = `rgba(255,236,200,${0.75 * (1 - k)})`; g.lineWidth = 2;
+      g.beginPath(); g.ellipse(p.x, wl, R * (0.25 + k), R * (0.25 + k) * Math.max(0.3, squash(p.s)), 0, 0, TAU); g.stroke();
+    }
+    const gl = g.createRadialGradient(p.x, wl, 0, p.x, wl, R);
+    gl.addColorStop(0, `rgba(255,236,200,${0.35 + 0.15 * Math.sin(T * 10)})`); gl.addColorStop(1, "rgba(255,236,200,0)");
+    g.fillStyle = gl; g.beginPath(); g.ellipse(p.x, wl, R, R * Math.max(0.3, squash(p.s)), 0, 0, TAU); g.fill();
+  }
 }
 function drawLineAndRod() {
   const { base, tip, ctrl } = rodGeom();
