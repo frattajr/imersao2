@@ -569,7 +569,14 @@ const Haptics = {
   },
   available() { return this.native || !!this.ios; },
   raw(pattern) {
-    if (this.native) { try { navigator.vibrate(pattern); } catch (e) {} return; }
+    if (this.native) {
+      if (this.blocked) return;
+      let ok = true;
+      try { ok = navigator.vibrate(pattern); } catch (e) { ok = false; }
+      // o navegador recusa (página embutida em outra, ou economia de bateria)
+      if (ok === false && !this.blocked) { this.blocked = true; this.onBlocked && this.onBlocked(); }
+      return;
+    }
     if (!this.ios) return;
     // no iPhone, cada trecho ligado vira um toque
     const arr = Array.isArray(pattern) ? pattern : [pattern]; let t = 0;
@@ -612,12 +619,24 @@ const Haptics = {
   heart() { this.play([12, 120, 8]); },                         // o coração do peixe na mão
   release() { this.play([8, 40, 6, 60, 4, 90, 3]); },
   // textura contínua da briga, chamada a cada quadro
-  fight(dt, tension, running) {
+  // a cabeça do peixe sacudindo na ponta da linha
+  shake(k) { this.play([Math.round(10 + 24 * k), 45, Math.round(6 + 14 * k)]); },
+  // trecho contínuo de vibração; não atropela um evento em andamento
+  chunk(pattern, secs) {
+    if (!this.on) return;
+    if (performance.now() < this.busyUntil) { this.texT = 0.05; return; }
+    this.raw(pattern); this.lastTick = performance.now(); this.texT = secs;
+  },
+  // textura contínua da briga, chamada a cada quadro: o peixe resistindo
+  fight(dt, tension, running, pull) {
     this.texT -= dt;
     if (this.texT > 0) return;
-    if (tension > 0.92) { this.tick(10, 0); this.texT = 0.065; }                       // fricção soltando linha
-    else if (running) { this.tick(8 + tension * 10, 0); this.texT = lerp(0.24, 0.11, tension); }  // o peixe correndo
-    else if (tension > 0.6) { this.tick(4, 0); this.texT = 0.3; }
+    if (tension > 0.92) this.chunk([10, 14, 10, 14, 10], 0.07);                        // fricção soltando linha
+    else if (running) {                                                                 // o peixe correndo: tremor que cresce com a força
+      const on = Math.round(10 + pull * 16), off = Math.max(8, Math.round(36 - tension * 28));
+      this.chunk([on, off, on, off], (on + off) * 2 / 1000);
+    }
+    else if (tension > 0.55) this.chunk([5, 60, 4], 0.16);                              // linha esticada, peso vivo
     else this.texT = 0.1;
   }
 };
@@ -704,7 +723,7 @@ function whipAngle(t) {
 }
 function rodGeom() {
   const b = rodBase(), L = H * 0.46;
-  const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + Math.sin(T * 0.7) * 0.006 + (P.mode === "float" ? Math.sin(T * 0.9) * 0.012 + Math.sin(T * 2.3) * 0.004 : 0) - P.twitch * 0.05;
+  const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + (P.jolt || 0) * Math.sin(T * 48) * 0.035 + Math.sin(T * 0.7) * 0.006 + (P.mode === "float" ? Math.sin(T * 0.9) * 0.012 + Math.sin(T * 2.3) * 0.004 : 0) - P.twitch * 0.05;
   const bend = P.rodBend;
   const tip = { x: b.x + Math.sin(a) * L - bend * 14, y: b.y - Math.cos(a) * L + bend * H * 0.085 };
   const ctrl = { x: lerp(b.x, tip.x, 0.55) + bend * 24 + Math.sin(a) * 6, y: lerp(b.y, tip.y, 0.55) + bend * 34 };
@@ -947,7 +966,7 @@ function twitch() {
 function hook() {
   const fi = P.target;
   P.mode = "fight"; P.fish = fi; fi.state = "hooked";
-  Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0 });
+  Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0, shakeT: 0.6, jolt: 0, dVel: 0, fightD0: Math.max(fi.d, 4) });
   P.twitch = 1.4; Snd.splash(0.7); Snd.hookCall(); Haptics.hooked(); cam.shake = 2.5; Snd.songStart();
   flashHint(learned ? "Fisgou!" : "Fisgou! Agora, pequenos círculos com o dedo", learned ? 1.8 : 3.5);
   addRipple(fi.x, fi.d, 1.4, 1.4, 0.75); addRipple(fi.x, fi.d, 0.8, 1, 0.6);
@@ -1084,7 +1103,8 @@ function update(dt) {
     P.whipT += dt / 0.7;
     if (P.whipT >= 1) P.whipT = -1;
   }
-  P.twitch *= Math.exp(-dt * 6);
+  P.twitch *= Math.exp(-dt * 6); P.jolt = (P.jolt || 0) * Math.exp(-dt * 7);
+  P.meterA = lerp(P.meterA || 0, P.mode === "fight" ? 1 : 0, damp(5, dt));
   if (P.mode === "idle") updateHang(dt);
   P.rodBend = lerp(P.rodBend, P.mode === "fight" ? 0.25 + P.tension * 0.75 : P.mode === "land" || P.mode === "catch" ? 0.35 : P.mode === "float" ? 0.06 + Math.max(0, P.bob.dip) * 0.15 : 0, damp(4, dt));
   if (P.mode !== "fight") P.steer = lerp(P.steer, 0, damp(3, dt));
@@ -1125,6 +1145,8 @@ function updateFish(fi, dt) {
   fi.t += dt; fi.wig += dt * (3 + fi.spd * 5);
   fi.glow = lerp(fi.glow, P.mode === "aim" && P.lock === fi ? 1 : 0, damp(5, dt));
   if (fi.state === "hooked") return;
+  // só o peixe-alvo segue a isca; qualquer outro volta a passear
+  if (fi !== P.target && ["approach", "nibble", "bite", "backoff"].includes(fi.state)) { fi.state = "wander"; fi.spd = 0.3 * fi.sp.speed; }
   if (fi.state === "flee") { fi.alpha = Math.max(0, fi.alpha - dt * 0.55); fi.life -= dt; }
   else fi.alpha = Math.min(1, fi.alpha + dt * 0.4);
   if (fi.state === "wander") {
@@ -1246,7 +1268,7 @@ function updateFloat(dt) {
 }
 
 function updateFight(dt) {
-  const fi = P.fish, sp = fi.sp;
+  const fi = P.fish, sp = fi.sp, prevD = fi.d;
   // velocidade do giro medida numa janela curta, para não oscilar entre um toque e outro
   const spinRate = circleRate(), rate = Math.abs(spinRate);
   P.reelAng += spinRate * dt; P.tickAcc += rate * dt; P.crankAcc = 0;
@@ -1261,6 +1283,13 @@ function updateFight(dt) {
     if (sp.rar >= 2 || Math.random() < 0.3) P.jump = 1;
   }
   const running = P.run > 0; if (running) P.run -= dt;
+  // sacudidas de cabeça: mais fortes e frequentes com o peixe descansado
+  if ((P.shakeT -= dt) < 0) {
+    const k = clamp(sp.pull * (0.35 + 0.65 * P.stamina) * (running ? 1.2 : 0.8), 0.15, 1);
+    P.shakeT = rnd(0.45, 0.9) / (0.6 + P.stamina * 0.8);
+    P.jolt = Math.max(P.jolt, k); Haptics.shake(k);
+    if (Math.random() < 0.6) addRipple(fi.x + rnd(-0.2, 0.2), fi.d, 0.25 + fi.size * 0.25, 0.8, 0.45);
+  }
   P.counter = lerp(P.counter, running ? clamp(-P.steer * P.runDir, 0, 1) : 0, damp(4, dt));
   const pull = sp.pull * 0.78 * (0.45 + 0.55 * P.stamina) * (running ? 1 - P.counter * 0.6 : 1);
   const target = r * (0.36 + pull * 0.3) + (running ? pull * 0.7 : 0.08) * (r > 0.08 ? 1 : 0.4);
@@ -1269,6 +1298,8 @@ function updateFight(dt) {
   if (P.tension > 0.92) { out += (P.tension - 0.92) * 3; P.tension = lerp(P.tension, 0.95, damp(1.2, dt)); if (Math.random() < dt * 12) Snd.drag(); }
   const reelIn = r * 1.5 * (running ? 0.35 + P.counter * 0.4 : 1);
   fi.d = clamp(fi.d - (reelIn - out) * dt, 2, D_MAX + 2);
+  P.dVel = lerp(P.dVel, (prevD - fi.d) / Math.max(dt, 1e-3), damp(3, dt));
+  P.fightD0 = Math.max(P.fightD0, fi.d);
   fi.x += (running ? P.runDir * pull * 1.1 * (1 - P.counter * 0.7) : -fi.x * 0.3 * Math.max(r, 0.2)) * dt;
   fi.x = clamp(fi.x, -xMax(fi.d) * 1.05, xMax(fi.d) * 1.05);
   fi.hd = running ? lerpAng(fi.hd, P.runDir > 0 ? 0.3 : Math.PI - 0.3, dt * 3) : lerpAng(fi.hd, -Math.PI / 2, dt * 2);
@@ -1276,7 +1307,7 @@ function updateFight(dt) {
   if (P.jump > 0) { P.jump -= dt * 1.2; if (P.jump <= 0) { addRipple(fi.x, fi.d, fi.size * 1.2, 1.8, 0.6); Snd.splash(0.45); Haptics.splash(); } }
   if (Math.random() < dt * 2.5) addRipple(fi.x + rnd(-0.2, 0.2), fi.d + rnd(-0.2, 0.2), 0.3 + fi.size * 0.3, 1, 0.4);
   Snd.songSet(P.tension);
-  Haptics.fight(dt, P.tension, running);
+  Haptics.fight(dt, P.tension, running, pull);
   if (P.tension > 0.9 && r > 0.6) { P.over += dt; } else P.over = Math.max(0, P.over - dt);
   if (P.over > 0.8) setHint("Descanse o dedo um pouco", true);
   else if (running && P.counter < 0.3) setHint(P.runDir > 0 ? "Ele foi para a direita. Leve o dedo para a esquerda" : "Ele foi para a esquerda. Leve o dedo para a direita");
@@ -1326,6 +1357,7 @@ function draw() {
   drawMotes();
   drawFallingLeaves(L);
   drawGrade();
+  drawFightMeter();
   drawTouch();
 }
 function drawSky() {
@@ -1737,6 +1769,50 @@ function drawFallingLeaves(L) {
     g.fillStyle = rgb(shade(l.col, 0.5 + L * 0.5)); g.beginPath(); g.ellipse(0, 0, 7, 3.4, 0, 0, TAU); g.fill(); g.restore();
   });
 }
+// medidor discreto da briga: o peixe (à esquerda) vindo até você (à direita)
+const meter = { p: 0, label: "", col: [243, 236, 224] };
+function drawFightMeter() {
+  const a = P.meterA || 0;
+  if (a < 0.02) return;
+  if (P.mode === "fight" && P.fish) {
+    const fi = P.fish;
+    meter.p = clamp(1 - (fi.d - 2.6) / Math.max(0.5, P.fightD0 - 2.6), 0, 1);
+    if (P.over > 0.4 || P.tension > 0.92) { meter.label = "linha no limite, descanse o dedo"; meter.col = [236, 127, 114]; }
+    else if (P.dVel > 0.12) { meter.label = "trazendo"; meter.col = [168, 216, 160]; }
+    else if (P.dVel < -0.12) { meter.label = "ele está levando linha"; meter.col = [242, 196, 107]; }
+    else { meter.label = "segurando"; meter.col = [243, 236, 224]; }
+  }
+  const w = Math.min(230, W * 0.58), x0 = W / 2 - w / 2, x1 = W / 2 + w / 2, y = H * 0.935 - (1 - a) * 10;
+  const wob = (P.jolt || 0) * 4 * Math.sin(T * 50);
+  g.save(); g.globalAlpha = a; g.lineCap = "round";
+  g.strokeStyle = "rgba(10,14,22,.45)"; g.lineWidth = 7; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+  g.strokeStyle = "rgba(243,236,224,.28)"; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+  const mx = lerp(x0, x1, meter.p) + wob;
+  g.strokeStyle = rgb(meter.col, 0.95); g.lineWidth = 3; g.beginPath(); g.moveTo(x0, y); g.lineTo(mx, y); g.stroke();
+  // você, na ponta direita
+  g.fillStyle = "rgba(243,236,224,.85)"; g.beginPath(); g.arc(x1, y, 4, 0, TAU); g.fill();
+  // o peixe: uma silhueta que sacode quando resiste
+  g.save(); g.translate(mx, y - 1 + wob * 0.4); g.rotate(wob * 0.05);
+  g.fillStyle = rgb(meter.col); g.beginPath(); g.ellipse(0, 0, 9, 4.2, 0, 0, TAU); g.fill();
+  g.beginPath(); g.moveTo(-7, 0); g.lineTo(-14, -5); g.lineTo(-14, 5); g.closePath(); g.fill();
+  g.fillStyle = "rgba(10,14,22,.8)"; g.beginPath(); g.arc(5, -1, 1.1, 0, TAU); g.fill();
+  g.restore();
+  // setas de direção, andando devagar
+  const dir = P.dVel > 0.12 ? 1 : P.dVel < -0.12 ? -1 : 0;
+  if (dir) {
+    g.strokeStyle = rgb(meter.col, 0.8); g.lineWidth = 1.6;
+    for (let i = 0; i < 3; i++) {
+      const k = ((T * 1.8) + i / 3) % 1, cx = mx + dir * (18 + k * 26);
+      g.globalAlpha = a * (1 - k);
+      g.beginPath(); g.moveTo(cx - dir * 3, y - 4); g.lineTo(cx + dir * 2, y); g.lineTo(cx - dir * 3, y + 4); g.stroke();
+    }
+    g.globalAlpha = a;
+  }
+  g.font = 'italic 15px "Cormorant Garamond", Georgia, serif'; g.textAlign = "center";
+  g.fillStyle = "rgba(0,0,0,.5)"; g.fillText(meter.label, W / 2 + 1, y + 21);
+  g.fillStyle = rgb(meter.col, 0.95); g.fillText(meter.label, W / 2, y + 20);
+  g.restore();
+}
 // um rastro suave mostra que o jogo está sentindo o dedo
 function drawTouch() {
   trail = trail.filter(p => T - p.t < 0.45);
@@ -1902,11 +1978,15 @@ function syncSoundBtn() { $("soundWaves").style.display = Snd.on ? "" : "none"; 
 $("btnSound").addEventListener("click", () => { Snd.init(); Snd.toggle(); syncSoundBtn(); });
 Haptics.init();
 function syncVibeBtn() {
+  const on = Haptics.on && !Haptics.blocked;
   $("btnVibe").hidden = !Haptics.available();
-  $("vibeWaves").style.display = Haptics.on ? "" : "none"; $("vibeOff").style.display = Haptics.on ? "none" : "";
-  $("btnVibe").setAttribute("aria-label", Haptics.on ? "Desligar vibração" : "Ligar vibração");
+  $("vibeWaves").style.display = on ? "" : "none"; $("vibeOff").style.display = on ? "none" : "";
+  $("btnVibe").setAttribute("aria-label", Haptics.blocked ? "Vibração bloqueada neste navegador" : Haptics.on ? "Desligar vibração" : "Ligar vibração");
 }
+const BLOCKED_MSG = "A vibração está bloqueada aqui. Abra o jogo pelo link direto, no Android, para sentir o peixe.";
+Haptics.onBlocked = () => { syncVibeBtn(); setTimeout(() => flashHint(BLOCKED_MSG, 6), 1800); };
 $("btnVibe").addEventListener("click", () => {
+  if (Haptics.blocked) { flashHint(BLOCKED_MSG, 6); return; }
   Haptics.on = !Haptics.on; store.set("lagoSereno.vibra", Haptics.on); syncVibeBtn();
   if (Haptics.on) Haptics.play([20, 60, 12]);
 });

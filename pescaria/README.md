@@ -27,9 +27,17 @@ Os movimentos de vara valem quando o dedo começa na parte de baixo da tela; mai
 
 **Com o peixe fisgado:**
 
+Um medidor pequeno aparece logo acima do trapiche. Um peixinho anda numa linha da esquerda (longe) até um ponto à direita (você), com setas mostrando para onde ele está indo e uma palavra embaixo:
+- **trazendo** (verde): você está ganhando linha.
+- **segurando** (creme): ninguém ganha.
+- **ele está levando linha** (âmbar): o peixe está fugindo.
+- **linha no limite, descanse o dedo** (coral): a linha pode arrebentar.
+
+O peixinho do medidor sacode quando o peixe resiste.
+
 | Gesto | O que acontece |
 | --- | --- |
-| **Pequenos círculos** | Giram a carretilha de madeira. Não há barra de tensão: você sente pela vara que verga, pela linha que brilha e treme, pelo som da linha esticada e pela vibração do celular (veja abaixo). Só arrebenta se insistir girando forte por mais de 2 segundos. |
+| **Pequenos círculos** | Giram a carretilha de madeira. Você sente a tensão pela vara que verga e dá trancos, pela linha que brilha e treme, pelo som da linha esticada e pela vibração do celular (veja abaixo). Só arrebenta se insistir girando forte por mais de 2 segundos. |
 | **Levar o dedo para o lado** | Quando o peixe corre, levar o dedo para o lado contrário segura a corrida e o cansa mais rápido. A câmera inclina junto. |
 | **Deslizar a página para baixo** | Devolve o peixe: ele desce na linha, toca a água e nada para o fundo. |
 
@@ -53,12 +61,17 @@ Cada momento tem a sua sensação, pensada como o que a mão sentiria segurando 
 | Recolher | Puxando a vara, uma sequência de toques que vão diminuindo enquanto a boia desliza; girando, a catraca da carretilha. |
 | Mordida | Uma batida forte e, enquanto a boia fica no fundo, puxadas de tempos em tempos. |
 | Fisgar | Um tranco de três batidas. |
+| Peixe resistindo | Sacudidas de cabeça: trancos curtos em ritmo irregular, mais fortes e frequentes com o peixe descansado e mais fracos conforme ele cansa. A vara dá o mesmo tranco na tela. |
 | Briga | A catraca da carretilha a cada volta, mais firme quanto mais esticada a linha. Quando o peixe corre, um tremor contínuo que acelera com a tensão; com a linha no limite, o zumbido rápido da fricção soltando linha. Saltos e corridas têm batidas próprias. |
 | Linha arrebenta | Um tranco longo que some. |
 | Tirar o peixe da água | Três batidas e, enquanto ele sobe, um coração batendo devagar. |
 | Devolver | Ondas que vão diminuindo, e o respingo quando ele toca a água. |
 
 Os padrões de cada momento têm prioridade sobre o tremor contínuo da briga, para um não atropelar o outro. O botão com o celular, no alto da tela, liga e desliga a vibração; a escolha fica salva.
+
+**Link direto para sentir a vibração:** https://raw.githack.com/frattajr/imersao2/ccr-6bf5cefb-qf3bcn/pescaria/index.html (abra no Chrome do Android).
+
+**Quando o navegador bloqueia:** o jogo percebe, mostra o ícone do celular riscado e avisa uma vez que é preciso abrir pelo link direto. Os trancos da vara e o medidor continuam mostrando a resistência na tela.
 
 **Onde funciona:** no Android (Chrome, Firefox, Samsung Internet), com o jogo aberto direto pelo endereço ou instalado na tela inicial. Navegadores bloqueiam a vibração em páginas embutidas dentro de outra página. No iPhone não existe API de vibração; o jogo usa o interruptor nativo do Safari (iOS 18 ou mais novo) para dar toques leves, mas sem controle de força ou duração. Onde não há nenhum dos dois, o botão não aparece.
 
