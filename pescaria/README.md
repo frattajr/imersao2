@@ -106,10 +106,10 @@ Fontes sobre as referências:
 A interface usa variáveis CSS em `:root`:
 
 - **Paleta serena:** lago fundo `#213036` (cor principal, também no tema do PWA), sálvia, névoa, água e areia. Não há branco nem preto puros na interface nem no desenho do jogo.
-- **Vidro fosco:** a abertura, a ficha do peixe, o diário e os botões têm fundo translúcido, `backdrop-filter: blur(12px)`, borda de 1 px `rgba(255,255,255,.4)`, cantos de 24 px e sombras bem difusas.
-- **HUD fantasma:** a hora e os botões ficam com opacidade 0,35 enquanto você joga e voltam a 1 só com o ponteiro em cima ou o foco do teclado. O resto da tela fica livre para o lago.
+- **Vidro fosco:** a abertura, a ficha do peixe, o diário e os botões têm fundo translúcido, `backdrop-filter: blur(12px)`, borda de 1 px `rgba(255,255,255,.35)`, cantos de 24 px e sombras bem difusas.
+- **HUD fantasma:** a hora e os botões ficam com opacidade 0,3 enquanto você joga e voltam a 1 só com o ponteiro em cima ou o foco do teclado. O resto da tela fica livre para o lago.
 - **Tipografia leve:** Quicksand nos pesos 300 e 400, com `letter-spacing: 0.04em`, e só sombras suaves. As lembranças continuam escritas à mão (Caveat).
-- **Transições orgânicas:** `cubic-bezier(0.22, 1, 0.36, 1)` entre 500 e 800 ms.
+- **Transições orgânicas:** `cubic-bezier(0.22, 1, 0.36, 1)` entre 600 e 900 ms.
 - **Atmosfera que respira:** o fundo da página se move num ciclo de 28 s, e uma aura de luz suave sobre a cena respira em 24 s.
 - **Ritmo de respiração:** o balanço da boia, dos juncos, das vitórias-régias, da vara e da lamparina, e o leve sobe-e-desce da câmera seguem ciclos de 4,5 a 6 s, sempre em seno (entrada e saída suaves).
 - **Toque:** cada toque deixa um anel de luz que se abre devagar (achatado sobre a água) e algumas partículas luminosas que sobem e somem. Na água, também faz ondas de verdade.
@@ -119,6 +119,44 @@ A interface usa variáveis CSS em `:root`:
   - **Kalimba:** tocar na água, mexer a isca e a boia caindo tocam uma nota de kalimba na escala pentatônica do momento, com ataque lento, decaimento longo e reverberação.
   - **Retomada:** o áudio volta no primeiro toque se o iPhone o suspender.
 - **Quem ativa reduzir movimento** no aparelho fica sem a respiração do fundo, a aura e as animações de entrada.
+
+## Mundo vivo e longa permanência
+
+O lago foi pensado para ficar aberto por horas.
+
+- **Climas com nome:** Manhã de névoa (com névoa mais densa nas primeiras horas), Dia claro, Entardecer dourado, Noite serena (com vaga-lumes) e Chuva suave ocasional, que faz ondas sozinha na água. O relógio no canto mostra o clima do momento, e a passagem entre eles é contínua.
+- **Água reativa:** tocar, arrastar o dedo ou só passar o cursor do mouse sobre o lago faz ondas leves. Elas empurram as pétalas e folhas boiando e as partículas de luz pousadas na água, balançam vitórias-régias e lótus, afastam os vaga-lumes e fazem os peixes por perto mudarem de rumo devagar.
+- **Evolução contemplativa:** o tempo de calma no lago vai sendo somado. A cada 2,5 min dele brota uma flor de lótus, até 9, num lugar livre perto da margem. Cada uma desabrocha ao longo de 2 min e brilha de leve à noite.
+- **Visitantes raros**, com mais chance quanto mais tempo de calma:
+  - libélula em dias claros (foge do dedo);
+  - carpa luminosa em noites quietas (vem ver quando você toca a água perto dela);
+  - garça-branca na margem nas manhãs de névoa;
+  - estrela cadente;
+  - vaga-lumes;
+  - arco-íris quando a chuva passa com sol.
+
+  Na primeira vez que cada um aparece, surge uma frase e toca um sino.
+- **Diário de descobertas:** o ícone do diário mostra o tempo de calma, as lótus abertas e brotando, os visitantes já vistos (os outros ficam em segredo, com uma dica de quando aparecem), os climas presenciados e os peixes.
+- **Modo contemplação:** depois de 25 s sem nenhum toque, movimento do mouse ou tecla, toda a interface some (opacidade 0) e o lago segue sozinho:
+  - mais saltos de peixe ao longe, folhas caindo e estrelas cadentes;
+  - visitantes chegam mais cedo;
+  - a câmera passeia devagar.
+
+  Nesse modo os peixes não chegam à boia, para não haver mordida sem ninguém olhando. O menor movimento traz a interface de volta.
+- **Tudo fica salvo no aparelho** (`localStorage`): tempo de calma, lótus, visitantes e climas a cada 10 s e ao sair, e os níveis do mixer na hora.
+
+## Mixer de sons
+
+O ícone de controles deslizantes no canto abre um painel de vidro com quatro camadas, todas geradas por código, sem arquivos de áudio:
+
+| Camada | O que é |
+| --- | --- |
+| **Água calma** | Ruído marrom com filtro passa-baixa que respira a cada 5 s, mais a água batendo na margem. |
+| **Brisa nas folhas** | Vento grave e um farfalhar agudo de folhas que cresce e some em rajadas. |
+| **Chuva suave** | Chuva fina. Toca baixinho mesmo com tempo seco e cresce quando chove de verdade. |
+| **Sinos harmônicos** | O piano generativo, as notas de kalimba de cada toque e sinos de vento soltos a cada 9 a 20 s, sempre na escala pentatônica do momento. |
+
+O painel fecha ao tocar fora dele. Em 70%, cada camada fica no volume original do jogo. O botão de alto-falante continua silenciando tudo de uma vez.
 
 ## O que deixa a cena viva
 

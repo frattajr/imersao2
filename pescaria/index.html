@@ -29,15 +29,15 @@
   --glow: #f1dfb8;               /* luz quente dos avisos */
   --glass: rgba(205, 220, 214, .13);
   --glass-strong: rgba(205, 220, 214, .2);
-  --glass-border: 1px solid rgba(255, 255, 255, .4);
+  --glass-border: 1px solid rgba(255, 255, 255, .35);
   --glass-blur: blur(12px) saturate(115%);
   --shadow-soft: 0 24px 70px rgba(14, 24, 28, .32), 0 2px 10px rgba(14, 24, 28, .12);
   --text-soft: 0 1px 18px rgba(18, 30, 34, .45);
   --radius: 24px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --t-fast: 500ms;
-  --t-med: 700ms;
-  --t-slow: 800ms;
+  --t-fast: 600ms;
+  --t-med: 750ms;
+  --t-slow: 900ms;
   --f-ui: "Quicksand", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-hand: "Caveat", "Segoe Print", "Bradley Hand", cursive;
   color-scheme: dark;
@@ -79,10 +79,10 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
   padding-left: max(18px, env(safe-area-inset-left, 0px));
   padding-right: max(14px, env(safe-area-inset-right, 0px));
-  opacity: .35; transition: opacity var(--t-med) var(--ease);
+  opacity: .3; transition: opacity var(--t-med) var(--ease);
 }
 .hud:hover, .hud:focus-within { opacity: 1; }
-.clock { font-size: 1.05rem; font-weight: 300; letter-spacing: .08em; text-shadow: var(--text-soft); transition: opacity 2.5s var(--ease); }
+.clock { font-size: .9rem; font-weight: 300; letter-spacing: .05em; white-space: nowrap; text-shadow: var(--text-soft); transition: opacity 2.5s var(--ease); }
 .clock.off { opacity: 0; }
 .hud-btns { display: flex; gap: 8px; pointer-events: auto; }
 .icon-btn {
@@ -201,6 +201,45 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
 .entry b { font-weight: 400; font-size: 1rem; letter-spacing: .04em; }
 .entry span { font-size: .74rem; color: var(--sand-dim); font-variant-numeric: tabular-nums; }
 .entry.unk b { font-weight: 300; color: var(--sand-faint); }
+
+/* diário: o lago, visitantes e climas */
+.seen { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.seen li { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: start; }
+.seen li::before { content: ""; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--sage-soft); box-shadow: 0 0 10px rgba(197, 211, 194, .6); }
+.seen li b { display: block; font-weight: 400; font-size: .95rem; }
+.seen li span { display: block; font-size: .78rem; line-height: 1.45; color: var(--sand-dim); }
+.seen li.unk b { font-weight: 300; color: var(--sand-faint); }
+.seen li.unk::before { background: transparent; border: 1px solid var(--sand-faint); box-shadow: none; }
+
+/* mixer de natureza: um painel de vidro que desce do canto */
+.mixer {
+  position: fixed; z-index: 6; top: calc(env(safe-area-inset-top, 0px) + 70px); right: max(14px, env(safe-area-inset-right, 0px));
+  width: min(290px, calc(100% - 28px)); box-sizing: border-box; padding: 18px 18px 16px; display: grid; gap: 14px;
+  border: var(--glass-border); border-radius: var(--radius);
+  background: rgba(33, 48, 54, .38); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--shadow-soft);
+  opacity: 0; transform: translateY(-10px) scale(.98); pointer-events: none; visibility: hidden;
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease), visibility 0s linear var(--t-med);
+}
+.mixer.open { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease), visibility 0s; }
+.mixer h2 { margin: 0; font-size: .72rem; font-weight: 400; letter-spacing: .18em; text-transform: uppercase; color: var(--sage-soft); }
+.mix-row { display: grid; gap: 4px; }
+.mix-row label { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: .92rem; color: var(--sand); }
+.mix-row output { font-size: .76rem; color: var(--sand-dim); font-variant-numeric: tabular-nums; }
+.mixer input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; margin: 0; background: transparent; cursor: pointer; }
+.mixer input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(to right, var(--sage-soft) var(--v, 50%), rgba(236, 228, 210, .22) var(--v, 50%)); }
+.mixer input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7.5px; border: 0; border-radius: 50%; background: var(--sand); box-shadow: 0 2px 12px rgba(14, 24, 28, .35); }
+.mixer input[type=range]::-moz-range-track { height: 3px; border-radius: 3px; background: rgba(236, 228, 210, .22); }
+.mixer input[type=range]::-moz-range-progress { height: 3px; border-radius: 3px; background: var(--sage-soft); }
+.mixer input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--sand); box-shadow: 0 2px 12px rgba(14, 24, 28, .35); }
+.mixer input[type=range]:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 2px; border-radius: 10px; }
+.mixer small { font-size: .74rem; line-height: 1.5; color: var(--sand-faint); }
+.icon-btn[aria-expanded="true"] { background: var(--glass-strong); }
+
+/* modo contemplação: a interface se recolhe e o lago segue vivo sozinho */
+.hud, .hint, .verse, .mixer { will-change: opacity; }
+body.contemplating .hud, body.contemplating .hint, body.contemplating .verse, body.contemplating .mixer {
+  opacity: 0 !important; pointer-events: none !important; transition: opacity var(--t-slow) var(--ease) !important;
+}
 </style>
 </head>
 <body>
@@ -216,11 +255,23 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
     <button class="icon-btn" id="btnVibe" aria-label="Desligar vibração" hidden>
       <svg viewBox="0 0 24 24"><rect x="8" y="4" width="8" height="16" rx="2"/><path id="vibeWaves" d="M4.5 9v6M19.5 9v6M2 10.5v3M22 10.5v3"/><path id="vibeOff" d="M4 4l16 16" style="display:none"/></svg>
     </button>
+    <button class="icon-btn" id="btnMixer" aria-label="Abrir os sons do lago" aria-expanded="false" aria-controls="mixer">
+      <svg viewBox="0 0 24 24"><path d="M5 4v16M12 4v16M19 4v16"/><circle cx="5" cy="9" r="2"/><circle cx="12" cy="15" r="2"/><circle cx="19" cy="8" r="2"/></svg>
+    </button>
     <button class="icon-btn" id="btnBook" aria-label="Abrir o diário do lago">
       <svg viewBox="0 0 24 24"><path d="M5 4.5h11a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/><path d="M9 8.5h6M9 11h4"/></svg>
     </button>
   </div>
 </div>
+
+<section class="mixer" id="mixer" aria-label="Sons do lago">
+  <h2>Sons do lago</h2>
+  <div class="mix-row"><label for="mixWater">Água calma <output id="outWater" for="mixWater">70%</output></label><input type="range" id="mixWater" min="0" max="100" step="1" value="70"></div>
+  <div class="mix-row"><label for="mixWind">Brisa nas folhas <output id="outWind" for="mixWind">70%</output></label><input type="range" id="mixWind" min="0" max="100" step="1" value="70"></div>
+  <div class="mix-row"><label for="mixRain">Chuva suave <output id="outRain" for="mixRain">60%</output></label><input type="range" id="mixRain" min="0" max="100" step="1" value="60"></div>
+  <div class="mix-row"><label for="mixBells">Sinos harmônicos <output id="outBells" for="mixBells">70%</output></label><input type="range" id="mixBells" min="0" max="100" step="1" value="70"></div>
+  <small>Deixe o lago aberto enquanto trabalha ou descansa. Os sons nascem aqui mesmo, sem arquivos de áudio.</small>
+</section>
 
 <p class="verse off" id="verse" aria-live="polite"></p>
 <div class="hint off" id="hint" role="status" aria-live="polite"></div>
@@ -263,6 +314,12 @@ button:focus-visible { outline: 1px solid var(--sage-soft); outline-offset: 4px;
     <p class="note" id="bookSum"></p>
     <h3>Lembranças</h3>
     <ul class="mems" id="bookMems"></ul>
+    <h3>O lago</h3>
+    <p class="note" id="bookLake"></p>
+    <h3>Visitantes</h3>
+    <ul class="seen" id="bookVisitors"></ul>
+    <h3>Climas</h3>
+    <ul class="seen" id="bookClimates"></ul>
     <h3>Peixes</h3>
     <div class="grid" id="bookGrid"></div>
   </article>
@@ -375,7 +432,7 @@ function updateEnv() {
   env.night = clamp((0.62 - env.light) / 0.3, 0, 1);
   env.sunUp = dayT > 0.02 && dayT < 0.62 ? Math.sin((dayT - 0.02) / 0.6 * Math.PI) : 0;
   env.golden = clamp(1 - Math.abs(dayT - 0.53) / 0.09, 0, 1) + clamp(1 - Math.abs(dayT - 0.06) / 0.06, 0, 1) * 0.7;
-  env.mist = clamp(0.1 + env.night * 0.3 + clamp(1 - Math.min(dayT, 1 - dayT) / 0.12, 0, 1) * 0.5 + weather.rain * 0.25, 0, 0.75);
+  env.mist = clamp(0.1 + env.night * 0.3 + clamp(1 - Math.min(dayT, 1 - dayT) / 0.12, 0, 1) * 0.5 + clamp(1 - Math.abs(dayT - 0.08) / 0.09, 0, 1) * 0.35 + weather.rain * 0.25, 0, 0.85);
   env.lamp = clamp((0.78 - env.light) / 0.3, 0, 1);
   // chuva: tudo vira cinza-azulado e a névoa sobe
   const r = weather.rain * 0.4, grey = [92, 102, 114];
@@ -383,6 +440,21 @@ function updateEnv() {
   env.sun = mix(env.sun, [200, 205, 210], r);
   // nomes antigos usados pela água, ondas e peixes
   env.bot = env.hor; env.wFar = mix(env.hor, env.water, 0.55); env.wNear = shade(env.water, 0.55);
+}
+// os cinco climas do lago, com nome, para o relógio e o diário
+const CLIMATES = [
+  { id: "nevoa", nome: "Manhã de névoa", quando: "nas primeiras horas, quando o lago ainda dorme" },
+  { id: "claro", nome: "Dia claro", quando: "com o sol alto e o céu limpo" },
+  { id: "dourado", nome: "Entardecer dourado", quando: "quando o sol desce e tudo fica cor de mel" },
+  { id: "noite", nome: "Noite serena", quando: "com estrelas, lua e vaga-lumes" },
+  { id: "chuva", nome: "Chuva suave", quando: "de vez em quando, sem aviso" }
+];
+function climateId() {
+  if (weather.rain > 0.5) return "chuva";
+  if (dayT < 0.16 || dayT > 0.95) return "nevoa";
+  if (dayT < 0.46) return "claro";
+  if (dayT < 0.66) return "dourado";
+  return "noite";
 }
 function timeWindow() {
   if (env.night > 0.55) return "noite";
@@ -509,11 +581,17 @@ function buildScenery() {
   mists = Array.from({ length: 5 }, (_, i) => ({ y: rnd(0.0, 0.16), x: rnd(0, W), w: rnd(0.7, 1.3) * W, h: rnd(10, 28) * hs, v: rnd(3, 9) * (i % 2 ? 1 : -1) }));
   motes = Array.from({ length: 30 }, () => ({ x: rnd(0, W), y: rnd(0, H), ph: rnd(0, TAU), sp: rnd(4, 12), r: rnd(0.6, 1.8) }));
   paper = paper || makePaper();
+  specks = Array.from({ length: 38 }, () => { const d = rnd(4.5, 18); return { x: rnd(-0.95, 0.95) * xMax(d), d, vx: 0, vd: 0, ph: rnd(0, TAU), r: rnd(0.8, 1.8) }; });
 }
 
 /* ============================================================
    Som: ambiente, música e efeitos, tudo sintetizado na hora
    ============================================================ */
+// níveis do mixer (0 a 1); 0,7 equivale ao volume original de cada camada
+const MIX_DEFAULT = { water: 0.7, wind: 0.7, rain: 0.6, bells: 0.7 };
+const mixLevels = Object.assign({}, MIX_DEFAULT, store.get("lagoSereno.mixer", {}));
+const mixGain = k => mixLevels[k] / 0.7;
+
 const Snd = {
   ctx: null, master: null, on: store.get("lagoSereno.som", true), noise: null, brown: null,
   rainGain: null, windGain: null, reverb: null, music: null, musicLevel: 1, song: null,
@@ -532,20 +610,26 @@ const Snd = {
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < rl; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rl, 2.8); }
     this.reverb = c.createConvolver(); this.reverb.buffer = ir;
     const wet = c.createGain(); wet.gain.value = 0.55; this.reverb.connect(wet); wet.connect(this.master);
+    // quatro canais do mixer: água, brisa, chuva e sinos (sinos têm um envio próprio para a reverberação)
+    this.bus = {};
+    ["water", "wind", "rain", "bells"].forEach(k => { const b = c.createGain(); b.gain.value = mixGain(k); b.connect(this.master); this.bus[k] = b; });
+    this.bellsWet = c.createGain(); this.bellsWet.gain.value = mixGain("bells"); this.bellsWet.connect(this.reverb);
     this.music = c.createGain(); this.music.gain.value = 0.9;
-    const dry = c.createGain(); dry.gain.value = 0.4; this.music.connect(dry); dry.connect(this.master); this.music.connect(this.reverb);
-    this.loop(this.brown, [["lowpass", 480, 0.7]], 0.3, [1 / 5, 0.1], 160);
-    this.loop(this.noise, [["bandpass", 900, 0.6]], 0.016, [0.23, 0.012]);
-    this.windGain = this.loop(this.noise, [["bandpass", 380, 0.5]], 0.035, [0.05, 0.025]);
-    this.rainGain = this.loop(this.noise, [["highpass", 1400, 0.7], ["lowpass", 6500, 0.7]], 0, null);
+    const dry = c.createGain(); dry.gain.value = 0.4; this.music.connect(dry); dry.connect(this.bus.bells); this.music.connect(this.bellsWet);
+    this.loop(this.brown, [["lowpass", 480, 0.7]], 0.3, [1 / 5, 0.1], 160, this.bus.water);
+    this.loop(this.noise, [["bandpass", 900, 0.6]], 0.016, [0.23, 0.012], 0, this.bus.water);
+    this.windGain = this.loop(this.noise, [["bandpass", 380, 0.5]], 0.035, [0.05, 0.025], 0, this.bus.wind);
+    // folhas: um chiado agudo que cresce e some como rajadas leves
+    this.loop(this.noise, [["bandpass", 2600, 0.9]], 0.009, [0.13, 0.008], 0, this.bus.wind);
+    this.rainGain = this.loop(this.noise, [["highpass", 1400, 0.7], ["lowpass", 6500, 0.7]], 0, null, 0, this.bus.rain);
   },
-  loop(buf, filters, gain, lfo, breathe) {
+  loop(buf, filters, gain, lfo, breathe, dest) {
     const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.loop = true;
     src.playbackRate.value = rnd(0.95, 1.05);
     let node = src;
     const fls = [];
     filters.forEach(([type, f, q]) => { const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; node.connect(fl); node = fl; fls.push(fl); });
-    const gn = c.createGain(); gn.gain.value = gain; node.connect(gn); gn.connect(this.master);
+    const gn = c.createGain(); gn.gain.value = gain; node.connect(gn); gn.connect(dest || this.master);
     // a água "respira": o filtro abre e fecha num ciclo de 5 s
     if (breathe && fls[0]) { const o = c.createOscillator(), og = c.createGain(); o.frequency.value = 1 / 5; og.gain.value = breathe; o.connect(og); og.connect(fls[0].frequency); o.start(); }
     if (lfo) { const o = c.createOscillator(), og = c.createGain(); o.frequency.value = lfo[0]; og.gain.value = lfo[1]; o.connect(og); og.connect(gn.gain); o.start(); }
@@ -649,8 +733,23 @@ const Snd = {
       const o = c.createOscillator(), og = c.createGain(); o.type = "sine"; o.frequency.value = f * m; og.gain.value = k;
       o.connect(og); og.connect(lp); o.start(t); o.stop(t + 3.8);
     });
-    lp.connect(env); env.connect(this.master); env.connect(this.reverb);
+    lp.connect(env); env.connect(this.bus ? this.bus.bells : this.master); env.connect(this.bus ? this.bellsWet : this.reverb);
   },
+  setMix(k, v) {
+    mixLevels[k] = v; store.set("lagoSereno.mixer", mixLevels);
+    if (!this.ctx || !this.bus) return;
+    const t = this.ctx.currentTime;
+    this.bus[k].gain.setTargetAtTime(mixGain(k), t, 0.25);
+    if (k === "bells") this.bellsWet.gain.setTargetAtTime(mixGain(k), t, 0.25);
+  },
+  // sinos de vento: duas a quatro notas altas e soltas, de tempos em tempos
+  windChime() {
+    const sc = this.scale(), n = 2 + (Math.random() * 3 | 0);
+    let when = 0, step = (Math.random() * sc.notes.length) | 0;
+    for (let i = 0; i < n; i++) { step = clamp(step + (Math.random() * 5 | 0) - 2, 0, sc.notes.length - 1); this.kalimba(sc.notes[step] + 12, 0.02, when); when += rnd(0.18, 0.5); }
+  },
+  // descoberta: três notas subindo, como um sino que se abre
+  discovery() { const sc = this.scale(); [0, 2, 4].forEach((k, i) => this.kalimba(sc.notes[Math.min(sc.notes.length - 1, k + 2)] + 12, 0.05, i * 0.22)); },
   // toque na água ou na vara: uma nota da escala pentatônica do momento, subindo e descendo devagar
   chime(octave = 0) {
     const now = performance.now(); if (now - (this.lastChime || 0) < 220) return; this.lastChime = now;
@@ -666,7 +765,8 @@ const Snd = {
   update(dt) {
     if (!this.ctx || !this.on) return;
     const c = this.ctx;
-    this.rainGain.gain.setTargetAtTime(weather.rain * 0.12, c.currentTime, 0.8);
+    // a chuva suave toca baixinho mesmo no seco (como camada de ambiente) e cresce quando chove de verdade
+    this.rainGain.gain.setTargetAtTime((0.25 + 0.75 * weather.rain) * 0.12, c.currentTime, 0.8);
     this.windGain.gain.setTargetAtTime(0.03 + weather.rain * 0.04, c.currentTime, 1);
     this.musicLevel = lerp(this.musicLevel, P.mode === "fight" ? 0.35 : 1, damp(1, dt));
     if (P.mode !== "intro") this.musicTick(dt);
@@ -674,6 +774,7 @@ const Snd = {
     if ((this.nextCricket -= dt) < 0) { this.nextCricket = rnd(0.4, 1.2); if (env.night > 0.3) this.cricket(env.night); }
     if ((this.nextFrog -= dt) < 0) { this.nextFrog = rnd(6, 15); if (env.night > 0.15 || dayT > 0.55) this.frog(0.4 + env.night * 0.6); }
     if ((this.nextLap -= dt) < 0) { this.nextLap = rnd(3, 7); this.lap(); }
+    if ((this.nextBell = (this.nextBell ?? 6) - dt) < 0) { this.nextBell = rnd(9, 20); if (P.mode !== "intro" && P.mode !== "fight") this.windChime(); }
   }
 };
 
@@ -799,6 +900,22 @@ function randomVerse() {
    ============================================================ */
 let ripples = [], fishes = [], splashes = [], drops = [], leaves = [], floaters = [];
 let nextLeaf = rnd(12, 25), trail = [], touchRings = [], motesTap = [];
+// progresso silencioso: tempo de calma, flores de lótus e o que já foi visto (fica no aparelho)
+const lake = Object.assign({ calm: 0, lotus: [], seen: {} }, store.get("lagoSereno.lago", {}));
+let lakeSaveT = 0;
+function saveLake() { store.set("lagoSereno.lago", { calm: Math.round(lake.calm), lotus: lake.lotus.map(({ u, d, born, ph }) => ({ u, d, born, ph })), seen: lake.seen }); }
+function markSeen(key) {
+  if (lake.seen[key]) return false;
+  lake.seen[key] = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long" }); saveLake(); return true;
+}
+// partículas de luz pousadas na água (pólen de dia, brilho à noite) que o dedo empurra
+let specks = [];
+// contemplação: depois de 25 s sem toque, a interface some e o lago segue sozinho
+let lastActivity = performance.now(), contemplating = false;
+function noteActivity() {
+  lastActivity = performance.now();
+  if (contemplating) { contemplating = false; document.body.classList.remove("contemplating"); }
+}
 const book = store.get("lagoSereno.caderno", {});
 const memories = store.get("lagoSereno.lembrancas", []);
 let learned = store.get("lagoSereno.aprendeu", false);
@@ -890,6 +1007,7 @@ function updateCamera(dt) {
     case "retrieve": tx = cam.x * 0.6; tz = 1.02; break;
   }
   if (!calm && P.mode !== "aim") { tx += Math.sin(T * TAU / 30) * 0.12; tt += Math.sin(T * BREATH) * 2; tz += Math.sin(T * BREATH) * 0.004; roll += Math.sin(T * TAU / 6) * 0.003; }
+  if (contemplating) { tx += Math.sin(T * TAU / 45) * 0.9; tt -= H * 0.012; }
   tx = clamp(tx, -2.6, 2.6);
   cam.x += (tx - cam.x) * damp(k, dt);
   cam.tilt += (tt - cam.tilt) * damp(k * 0.8, dt);
@@ -915,12 +1033,40 @@ function ptrVel(ms = 90) {
   const span = Math.max(8, b.t - a.t);
   return { vx: (b.x - a.x) / span, vy: (b.y - a.y) / span };
 }
+// a onda empurra folhas, pétalas e partículas; plantas balançam; peixes se afastam devagar
+function pushAround(x, d, k, sx, sy) {
+  const R = 1.8;
+  const push = o => {
+    const dx = o.x - x, dd = o.d - d, dist = Math.hypot(dx, dd);
+    if (dist < R && dist > 0.01) { const f = (1 - dist / R) * 0.7 * k; o.vx = (o.vx || 0) + dx / dist * f; o.vd = (o.vd || 0) + dd / dist * f; }
+  };
+  floaters.forEach(push); specks.forEach(push);
+  pads.forEach(pd => { if (Math.hypot(pd.x - x, pd.d - d) < 2.2) pd.bob = Math.max(pd.bob, 0.25 + 0.5 * k); });
+  lake.lotus.forEach(l => { if (Math.hypot(l.u * xMax(l.d) - x, l.d - d) < 2.2) l._bob = Math.max(l._bob || 0, 0.25 + 0.6 * k); });
+  if (k < 1) fishes.forEach(fi => {
+    if (fi.state === "wander" && !fi.curious && Math.hypot(fi.x - x, fi.d - d) < 2.4) { fi.hd = Math.atan2(fi.d - d, fi.x - x); fi.spd = Math.max(fi.spd, 0.55 * fi.sp.speed); }
+  });
+  if (sx != null) {
+    const shove = (o, kk) => { const dx = o.x - sx, dy = o.y - sy, q = Math.hypot(dx, dy); if (q < 90 && q > 1) { o.vx += dx / q * kk; o.vy += dy / q * kk; } };
+    flies.forEach(f => shove(f, 45 * k));
+    vis.list.forEach(v => { if (v.id === "libelula") { const p = v.screen; if (p && Math.hypot(p.x - sx, p.y - sy) < 110) v.flee = 1; } });
+  }
+}
+let hoverT = 0;
+// no computador, passar o cursor sobre o lago já mexe a água
+function hoverWater(sx, sy) {
+  const now = performance.now();
+  if (now - hoverT < 80 || sy < hz + 8) return;
+  hoverT = now; touchWater(sx, sy, false);
+}
 function touchWater(sx, sy, strong) {
   if (sy < hz + 6) return;
   const w = unproj(sx, sy);
   if (w.d > D_MAX + 4) return;
   addRipple(w.x, w.d, strong ? 0.7 : 0.32, strong ? 1.9 : 1.3, strong ? 0.5 : 0.3);
+  pushAround(w.x, w.d, strong ? 1 : 0.45, sx, sy);
   if (!strong) return;
+  vis.list.forEach(v => { if (v.id === "carpa" && Math.hypot(v.x - w.x, v.d - w.d) < 5) v.goal = { x: w.x, d: w.d, t: 4 }; });
   Snd.drip(0.4); Snd.chime(); Haptics.water();
   pads.forEach(pd => { if (Math.hypot(pd.x - w.x, pd.d - w.d) < 2.2) pd.bob = 1; });
   fishes.forEach(fi => { if (fi.state === "wander" && Math.hypot(fi.x - w.x, fi.d - w.d) < 4.5) fi.curious = { x: w.x, d: w.d, t: rnd(1.8, 3) }; });
@@ -941,7 +1087,8 @@ cv.addEventListener("pointerdown", e => {
   } else if (P.mode === "float" && e.clientY < ZONE) touchWater(e.clientX, e.clientY, true);
 });
 cv.addEventListener("pointermove", e => {
-  if (!ptr.down || e.pointerId !== ptr.id) return;
+  if (!ptr.down) { if (e.pointerType === "mouse" && (P.mode === "idle" || P.mode === "float")) hoverWater(e.clientX, e.clientY); return; }
+  if (e.pointerId !== ptr.id) return;
   let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
   if (!evs || !evs.length) evs = [e];
   const now = performance.now();
@@ -1185,7 +1332,7 @@ function update(dt) {
 
   const want = 6 + (W > 900 ? 2 : 0);
   if (fishes.filter(f => f.state !== "flee").length < want && Math.random() < dt * 0.5) spawnFish();
-  if (Math.random() < dt * 0.02 && P.mode !== "fight") { const d = rnd(10, D_MAX); splashes.push({ x: cam.x + rnd(-0.8, 0.8) * xMax(d), d, t: 0, big: rnd(0.6, 1.2) }); }
+  if (Math.random() < dt * (contemplating ? 0.05 : 0.02) && P.mode !== "fight") { const d = rnd(10, D_MAX); splashes.push({ x: cam.x + rnd(-0.8, 0.8) * xMax(d), d, t: 0, big: rnd(0.6, 1.2) }); }
 
   fishes.forEach(fi => updateFish(fi, dt));
   fishes = fishes.filter(f => f.alpha > 0 || f.t < 1);
@@ -1197,6 +1344,7 @@ function update(dt) {
   drops = drops.filter(d => d.t < 1.4 && d.y < H + 10);
   pads.forEach(pd => { pd.bob *= Math.exp(-dt * 1.5); });
   updateLeaves(dt);
+  updateLiving(dt);
 
 
   switch (P.mode) {
@@ -1254,15 +1402,124 @@ function update(dt) {
   motes.forEach(m => { m.y -= m.sp * dt * 0.4; m.x += Math.sin(T * 0.3 + m.ph) * 4 * dt; if (m.y < -5) { m.y = H; m.x = rnd(0, W); } });
   clouds.forEach(c => { c.x += c.v * dt; if (c.x > W * 1.4) c.x = -W * 0.4; });
   if (shooting) { shooting.t += dt; if (shooting.t > shooting.dur) shooting = null; }
-  else if (env.stars > 0.6 && Math.random() < dt * 0.04) shooting = { x: rnd(0.1, 0.9) * W, y: rnd(0.05, 0.4) * horizon, vx: rnd(-1, 1) * W * 0.35, vy: horizon * rnd(0.15, 0.3), t: 0, dur: rnd(0.6, 1.1) };
+  else if (env.stars > 0.6 && Math.random() < dt * (contemplating ? 0.08 : 0.04)) shooting = { x: rnd(0.1, 0.9) * W, y: rnd(0.05, 0.4) * horizon, vx: rnd(-1, 1) * W * 0.35, vy: horizon * rnd(0.15, 0.3), t: 0, dur: rnd(0.6, 1.1) }; if (shooting) discover("estrela", "Uma estrela cadente riscou o céu. Fez um pedido?");
   mists.forEach(m => { m.x += m.v * dt; if (m.x > W * 1.6) m.x = -W * 0.6; if (m.x < -W * 0.6) m.x = W * 1.6; });
   if (ptr.down) [reedsL, reedsR].forEach(set => set.forEach(rd => { if (Math.abs(ptr.x - rd.x) < 50 && ptr.y > H - rd.h) rd.push = lerp(rd.push, Math.sign(rd.x - ptr.x) * 18, damp(6, dt)); }));
   [reedsL, reedsR].forEach(set => set.forEach(rd => { rd.push *= Math.exp(-dt * 1.8); }));
   Snd.update(dt);
 }
 
+function updateLiving(dt) {
+  // tempo de calma: conta enquanto o lago está aberto e visível
+  if (P.mode !== "intro" && !document.hidden) {
+    lake.calm += dt;
+    if ((lakeSaveT += dt) > 10) { lakeSaveT = 0; saveLake(); }
+    const cid = climateId(); if (markSeen("c:" + cid) && lake.calm > 5) Snd.chime(1);
+    if (env.night > 0.5 && weather.rain < 0.3) markSeen("vagalumes");
+  }
+  // lótus: uma nova a cada 2,5 min de calma (até 9); cada uma desabrocha ao longo de 2 min
+  // no máximo um broto a cada 20 s, mesmo que o tempo acumulado permita mais
+  if (P.mode !== "intro" && lake.calm - (lake._sprout || -99) > 20 && lake.lotus.length < Math.min(9, Math.floor(lake.calm / 150))) { lake._sprout = lake.calm; sproutLotus(); }
+  lake.lotus.forEach(l => { l._bob = (l._bob || 0) * Math.exp(-dt * 1.2); });
+  specks.forEach(sp => {
+    sp.vx *= Math.exp(-dt * 1.2); sp.vd *= Math.exp(-dt * 1.2);
+    sp.x += (Math.sin(T * 0.12 + sp.ph) * 0.04 + sp.vx) * dt; sp.d += (Math.cos(T * 0.09 + sp.ph) * 0.03 + sp.vd) * dt;
+    const xm = xMax(sp.d) * 1.05;
+    if (sp.d < 4 || sp.d > 19 || Math.abs(sp.x) > xm) { sp.d = rnd(5, 17); sp.x = rnd(-0.9, 0.9) * xMax(sp.d); sp.vx = sp.vd = 0; }
+  });
+  updateVisitors(dt);
+  // contemplação
+  const quiet = performance.now() - lastActivity > 25000;
+  const calmScene = (P.mode === "idle" || P.mode === "float") && $("intro").hidden && $("catch").hidden && $("book").hidden;
+  if (!contemplating && quiet && calmScene) { contemplating = true; document.body.classList.add("contemplating"); closeMixer(); }
+  if (contemplating && !calmScene) noteActivity();
+  // arco-íris quando a chuva passa com sol
+  if (weather._was > 0.5 && weather.rain < 0.2 && env.sunUp > 0.3 && !rainbow) { rainbow = { t: 0, life: 75 }; discover("arcoiris", "A chuva passou e deixou um arco-íris sobre o lago."); }
+  if (weather.rain > 0.5) weather._was = weather.rain; else if (weather.rain < 0.2) weather._was = 0;
+  if (rainbow && (rainbow.t += dt) > rainbow.life) rainbow = null;
+}
+function sproutLotus() {
+  for (let tries = 0; tries < 24; tries++) {
+    const d = rnd(5.5, 15), u = (Math.random() < 0.5 ? -1 : 1) * rnd(0.35, 0.95), x = u * xMax(d);
+    if (pads.some(pd => Math.hypot(pd.x - x, pd.d - d) < 1.4)) continue;
+    if (lake.lotus.some(l => Math.hypot(l.u * xMax(l.d) - x, l.d - d) < 1.6)) continue;
+    lake.lotus.push({ u, d, born: lake.calm, ph: rnd(0, TAU) }); saveLake();
+    showVerse(lake.lotus.length === 1 ? "Uma flor de lótus começou a brotar perto da margem." : pick(["Mais uma flor de lótus vem subindo devagar.", "O lago guardou mais uma flor para você.", "Outra lótus começa a abrir, sem pressa."]), 7);
+    Snd.discovery();
+    return;
+  }
+}
+
+/* Visitantes raros: aparecem com o tempo de calma e ficam registrados no diário */
+const VISITORS = [
+  { id: "libelula", nome: "Libélula", quando: "em dias claros, depois de alguns minutos de calma" },
+  { id: "carpa", nome: "Carpa luminosa", quando: "em noites quietas, quando o lago fica muito tempo em paz" },
+  { id: "garca", nome: "Garça-branca", quando: "nas manhãs de névoa, perto da margem" },
+  { id: "estrela", nome: "Estrela cadente", quando: "em noites limpas, para quem olha o céu" },
+  { id: "vagalumes", nome: "Vaga-lumes", quando: "nas noites sem chuva" },
+  { id: "arcoiris", nome: "Arco-íris", quando: "quando a chuva passa e o sol volta" }
+];
+const vis = { list: [], next: 35 };
+let rainbow = null;
+function discover(id, text) {
+  if (markSeen("v:" + id)) { showVerse(text, 7); Snd.discovery(); }
+  else Snd.chime(1);
+}
+function updateVisitors(dt) {
+  if (P.mode === "intro") return;
+  if ((vis.next -= dt * (contemplating ? 2 : 1)) < 0) {
+    vis.next = rnd(40, 80);
+    const c = lake.calm, has = id => vis.list.some(v => v.id === id), opts = [];
+    if (env.sunUp > 0.25 && weather.rain < 0.3 && c > 60 && !has("libelula")) opts.push("libelula");
+    if (env.night > 0.5 && weather.rain < 0.4 && c > 150 && !has("carpa")) opts.push("carpa");
+    if ((dayT < 0.18 || dayT > 0.95) && c > 90 && !has("garca")) opts.push("garca");
+    if (opts.length && P.mode !== "fight" && Math.random() < 0.6) spawnVisitor(pick(opts));
+  }
+  vis.list.forEach(v => { v.t += dt; v.fade = clamp(Math.min(v.t / 4, (v.life - v.t) / 4), 0, 1); });
+  vis.list.forEach(v => {
+    if (v.id === "libelula") {
+      v.flee = (v.flee || 0) * Math.exp(-dt * 0.8);
+      if ((v.next -= dt) < 0 || v.flee > 0.9) {
+        v.next = rnd(2.5, 6);
+        const spots = pads.concat(lake.lotus.map(l => ({ x: l.u * xMax(l.d), d: l.d })));
+        const s = Math.random() < 0.6 && spots.length ? pick(spots) : { x: rnd(-0.7, 0.7) * xMax(8), d: rnd(5, 11) };
+        v.tx = s.x; v.td = s.d; v.th = v.flee > 0.9 ? 1.4 : rnd(0.15, 0.7); if (v.flee > 0.9) v.flee = 0.5;
+      }
+      const sp = 1.8 + (v.flee || 0) * 3;
+      v.vx = lerp(v.vx, clamp(v.tx - v.x, -1, 1) * sp, damp(2, dt)); v.vd = lerp(v.vd, clamp(v.td - v.d, -1, 1) * sp, damp(2, dt));
+      v.x += v.vx * dt; v.d = clamp(v.d + v.vd * dt, 4.2, 14); v.h = lerp(v.h, v.th, damp(1.5, dt));
+      if (v.t > v.life - 4) { v.th = 3; v.tx = v.x + 6; }
+    } else if (v.id === "carpa") {
+      if (v.goal && (v.goal.t -= dt) > 0) v.hd = lerpAng(v.hd, Math.atan2(v.goal.d - v.d, v.goal.x - v.x), dt * 1.2);
+      else { v.goal = null; v.hd += Math.sin(T * 0.2 + v.ph) * 0.25 * dt; }
+      const xm = xMax(v.d) * 0.9;
+      if (v.x > xm) v.hd = lerpAng(v.hd, Math.PI, dt); if (v.x < -xm) v.hd = lerpAng(v.hd, 0, dt);
+      if (v.d < 5.5) v.hd = lerpAng(v.hd, Math.PI / 2, dt); if (v.d > 14) v.hd = lerpAng(v.hd, -Math.PI / 2, dt);
+      v.x += Math.cos(v.hd) * 0.35 * dt; v.d += Math.sin(v.hd) * 0.35 * dt;
+      if (Math.random() < dt * 0.15) addRipple(v.x, v.d, 0.35, 2, 0.35);
+    } else if (v.id === "garca") {
+      if ((v.next -= dt) < 0) { v.next = rnd(4, 9); v.dip = 1; }
+      if (v.dip > 0) { v.dip -= dt * 0.8; if (v.dip > 0.45 && v.dip < 0.5) addRipple(v.x + v.side * -0.25, v.d, 0.3, 1.6, 0.4); }
+    }
+  });
+  vis.list = vis.list.filter(v => v.t < v.life);
+}
+function spawnVisitor(id) {
+  if (id === "libelula") {
+    vis.list.push({ id, x: -xMax(6) * 1.1, d: 6, h: 1.2, th: 0.5, tx: 0, td: 7, vx: 0, vd: 0, t: 0, life: rnd(35, 55), next: 0, ph: rnd(0, TAU) });
+    discover("libelula", "Uma libélula veio dançar sobre a água.");
+  } else if (id === "carpa") {
+    const d = rnd(7, 12);
+    vis.list.push({ id, x: rnd(-0.6, 0.6) * xMax(d), d, hd: rnd(0, TAU), t: 0, life: rnd(45, 70), ph: rnd(0, TAU) });
+    discover("carpa", "Uma carpa luminosa atravessa o lago devagar.");
+  } else if (id === "garca") {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    vis.list.push({ id, side, x: side * xMax(6) * 0.86, d: 6, t: 0, life: rnd(50, 80), next: rnd(2, 5), dip: 0 });
+    discover("garca", "Uma garça-branca pousou na margem, em silêncio.");
+  }
+}
 function updateLeaves(dt) {
-  if ((nextLeaf -= dt) < 0) {
+  if ((nextLeaf -= dt * (contemplating ? 2 : 1)) < 0) {
     nextLeaf = rnd(14, 32);
     if (env.sunUp > 0.05 && weather.rain < 0.5) leaves.push({ x: rnd(0.1, 0.9) * W, y: -20, vx: rnd(-12, 12), vy: rnd(26, 40), rot: rnd(0, TAU), vr: rnd(-2, 2), ph: rnd(0, TAU), ty: rnd(hz + 30, H * 0.7), col: pick([[196, 132, 58], [214, 168, 72], [150, 120, 60], [178, 92, 48]]) });
   }
@@ -1271,7 +1528,10 @@ function updateLeaves(dt) {
     if (l.y >= l.ty) { const w = unproj(l.x, l.y); floaters.push({ x: w.x, d: w.d, rot: l.rot, col: l.col, t: 0, life: rnd(35, 60) }); addRipple(w.x, w.d, 0.35, 1.8, 0.4); l.done = true; }
   });
   leaves = leaves.filter(l => !l.done);
-  floaters.forEach(f => { f.t += dt; f.x += Math.sin(T * 0.2 + f.rot) * 0.05 * dt; f.rot += 0.03 * dt; });
+  floaters.forEach(f => {
+    f.vx = (f.vx || 0) * Math.exp(-dt * 1.1); f.vd = (f.vd || 0) * Math.exp(-dt * 1.1);
+    f.t += dt; f.x += (Math.sin(T * 0.2 + f.rot) * 0.05 + f.vx) * dt; f.d = clamp(f.d + f.vd * dt, 3.4, D_MAX); f.rot += (0.03 + Math.abs(f.vx) * 0.8) * dt;
+  });
   floaters = floaters.filter(f => f.t < f.life);
 }
 
@@ -1305,7 +1565,7 @@ function updateFish(fi, dt) {
     if (fi.d > D_MAX - 1) fi.hd = lerpAng(fi.hd, -Math.PI / 2, dt * 1.5);
     if (P.mode === "float" && !P.target) {
       const dd = Math.hypot(fi.x - P.bob.x, fi.d - P.bob.d);
-      if (dd < 6 && Math.random() < dt * (0.12 + P.waitT * 0.02)) { fi.state = "approach"; fi.curious = null; P.target = fi; setHint("Uma sombra se aproxima…"); }
+      if (!contemplating && dd < 6 && Math.random() < dt * (0.12 + P.waitT * 0.02)) { fi.state = "approach"; fi.curious = null; P.target = fi; setHint("Uma sombra se aproxima…"); }
     }
   }
   if (fi.state === "backoff") { fi.spd = lerp(fi.spd, 0.12, damp(2, dt)); if (fi.t > 1.5) fi.state = "approach"; }
@@ -1327,7 +1587,7 @@ function updateFish(fi, dt) {
         setHint("Ainda não… ele está só provando");
       } else {
         fi.state = "bite"; fi.t = 0; fi.window = 1.8 + P.bonus * 0.2 + (fi.sp.rar === 0 ? 0.2 : 0);
-        P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.4, 0.6); Snd.plop(1.1); Haptics.bite(); Haptics.tugT = 0.45; cam.nudge = Math.max(cam.nudge, 0.0060);
+        P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.4, 0.6); Snd.plop(1.1); Haptics.bite(); Haptics.tugT = 0.45; noteActivity(); cam.nudge = Math.max(cam.nudge, 0.0060);
         setHint("Agora! Puxe a vara", true); Snd.biteCall();
       }
     }
@@ -1474,10 +1734,13 @@ function draw() {
   g.fillStyle = rgb(env.water); g.fillRect(-W * 0.2, hz, W * 1.4, H - hz + H * 0.2);
   drawReflections();
   drawPads(L);
+  drawLotus(L);
   drawFloaters(L);
+  drawSpecks();
   drawRipples();
   fishes.slice().sort((a, b) => b.d - a.d).forEach(drawShadow);
   splashes.forEach(drawJump);
+  drawVisitorsWater();
   if (P.mode === "aim" && P.aimPt) drawAimLight();
   // névoa de distância: o fundo se perde no ar
   const haze = g.createLinearGradient(0, hz, 0, hz + (nearY - hz) * 0.28);
@@ -1485,6 +1748,7 @@ function draw() {
   g.fillStyle = haze; g.fillRect(-W * 0.2, hz, W * 1.4, (nearY - hz) * 0.28);
   drawMist();
   drawBobberInWater();
+  drawVisitorsAir();
   if (P.mode === "fight" && P.jump > 0) drawJumpingFish();
   g.restore();
   // primeiro plano: o que está perto de você
@@ -1582,6 +1846,13 @@ function drawSkyLive() {
     }
   }
   drawBirds(g);
+  if (rainbow) {
+    const k = clamp(Math.min(rainbow.t / 8, (rainbow.life - rainbow.t) / 10), 0, 1), cx = W - (env.sunX || W / 2) * 0.6, R = W * 0.62;
+    const bands = [[236, 150, 150], [240, 196, 140], [232, 226, 160], [170, 214, 170], [150, 190, 220], [176, 160, 214]];
+    g.save(); g.beginPath(); g.rect(0, 0, W, hz); g.clip(); g.lineWidth = 5;
+    bands.forEach((c, i) => { g.strokeStyle = rgb(c, 0.11 * k); g.beginPath(); g.arc(cx, hz + H * 0.06, R - i * 5, Math.PI, TAU); g.stroke(); });
+    g.restore();
+  }
 }
 function drawClouds(c, skyX) {
   // nuvens pintadas em duas cores: sombra embaixo, luz em cima
@@ -1682,6 +1953,114 @@ function drawPads(L) {
       g.fillStyle = rgb(mix([244, 196, 206], [120, 96, 116], 1 - L));
       for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; g.beginPath(); g.ellipse(p.x + Math.cos(a) * fr * 0.5, p.y + lift - fr * 0.3 + Math.sin(a) * fr * 0.2, fr * 0.45, fr * 0.2, a, 0, TAU); g.fill(); }
       g.fillStyle = "rgba(250,220,130,.9)"; g.beginPath(); g.arc(p.x, p.y + lift - fr * 0.35, fr * 0.18, 0, TAU); g.fill();
+    }
+  });
+}
+// flor de lótus: folha redonda e pétalas que se abrem em leque ao longo de 2 minutos
+function drawLotus(L) {
+  lake.lotus.forEach(l => {
+    const x = l.u * xMax(l.d), p = proj(x, l.d + Math.sin(T * TAU / 6 + l.ph) * 0.04);
+    const grow = clamp((lake.calm - l.born) / 10, 0, 1), open = clamp((lake.calm - l.born - 6) / 120, 0, 1);
+    const rx = 0.55 * kpx * p.s * ease(grow), ry = rx * squash(p.s);
+    if (rx < 0.5 || p.x < -rx * 2 || p.x > W + rx * 2) return;
+    const lift = (l._bob || 0) * Math.sin(T * 7 + l.ph) * ry * 0.5;
+    const leaf = mix(mix(env.ink, [86, 122, 88], 0.45 + L * 0.35), env.fog, 0.1);
+    g.fillStyle = rgb(leaf); g.beginPath(); g.ellipse(p.x, p.y + lift, rx, ry, 0, l.ph + 0.25, l.ph + TAU - 0.12); g.lineTo(p.x, p.y + lift); g.closePath(); g.fill();
+    g.strokeStyle = rgb(shade(leaf, 1.3), 0.4); g.lineWidth = 1; g.stroke();
+    // flor
+    const r = Math.max(3, 0.34 * kpx * p.s) * ease(grow), fx = p.x, fy = p.y + lift - ry * 0.2;
+    const dusk = (1 - L) * 0.45, petal = mix([240, 212, 218], env.ink, dusk), tip = mix([224, 158, 182], env.ink, dusk), inner = mix([247, 228, 226], env.ink, dusk);
+    if (env.night > 0.2 && open > 0.3) {
+      const gl = g.createRadialGradient(fx, fy - r * 0.5, 0, fx, fy - r * 0.5, r * 2.4);
+      gl.addColorStop(0, `rgba(241,205,214,${0.2 * env.night * open})`); gl.addColorStop(1, "rgba(241,205,214,0)");
+      g.fillStyle = gl; g.fillRect(fx - r * 2.4, fy - r * 2.9, r * 4.8, r * 4.8);
+    }
+    const ring = (n, spread, len, wid, col, colTip) => {
+      for (let i = 0; i < n; i++) {
+        const a = (n === 1 ? 0 : (i / (n - 1) - 0.5)) * spread;
+        g.save(); g.translate(fx, fy); g.rotate(a);
+        g.fillStyle = rgb(col); g.beginPath(); g.ellipse(0, -len * 0.5, wid, len * 0.5, 0, 0, TAU); g.fill();
+        g.fillStyle = rgb(colTip, 0.55); g.beginPath(); g.ellipse(0, -len * 0.78, wid * 0.55, len * 0.2, 0, 0, TAU); g.fill();
+        g.restore();
+      }
+    };
+    if (open < 0.12) {
+      // botão fechado subindo
+      ring(1, 0, r * (0.6 + grow * 0.4), r * 0.28, petal, tip);
+    } else {
+      ring(7, lerp(0.5, 2.5, open), r * 0.95, r * 0.24, shade(petal, 0.88), tip);
+      ring(5, lerp(0.3, 1.5, open), r * 0.8, r * 0.22, petal, tip);
+      ring(3, lerp(0.1, 0.7, open), r * 0.62, r * 0.2, inner, tip);
+      if (open > 0.5) { g.fillStyle = rgb(mix([236, 196, 110], env.ink, dusk)); g.beginPath(); g.ellipse(fx, fy - r * 0.18, r * 0.2, r * 0.1, 0, 0, TAU); g.fill(); }
+    }
+  });
+}
+function drawSpecks() {
+  const k = 0.18 + env.night * 0.55 + env.golden * 0.25;
+  const col = env.night > 0.4 ? [226, 236, 200] : [246, 232, 196];
+  g.save(); g.globalCompositeOperation = "lighter";
+  specks.forEach(sp => {
+    const p = proj(sp.x, sp.d);
+    if (p.y > H || p.x < -5 || p.x > W + 5) return;
+    const a = k * (0.45 + 0.55 * Math.sin(T * BREATH + sp.ph)) * (1 - weather.rain * 0.6), r = sp.r * (0.6 + p.s * 1.6);
+    g.fillStyle = rgb(col, a * 0.35); g.beginPath(); g.arc(p.x, p.y, r * 2.4, 0, TAU); g.fill();
+    g.fillStyle = rgb(col, a); g.beginPath(); g.arc(p.x, p.y, r * 0.7, 0, TAU); g.fill();
+  });
+  g.restore();
+}
+// carpa luminosa: um brilho quente sob a superfície
+function drawVisitorsWater() {
+  vis.list.forEach(v => {
+    if (v.id !== "carpa") return;
+    const p = proj(v.x, v.d), b = proj(v.x + Math.cos(v.hd) * 0.5, v.d + Math.sin(v.hd) * 0.5), ang = Math.atan2(b.y - p.y, b.x - p.x);
+    const len = 0.75 * kpx * p.s, wid = len * 0.32, a = v.fade;
+    g.save(); g.globalCompositeOperation = "lighter";
+    const gl = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, len * 1.2);
+    gl.addColorStop(0, `rgba(242,176,112,${0.32 * a})`); gl.addColorStop(1, "rgba(242,176,112,0)");
+    g.fillStyle = gl; g.beginPath(); g.ellipse(p.x, p.y, len * 1.2, len * squash(p.s) * 1.6, 0, 0, TAU); g.fill();
+    g.restore();
+    g.save(); g.translate(p.x, p.y); g.rotate(ang); g.globalAlpha = a * 0.9;
+    g.fillStyle = "#e9a86a"; g.beginPath(); g.ellipse(0, 0, len / 2, wid / 2, 0, 0, TAU); g.fill();
+    g.fillStyle = "#f4e6d4"; g.beginPath(); g.ellipse(len * 0.12, -wid * 0.08, len * 0.16, wid * 0.28, 0.3, 0, TAU); g.fill();
+    g.beginPath(); g.ellipse(-len * 0.18, wid * 0.05, len * 0.1, wid * 0.22, -0.4, 0, TAU); g.fill();
+    g.save(); g.translate(-len / 2, 0); g.rotate(Math.sin(T * 3 + v.ph) * 0.4);
+    g.fillStyle = "rgba(240,170,110,.75)"; g.beginPath(); g.moveTo(len * 0.05, 0); g.lineTo(-len * 0.3, -wid * 0.7); g.lineTo(-len * 0.22, 0); g.lineTo(-len * 0.3, wid * 0.7); g.closePath(); g.fill();
+    g.restore(); g.restore();
+  });
+}
+// libélula e garça: no ar e na margem
+function drawVisitorsAir() {
+  vis.list.forEach(v => {
+    if (v.id === "libelula") {
+      const p = proj(v.x, v.d), Ls = clamp(0.5 * kpx * p.s, 12, 30), y = p.y - v.h * kpx * p.s;
+      v.screen = { x: p.x, y };
+      g.save(); g.globalAlpha = v.fade;
+      g.fillStyle = "rgba(20,30,34,.12)"; g.beginPath(); g.ellipse(p.x, p.y, Ls * 0.3, Ls * 0.08, 0, 0, TAU); g.fill();
+      g.translate(p.x, y); g.rotate(clamp(v.vx * 0.15, -0.5, 0.5));
+      const flap = 0.35 + 0.65 * Math.abs(Math.sin(T * 38 + v.ph));
+      g.fillStyle = "rgba(220,234,238,.32)";
+      [[-1, -0.18], [1, -0.18], [-1, 0.02], [1, 0.02]].forEach(([sx, oy]) => { g.beginPath(); g.ellipse(sx * Ls * 0.32, oy * Ls, Ls * 0.32, Ls * 0.09 * flap, sx * 0.12, 0, TAU); g.fill(); });
+      const body = g.createLinearGradient(0, -Ls * 0.3, 0, Ls * 0.6);
+      body.addColorStop(0, "#5aa6b6"); body.addColorStop(1, "#2f6f7c");
+      g.strokeStyle = body; g.lineWidth = Math.max(1.5, Ls * 0.07); g.lineCap = "round";
+      g.beginPath(); g.moveTo(0, -Ls * 0.25); g.lineTo(0, Ls * 0.6); g.stroke();
+      g.fillStyle = "#4b93a3"; g.beginPath(); g.arc(0, -Ls * 0.3, Ls * 0.08, 0, TAU); g.fill();
+      g.restore(); g.lineCap = "butt";
+    } else if (v.id === "garca") {
+      const p = proj(v.x, v.d), Hh = 1.1 * kpx * p.s, a = v.fade, rise = v.t > v.life - 4 ? (v.t - (v.life - 4)) * Hh * 0.4 : 0;
+      const body = mix([238, 236, 228], env.fog, 0.25 + env.night * 0.4), leg = mix(env.ink, [80, 70, 60], 0.3);
+      g.save(); g.globalAlpha = a; g.translate(p.x, p.y - rise); g.scale(v.side, 1);
+      g.strokeStyle = rgb(leg); g.lineWidth = Math.max(1, Hh * 0.02);
+      g.beginPath(); g.moveTo(-Hh * 0.04, 0); g.lineTo(-Hh * 0.02, -Hh * 0.42); g.moveTo(Hh * 0.05, 0); g.lineTo(Hh * 0.02, -Hh * 0.42); g.stroke();
+      g.fillStyle = rgb(body); g.beginPath(); g.ellipse(0, -Hh * 0.52, Hh * 0.2, Hh * 0.11, -0.25, 0, TAU); g.fill();
+      const dip = v.dip > 0 ? Math.sin(v.dip * Math.PI) : 0;
+      g.strokeStyle = rgb(body); g.lineWidth = Math.max(1.5, Hh * 0.045); g.lineCap = "round";
+      g.beginPath(); g.moveTo(-Hh * 0.12, -Hh * 0.58); g.quadraticCurveTo(-Hh * 0.3, -Hh * 0.75 + dip * Hh * 0.3, -Hh * 0.2, -Hh * 0.92 + dip * Hh * 0.45); g.stroke();
+      g.strokeStyle = rgb(mix([214, 176, 96], env.ink, env.night * 0.5)); g.lineWidth = Math.max(1, Hh * 0.02);
+      g.beginPath(); g.moveTo(-Hh * 0.2, -Hh * 0.92 + dip * Hh * 0.45); g.lineTo(-Hh * 0.36, -Hh * 0.9 + dip * Hh * 0.5); g.stroke();
+      g.restore(); g.lineCap = "butt";
+      // reflexo da garça na água
+      g.save(); g.globalAlpha = a * 0.18; g.fillStyle = rgb(body); g.beginPath(); g.ellipse(p.x, p.y + Hh * 0.3, Hh * 0.12, Hh * 0.25, 0, 0, TAU); g.fill(); g.restore();
     }
   });
 }
@@ -2171,6 +2550,22 @@ function openBook() {
     const li = document.createElement("li"), s = document.createElement("span");
     s.textContent = `${m.date} · ${m.when}`; li.appendChild(s); li.appendChild(document.createTextNode(m.txt)); ml.appendChild(li);
   });
+  const mins = Math.floor(lake.calm / 60), calmTxt = mins < 1 ? "menos de um minuto" : mins < 60 ? `${mins} ${mins === 1 ? "minuto" : "minutos"}` : `${Math.floor(mins / 60)} h ${mins % 60} min`;
+  const opened = lake.lotus.filter(l => lake.calm - l.born > 126).length, budding = lake.lotus.length - opened;
+  $("bookLake").textContent = `${calmTxt} de calma aqui. ` + (lake.lotus.length ? `${opened === 1 ? "Uma flor de lótus aberta" : opened + " flores de lótus abertas"}${budding ? ` e ${budding === 1 ? "uma brotando" : budding + " brotando"}` : ""}.` : "As flores de lótus brotam com o tempo de calma.");
+  const seenList = (ul, items, prefix, secret) => {
+    ul.innerHTML = "";
+    items.forEach(it => {
+      const when = lake.seen[prefix + it.id], li = document.createElement("li"), dv = document.createElement("div"), b = document.createElement("b"), sp = document.createElement("span");
+      if (!when) li.className = "unk";
+      b.textContent = when || !secret ? it.nome : "ainda não apareceu";
+      sp.textContent = when ? `pela primeira vez em ${when}` : it.quando;
+      dv.appendChild(b); dv.appendChild(sp); li.appendChild(dv); ul.appendChild(li);
+    });
+  };
+  if (lake.seen["vagalumes"]) lake.seen["v:vagalumes"] = lake.seen["v:vagalumes"] || lake.seen["vagalumes"];
+  seenList($("bookVisitors"), VISITORS, "v:", true);
+  seenList($("bookClimates"), CLIMATES, "c:", false);
   const grid = $("bookGrid"); grid.innerHTML = "";
   SPECIES.forEach(sp => {
     const r = book[sp.id], el = document.createElement("div"); el.className = "entry" + (r ? "" : " unk");
@@ -2188,6 +2583,20 @@ $("btnBookClose").addEventListener("click", () => { $("book").hidden = true; });
 $("book").addEventListener("click", e => { if (e.target.id === "book") $("book").hidden = true; });
 function syncSoundBtn() { $("soundWaves").style.display = Snd.on ? "" : "none"; $("btnSound").setAttribute("aria-label", Snd.on ? "Silenciar" : "Ligar o som"); }
 $("btnSound").addEventListener("click", () => { Snd.init(); Snd.toggle(); syncSoundBtn(); });
+// mixer: abre e fecha com o botão; fecha ao tocar fora
+function closeMixer() { $("mixer").classList.remove("open"); $("btnMixer").setAttribute("aria-expanded", "false"); }
+$("btnMixer").addEventListener("click", () => {
+  const open = !$("mixer").classList.contains("open");
+  $("mixer").classList.toggle("open", open); $("btnMixer").setAttribute("aria-expanded", String(open));
+  if (open) { Snd.init(); if (Snd.ctx && Snd.ctx.state === "suspended") Snd.ctx.resume(); }
+});
+document.addEventListener("pointerdown", e => { if ($("mixer").classList.contains("open") && !e.target.closest("#mixer, #btnMixer")) closeMixer(); });
+[["water", "Water"], ["wind", "Wind"], ["rain", "Rain"], ["bells", "Bells"]].forEach(([k, id]) => {
+  const el = $("mix" + id), out = $("out" + id);
+  const sync = () => { el.style.setProperty("--v", el.value + "%"); out.textContent = el.value + "%"; };
+  el.value = Math.round(mixLevels[k] * 100); sync();
+  el.addEventListener("input", () => { Snd.init(); Snd.setMix(k, el.value / 100); sync(); });
+});
 Haptics.init();
 function syncVibeBtn() {
   const on = Haptics.on && !Haptics.blocked;
@@ -2212,13 +2621,15 @@ $("btnStart").addEventListener("click", () => {
   setTimeout(() => setHint(learned ? "" : "Arraste para cima, a partir de baixo"), 1400);
   try { navigator.wakeLock && navigator.wakeLock.request("screen").catch(() => {}); } catch (e) {}
 });
+["pointerdown", "pointermove", "keydown", "wheel", "touchstart"].forEach(ev => document.addEventListener(ev, noteActivity, { passive: true }));
+window.addEventListener("pagehide", saveLake);
 // o iPhone suspende o áudio sozinho: o primeiro toque depois disso o retoma
 document.addEventListener("pointerdown", () => {
   if (P.mode !== "intro" && Snd.ctx && Snd.ctx.state === "suspended") Snd.ctx.resume();
 }, { passive: true });
 document.addEventListener("visibilitychange", () => {
   if (!Snd.ctx) return;
-  if (document.hidden) Snd.ctx.suspend(); else Snd.ctx.resume();
+  if (document.hidden) { saveLake(); Snd.ctx.suspend(); } else Snd.ctx.resume();
 });
 
 /* ============================================================
@@ -2228,8 +2639,9 @@ let phaseShown = "", clockTimer = null;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   update(dt); draw();
-  if (env.name !== phaseShown) {
-    phaseShown = env.name; $("phaseName").textContent = env.name; $("clock").classList.remove("off");
+  const climate = CLIMATES.find(c => c.id === climateId()).nome;
+  if (climate !== phaseShown) {
+    phaseShown = climate; $("phaseName").textContent = climate; $("clock").classList.remove("off");
     clearTimeout(clockTimer); clockTimer = setTimeout(() => $("clock").classList.add("off"), 6000);
   }
   requestAnimationFrame(frame);
@@ -2237,6 +2649,7 @@ function frame(now) {
 window.addEventListener("resize", () => { resize(); resetHang(); });
 resize();
 for (let i = 0; i < 6; i++) spawnFish().alpha = 1;
+for (let i = 0; i < 7; i++) { const d = rnd(4.5, 12); floaters.push({ x: rnd(-0.8, 0.8) * xMax(d), d, rot: rnd(0, TAU), col: pick([[236, 198, 208], [226, 180, 196], [214, 168, 72], [196, 132, 58]]), t: 0, life: 1e9, vx: 0, vd: 0 }); }
 resetHang();
 requestAnimationFrame(t => { last = t; frame(t); });
 
