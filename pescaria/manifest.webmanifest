@@ -1,0 +1,15 @@
+{
+  "name": "Lago Sereno",
+  "short_name": "Lago Sereno",
+  "description": "Pescaria relaxante com gestos: deslize para lançar, puxe para fisgar, gire para recolher.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#141b2b",
+  "theme_color": "#141b2b",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
