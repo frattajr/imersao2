@@ -192,6 +192,12 @@ O lago foi pensado para ficar aberto por horas.
 O ícone de controles deslizantes abre o painel de ajustes. Ele rola por dentro e ocupa no máximo 60% da altura da tela, então dá para fechar tocando no lago logo abaixo.
 
 - **Pesca:** Serena ou Natural (veja acima).
+- **Isca:** Minhoca, Pão ou Fruta. Todas estão liberadas desde o começo, e cada uma chama mais um tipo de peixe:
+  - minhoca chama os caçadores;
+  - pão chama os mansos e miúdos;
+  - fruta chama os grandes que comem o que cai na água.
+
+  A isca escolhida aparece pendurada no anzol, embaixo da boia.
 - **Vibração:** Desligada, Suave (pulsos com metade da duração) ou Normal. Some em aparelhos sem vibração.
 - **Movimento:** Completo ou Reduzido. Reduzido desliga o balanço da câmera, as aproximações, as linhas de brisa e as animações da interface. Na primeira vez, segue o "reduzir movimento" do aparelho.
 - **Sons:** seis volumes independentes, todos gerados por código, sem arquivos de áudio:
@@ -271,15 +277,43 @@ Cada espécie tem um lugar preferido no lago, para onde volta aos poucos quando 
 
 Os peixes cautelosos (piau, pintado e pirarucu) ficam com mais vontade de chegar quanto mais tempo você passa sem tocar na tela.
 
+**Iscas preferidas:**
+- **Minhoca:** acará, lambari, traíra, tucunaré, dourado e pintado.
+- **Pão:** lambari, acará, tilápia e piau.
+- **Fruta:** pacu e tambaqui.
+- **Qualquer isca:** pirarucu.
+
+Com a isca preferida, a espécie aparece 1,6 vez mais no lago e tem 1,25 vez mais vontade de vir até a boia. Com outra isca, esses números caem para 0,45 e 0,55.
+
+**Pistas no diário:** quando uma espécie ainda não pescada chega perto da boia duas vezes ou mais, a página dela no diário mostra quantas vezes você viu a sombra e dá uma pista, sem dizer o nome. Por exemplo: "Uma sombra comprida no fundo, que foge quando a isca mexe."
+
 ### Ritmo da espera
 
 - **Uma sombra passa:** se nada chega perto da boia por 8 a 13 s, um peixe por perto vem dar uma olhada. Isso não garante mordida; às vezes ele só passa.
 - **Aviso antes dos mordiscos:** a boia treme de leve quando um peixe encosta na linha.
 - **Susto no pouso:** a boia caindo espanta por 2,5 s quem estava logo embaixo. Depois, os peixes voltam a se interessar.
+- **Ondas que andam:** um peixe saltando, uma corrida ou um salto na briga, a fisgada, a captura, a devolução e a boia caindo soltam uma onda. Ela se espalha a 1,6 unidade por segundo até 7 de distância e perde força no caminho. Quando a frente passa:
+  - a boia balança e se afasta um pouco, uma vez por onda;
+  - pétalas, folhas e partículas são empurradas;
+  - vitórias-régias e lótus sobem e descem.
+
+### A fauna sente você
+
+O lago guarda uma medida de agitação, que sobe com toques, lançamentos, fisgadas e brigas e cai pela metade a cada 8 s de quietude:
+- com o lago agitado, aparecem menos pássaros e os que estão voando se apressam;
+- os grilos se calam acima de 0,5 e os sapos acima de 0,4;
+- garça e libélula vão embora devagar acima de 0,65;
+- visitantes novos só chegam abaixo de 0,35.
+
+Quando tudo fica quieto, os bichos voltam aos poucos.
 
 ### O trapiche e a volta
 
-- **Enfeites:** com 3 espécies conhecidas, um sino de vento aparece pendurado na lamparina. Com 6, uma lanterna de papel passa a boiar perto do trapiche e acende à noite. Os dois chegam com um verso e ficam no diário.
+- **Enfeites:** cada enfeite chega com um verso e fica no diário:
+  - com 3 espécies conhecidas, um sino de vento aparece pendurado na lamparina;
+  - com 6, uma lanterna de papel passa a boiar perto do trapiche e acende à noite;
+  - com 9, um vaso de flores aparece ao lado da lamparina;
+  - com todas as 11, um barquinho de papel passa a passear de um lado ao outro.
 - **A volta:** quem fica mais de 20 minutos fora encontra uma abertura mais curta ("O lago guardou o seu lugar", sem a lista de gestos depois de aprender) e um verso de boas-vindas. Depois de 2 horas fora, há pétalas novas boiando na água. Não existe sequência diária, energia, espera forçada nem perda por ausência.
 
 ## Como abrir

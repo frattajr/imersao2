@@ -295,7 +295,7 @@ body.watching .hud:focus-within { opacity: 1; }
 /* ajustes: escolhas lado a lado, como abas finas */
 .mixer { max-height: min(60vh, calc(100dvh - env(safe-area-inset-top, 0px) - 90px)); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; gap: 12px; }
 .mixer h2 + .seg, .mixer h2 + .mix-row { margin-top: -4px; }
-#modoNota { color: var(--sand-dim); }
+#modoNota, #iscaNota { color: var(--sand-dim); }
 .mixer::after { display: none; } /* o painel rola: o losango de baixo ficaria solto no meio */
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: var(--glass-border); border-radius: var(--radius); overflow: hidden; }
 .seg button {
@@ -351,6 +351,13 @@ body.contemplating .hud, body.contemplating .hint, body.contemplating .verse, bo
     <button type="button" role="radio" data-v="natural">Natural</button>
   </div>
   <small id="modoNota"></small>
+  <h2>Isca</h2>
+  <div class="seg" id="segIsca" role="radiogroup" aria-label="Isca">
+    <button type="button" role="radio" data-v="minhoca">Minhoca</button>
+    <button type="button" role="radio" data-v="pao">Pão</button>
+    <button type="button" role="radio" data-v="fruta">Fruta</button>
+  </div>
+  <small id="iscaNota"></small>
   <h2>Sons</h2>
   <div class="mix-row"><label for="mixMusic">Música <output id="outMusic" for="mixMusic">70%</output></label><input type="range" id="mixMusic" min="0" max="100" step="1" value="70"></div>
   <div class="mix-row"><label for="mixSfx">Efeitos e bichos <output id="outSfx" for="mixSfx">70%</output></label><input type="range" id="mixSfx" min="0" max="100" step="1" value="70"></div>
@@ -524,19 +531,27 @@ const SPECIES = [
 // (abaixo de 0,6 a isca mexendo o espanta); cauto: chance de chegar, recuar e voltar; toque: atração por
 // toques na água; mordiscos: [mín, máx] antes de morder; janela: tempo extra (ou a menos) para fisgar
 const TEMPER = {
-  lambari:  { zona: "raso",    curio: 1.5, mexe: 1.4, cauto: 0,    toque: 1.2, mordiscos: [1, 3], janela: 0.2,  jeito: "Curioso: vem de longe ver a isca mexendo e belisca várias vezes." },
-  acara:    { zona: "plantas", curio: 1.0, mexe: 1.0, cauto: 0.15, toque: 1,   mordiscos: [1, 2], janela: 0.2,  jeito: "Tranquilo: vive perto das vitórias-régias e morde sem pressa." },
-  tilapia:  { zona: null,      curio: 1.1, mexe: 0.9, cauto: 0.1,  toque: 1,   mordiscos: [1, 2], janela: 0.2,  jeito: "Calma e sem lugar preferido. Boa companhia para começar." },
-  traira:   { zona: "plantas", curio: 0.8, mexe: 1.6, cauto: 0,    toque: 0.8, mordiscos: [0, 0], janela: -0.2, jeito: "Emboscada: espera parada nas plantas e ataca de uma vez a isca que se mexe." },
-  piau:     { zona: null,      curio: 1.0, mexe: 0.8, cauto: 0.4,  toque: 1,   mordiscos: [3, 3], janela: 0,    jeito: "Cauteloso: chega, recua e prova a isca três vezes antes de pegar." },
-  pacu:     { zona: "raso",    curio: 1.2, mexe: 0.7, cauto: 0.1,  toque: 1.9, mordiscos: [1, 2], janela: 0.1,  jeito: "Atento à superfície: toques na água perto da boia o chamam, como frutas caindo." },
-  tambaqui: { zona: "fundo",   curio: 0.9, mexe: 0.6, cauto: 0.2,  toque: 1.3, mordiscos: [1, 2], janela: 0.3,  jeito: "Lento e forte. Vem devagar, mas puxa com vontade." },
-  tucunare: { zona: "plantas", curio: 1.2, mexe: 1.8, cauto: 0,    toque: 0.8, mordiscos: [0, 1], janela: -0.1, jeito: "Caçador: corre atrás da isca arrastada e costuma saltar na briga." },
-  dourado:  { zona: "fundo",   curio: 1.1, mexe: 1.7, cauto: 0.1,  toque: 0.8, mordiscos: [0, 1], janela: -0.1, jeito: "Veloz: gosta de isca em movimento e luta saltando." },
-  pintado:  { zona: "fundo",   curio: 0.75, mexe: 0.4, cauto: 0.45, toque: 0.6, mordiscos: [1, 2], janela: 0.2, jeito: "Desconfiado: fica no fundo e prefere a isca parada. Mexer demais o espanta." },
-  pirarucu: { zona: "fundo",   curio: 0.8, mexe: 0.5, cauto: 0.3,  toque: 0.7, mordiscos: [1, 1], janela: 0.4,  jeito: "Sobe à tona para respirar. Vem quando o lago fica quieto por um tempo." }
+  lambari:  { zona: "raso",    curio: 1.5, mexe: 1.4, cauto: 0,    toque: 1.2, mordiscos: [1, 3], janela: 0.2,  isca: ["pao", "minhoca"], pista: "Sombra pequena e rápida no raso, perto do trapiche. Volta várias vezes.", jeito: "Curioso: vem de longe ver a isca mexendo e belisca várias vezes." },
+  acara:    { zona: "plantas", curio: 1.0, mexe: 1.0, cauto: 0.15, toque: 1,   mordiscos: [1, 2], janela: 0.2,  isca: ["minhoca", "pao"], pista: "Sombra mansa que gosta das vitórias-régias.", jeito: "Tranquilo: vive perto das vitórias-régias e morde sem pressa." },
+  tilapia:  { zona: null,      curio: 1.1, mexe: 0.9, cauto: 0.1,  toque: 1,   mordiscos: [1, 2], janela: 0.2,  isca: ["pao"], pista: "Sombra média e calma, que aparece em qualquer canto.", jeito: "Calma e sem lugar preferido. Boa companhia para começar." },
+  traira:   { zona: "plantas", curio: 0.8, mexe: 1.6, cauto: 0,    toque: 0.8, mordiscos: [0, 0], janela: -0.2, isca: ["minhoca"], pista: "Algo espera parado entre as plantas e some de repente. Gosta de isca que se mexe.", jeito: "Emboscada: espera parada nas plantas e ataca de uma vez a isca que se mexe." },
+  piau:     { zona: null,      curio: 1.0, mexe: 0.8, cauto: 0.4,  toque: 1,   mordiscos: [3, 3], janela: 0,    isca: ["pao"], pista: "Uma sombra que chega, recua e volta, sem se decidir.", jeito: "Cauteloso: chega, recua e prova a isca três vezes antes de pegar." },
+  pacu:     { zona: "raso",    curio: 1.2, mexe: 0.7, cauto: 0.1,  toque: 1.9, mordiscos: [1, 2], janela: 0.1,  isca: ["fruta"], pista: "Sombra redonda no raso que corre para onde a água é tocada.", jeito: "Atento à superfície: toques na água perto da boia o chamam, como frutas caindo." },
+  tambaqui: { zona: "fundo",   curio: 0.9, mexe: 0.6, cauto: 0.2,  toque: 1.3, mordiscos: [1, 2], janela: 0.3,  isca: ["fruta"], pista: "Uma sombra grande e lenta no fundo do lago.", jeito: "Lento e forte. Vem devagar, mas puxa com vontade." },
+  tucunare: { zona: "plantas", curio: 1.2, mexe: 1.8, cauto: 0,    toque: 0.8, mordiscos: [0, 1], janela: -0.1, isca: ["minhoca"], pista: "Perto das plantas, algo corre atrás da isca arrastada.", jeito: "Caçador: corre atrás da isca arrastada e costuma saltar na briga." },
+  dourado:  { zona: "fundo",   curio: 1.1, mexe: 1.7, cauto: 0.1,  toque: 0.8, mordiscos: [0, 1], janela: -0.1, isca: ["minhoca"], pista: "Um brilho rápido no fundo, quando a isca está em movimento.", jeito: "Veloz: gosta de isca em movimento e luta saltando." },
+  pintado:  { zona: "fundo",   curio: 0.75, mexe: 0.4, cauto: 0.45, toque: 0.6, mordiscos: [1, 2], janela: 0.2, isca: ["minhoca"], pista: "Uma sombra comprida no fundo, que foge quando a isca mexe.", jeito: "Desconfiado: fica no fundo e prefere a isca parada. Mexer demais o espanta." },
+  pirarucu: { zona: "fundo",   curio: 0.8, mexe: 0.5, cauto: 0.3,  toque: 0.7, mordiscos: [1, 1], janela: 0.4,  isca: null, pista: "Às vezes, com o lago muito quieto, algo enorme sobe para respirar.", jeito: "Sobe à tona para respirar. Vem quando o lago fica quieto por um tempo." }
 };
 SPECIES.forEach(sp => { sp.tp = TEMPER[sp.id]; });
+// iscas: todas disponíveis desde o começo; cada uma chama mais um tipo de peixe (null = qualquer isca)
+const ISCAS = {
+  minhoca: { nome: "minhoca", cor: [176, 104, 98], nota: "Minhoca chama os caçadores: os que gostam de isca viva e em movimento." },
+  pao: { nome: "massa de pão", cor: [236, 222, 188], nota: "Massa de pão chama os peixes mansos e miúdos, que beliscam." },
+  fruta: { nome: "fruta", cor: [222, 120, 64], nota: "Fruta chama os grandes que comem o que cai na água." }
+};
+let isca = ISCAS[store.get("lagoSereno.isca", "minhoca")] ? store.get("lagoSereno.isca", "minhoca") : "minhoca";
+const likesBait = sp => !sp.tp.isca || sp.tp.isca.includes(isca);
 
 /* ============================================================
    Ciclo do dia (12 min de jogo = um dia inteiro)
@@ -959,8 +974,8 @@ const Snd = {
     this.musicLevel = lerp(this.musicLevel, P.mode === "fight" ? 0.35 : 1, damp(1, dt));
     if (P.mode !== "intro") this.musicTick(dt);
     if ((this.nextBird -= dt) < 0) { this.nextBird = rnd(5, 14); if (env.sunUp > 0.15 && weather.rain < 0.5) this.bird(); }
-    if ((this.nextCricket -= dt) < 0) { this.nextCricket = rnd(0.4, 1.2); if (env.night > 0.3) this.cricket(env.night); }
-    if ((this.nextFrog -= dt) < 0) { this.nextFrog = rnd(6, 15); if (env.night > 0.15 || dayT > 0.55) this.frog(0.4 + env.night * 0.6); }
+    if ((this.nextCricket -= dt) < 0) { this.nextCricket = rnd(0.4, 1.2); if (env.night > 0.3 && stir < 0.5) this.cricket(env.night * (1 - stir)); }
+    if ((this.nextFrog -= dt) < 0) { this.nextFrog = rnd(6, 15); if ((env.night > 0.15 || dayT > 0.55) && stir < 0.4) this.frog((0.4 + env.night * 0.6) * (1 - stir)); }
     if ((this.nextLap -= dt) < 0) { this.nextLap = rnd(3, 7); this.lap(); }
     if ((this.nextBell = (this.nextBell ?? 6) - dt) < 0) { this.nextBell = rnd(9, 20); if (P.mode !== "intro" && P.mode !== "fight") this.windChime(); }
   }
@@ -1091,9 +1106,9 @@ function randomVerse() {
 let ripples = [], fishes = [], splashes = [], drops = [], leaves = [], floaters = [];
 let nextLeaf = rnd(12, 25), trail = [], touchRings = [], motesTap = [];
 // progresso silencioso: tempo de calma, flores de lótus e o que já foi visto (fica no aparelho)
-const lake = Object.assign({ calm: 0, lotus: [], seen: {} }, store.get("lagoSereno.lago", {}));
+const lake = Object.assign({ calm: 0, lotus: [], seen: {}, obs: {} }, store.get("lagoSereno.lago", {}));
 let lakeSaveT = 0;
-function saveLake() { store.set("lagoSereno.visita", Date.now()); store.set("lagoSereno.lago", { calm: Math.round(lake.calm), lotus: lake.lotus.map(({ u, d, born, ph }) => ({ u, d, born, ph })), seen: lake.seen }); }
+function saveLake() { store.set("lagoSereno.visita", Date.now()); store.set("lagoSereno.lago", { calm: Math.round(lake.calm), lotus: lake.lotus.map(({ u, d, born, ph }) => ({ u, d, born, ph })), seen: lake.seen, obs: lake.obs }); }
 function markSeen(key) {
   if (lake.seen[key]) return false;
   lake.seen[key] = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long" }); saveLake(); return true;
@@ -1104,12 +1119,16 @@ let specks = [];
 let winds = [], nextWind = 3, spirits = [], spiritSprites = null, edgePads = [], flySprite = null;
 // contemplação: depois de 25 s sem toque, a interface some e o lago segue sozinho
 let lastActivity = performance.now(), contemplating = false;
+// agitação do lago (0 a 1): sobe com toques, lançamentos e brigas; cai pela metade a cada ~8 s de quietude
+let stir = 0;
+const stirUp = k => { stir = Math.min(1, stir + k); };
 function noteActivity() {
   lastActivity = performance.now();
   if (contemplating) { contemplating = false; document.body.classList.remove("contemplating"); }
 }
 const book = store.get("lagoSereno.caderno", {});
-// enfeites do trapiche: chegam com as espécies conhecidas (sino de vento com 3, lanterna de papel com 6)
+// enfeites do trapiche: chegam com as espécies conhecidas (sino de vento com 3, lanterna de papel com 6,
+// vaso de flores com 9 e barquinho de papel com todas)
 const speciesSeen = () => SPECIES.filter(s => book[s.id]).length;
 let deco = speciesSeen();
 const lastVisit = store.get("lagoSereno.visita", 0);
@@ -1124,6 +1143,7 @@ function spawnWeight(sp) {
   const tw = timeWindow();
   if (sp.when) w *= sp.when === tw ? 2.6 : 0.35;
   if (sp.id === "pirarucu" && tw === "alvorada") w *= 2;
+  if (sp.tp.isca) w *= likesBait(sp) ? 1.6 : 0.45;
   return w;
 }
 // quanto um ponto do lago combina com o lugar preferido da espécie (1 = combina)
@@ -1295,6 +1315,7 @@ cv.addEventListener("pointerdown", e => {
   P.lastDir = null; P.aimCancel = false; P.sweepAcc = 0; P.idleT = 0; trail = [{ x: e.clientX, y: e.clientY, t: T }];
   // um anel de luz e algumas partículas onde o dedo encosta
   touchRings.push({ x: e.clientX, y: e.clientY, t: 0, water: e.clientY > hz });
+  stirUp(0.08);
   for (let i = 0; i < 7; i++) motesTap.push({ x: e.clientX + rnd(-8, 8), y: e.clientY + rnd(-6, 6), vx: rnd(-12, 12), vy: rnd(-26, -8), t: 0, life: rnd(1.4, 2.2), r: rnd(1, 2.2) });
   if (P.mode === "float" && P.target && P.target.state === "bite" && M().tapHook) { ptr.used = true; hook(); return; }
   if (P.mode === "idle") {
@@ -1427,7 +1448,7 @@ function landLure() {
     const dd = Math.hypot(o.x - f.x, o.d - f.d);
     if (dd < 1.8) { o.hd = Math.atan2(o.d - f.d, o.x - f.x); o.spd = 1.1 * o.sp.speed; o.spook = 2.5; o.curious = null; }
   });
-  P.lull = 7;
+  P.lull = 7; wave(f.x, f.d, 0.3); stirUp(0.25);
   setHint(P.target ? "Agora, espere. Olhe a boia" : "Toque na água perto da boia para chamar");
 }
 // movimento de vara chama a atenção de quem está por perto
@@ -1480,7 +1501,7 @@ function hook() {
   Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0, shakeT: 0.6, jolt: 0, dVel: 0, fightD0: Math.max(fi.d, 4) });
   P.twitch = 1.4; Snd.splash(0.7); Snd.hookCall(); Haptics.hooked(); cam.nudge = Math.max(cam.nudge, 0.0100); Snd.songStart();
   flashHint(learned ? "Fisgou!" : M().holdReel ? "Fisgou! Segure o dedo na tela para trazer" : "Fisgou! Agora, pequenos círculos com o dedo", learned ? 1.8 : 3.5);
-  addRipple(fi.x, fi.d, 1.4, 1.4, 0.75); addRipple(fi.x, fi.d, 0.8, 1, 0.6);
+  addRipple(fi.x, fi.d, 1.4, 1.4, 0.75); addRipple(fi.x, fi.d, 0.8, 1, 0.6); wave(fi.x, fi.d, 0.5); stirUp(0.3);
 }
 // onde no lago aconteceu: guardado na lembrança
 function placeName(x, d) {
@@ -1514,7 +1535,7 @@ function startLand() {
   const start = proj(fi.x, Math.max(fi.d, 2.6));
   P.held = { fi, x0: start.x, y0: start.y, place: P.hookPlace || "no meio do lago" };
   P.mode = "land"; P.landT = 0; P.fish = null; P.target = null;
-  Snd.songStop(); Snd.splash(0.9); Snd.arpeggio(); Haptics.lift(); Haptics.beatT = 0.9;
+  Snd.songStop(); Snd.splash(0.9); Snd.arpeggio(); Haptics.lift(); Haptics.beatT = 0.9; wave(fi.x, Math.max(fi.d, 2.6), 0.7);
   setHint("");
   for (let i = 0; i < 26; i++) drops.push({ x: start.x + rnd(-20, 20), y: start.y, vx: rnd(-60, 60), vy: rnd(-260, -80), t: 0 });
 }
@@ -1537,12 +1558,14 @@ function finishLand() {
   const memory = composeMemory(sp, fi.len, isNew, isRec, place);
   const date = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
   const clima = weather.rain > 0.4 ? "chuva fina" : CLIMATES.find(c => c.id === climateId()).nome.toLowerCase();
-  memories.unshift({ date, when: env.name, txt: memory, sp: sp.id, len: fi.len, lugar: place, clima, first: isNew }); memories.length = Math.min(memories.length, 60);
+  memories.unshift({ date, when: env.name, txt: memory, sp: sp.id, len: fi.len, lugar: place, clima, isca, first: isNew }); memories.length = Math.min(memories.length, 60);
   store.set("lagoSereno.lembrancas", memories);
   // o trapiche ganha um enfeite novo quando o número de espécies conhecidas chega a 3 e a 6
   const before = deco; deco = speciesSeen();
   if (before < 3 && deco >= 3) setTimeout(() => remember("Alguém pendurou um sino de vento na lamparina. Ele toca quando a brisa passa.", "sino"), 2600);
   if (before < 6 && deco >= 6) setTimeout(() => remember("Uma lanterna de papel apareceu boiando perto do trapiche. À noite, ela acende.", "lanterna"), 2600);
+  if (before < 9 && deco >= 9) setTimeout(() => remember("Um vaso de flores apareceu no trapiche, ao lado da lamparina.", "vaso"), 2600);
+  if (before < SPECIES.length && deco >= SPECIES.length) setTimeout(() => remember("Todos os peixes do lago já passaram por aqui. Um barquinho de papel passeia devagar perto do trapiche.", "barquinho"), 2600);
   if (!learned) { learned = true; store.set("lagoSereno.aprendeu", true); }
   P.mode = "catch";
   showCatch(sp, fi.len, kg, memory, date);
@@ -1592,7 +1615,7 @@ function update(dt) {
   fishes = fishes.filter(f => f.alpha > 0 || f.t < 1);
   ripples.forEach(r => { r.t += dt; r.r = r.max * (1 - Math.pow(1 - clamp(r.t / r.life, 0, 1), 2)); });
   ripples = ripples.filter(r => r.t < r.life);
-  splashes.forEach(s => { if (s.t === 0) { addRipple(s.x, s.d, 0.9 * s.big, 2, 0.45); Snd.plop(0.2); } s.t += dt; if (s.t > 0.55 && !s.done) { s.done = true; addRipple(s.x, s.d, 1.2 * s.big, 2.4, 0.5); Snd.splash(0.12 * s.big); } });
+  splashes.forEach(s => { if (s.t === 0) { addRipple(s.x, s.d, 0.9 * s.big, 2, 0.45); Snd.plop(0.2); } s.t += dt; if (s.t > 0.55 && !s.done) { s.done = true; addRipple(s.x, s.d, 1.2 * s.big, 2.4, 0.5); Snd.splash(0.12 * s.big); wave(s.x, s.d, 0.5 * s.big); } });
   splashes = splashes.filter(s => s.t < 0.9);
   drops.forEach(d => { d.t += dt; d.vy += 700 * dt; d.x += d.vx * dt; d.y += d.vy * dt; });
   drops = drops.filter(d => d.t < 1.4 && d.y < H + 10);
@@ -1600,6 +1623,9 @@ function update(dt) {
   updateLeaves(dt);
   updateLiving(dt);
   updateBreeze(dt);
+  updateWaves(dt);
+  stir *= Math.exp(-dt / 12);
+  if (P.mode === "fight") stirUp(dt * 0.15);
 
 
   switch (P.mode) {
@@ -1621,7 +1647,7 @@ function update(dt) {
         const fi = P.held.fi;
         Object.assign(fi, { x: cam.x, d: 3.4, hd: Math.PI / 2 + rnd(-0.3, 0.3), spd: 1.3, state: "flee", life: 2.5, alpha: 1, t: 1, curious: null });
         fishes.push(fi); P.held = null;
-        addRipple(cam.x, 3.4, 1.3, 2.4, 0.55); addRipple(cam.x, 3.4, 0.7, 1.6, 0.45); Snd.splash(0.5);
+        addRipple(cam.x, 3.4, 1.3, 2.4, 0.55); addRipple(cam.x, 3.4, 0.7, 1.6, 0.45); Snd.splash(0.5); wave(cam.x, 3.4, 0.7); stirUp(0.2);
         P.mode = "idle"; P.idleT = 0; resetHang();
       }
       break;
@@ -1744,6 +1770,34 @@ function quietEvent() {
   if (env.night > 0.2 || dayT > 0.55) opts.push(() => Snd.frog(0.3));
   pick(opts)();
 }
+// ondas que andam: depois de um salto ou de uma captura, a frente da onda passa pela boia, folhas e plantas
+let waves = [];
+function wave(x, d, k) {
+  if (waves.length >= 6) return;
+  waves.push({ x, d, r: 0, k });
+  addRipple(x, d, 4.5, 3.2, 0.18 * Math.min(1, k + 0.3));
+}
+function updateWaves(dt) {
+  waves.forEach(w => {
+    const r0 = w.r; w.r += 1.6 * dt;
+    const kk = w.k * Math.max(0, 1 - w.r / 7);
+    const passes = (x, d) => { const q = Math.hypot(x - w.x, d - w.d); return q >= r0 && q < w.r; };
+    const away = (o, f) => { const q = Math.hypot(o.x - w.x, o.d - w.d) || 1; o.vx = (o.vx || 0) + (o.x - w.x) / q * f; o.vd = (o.vd || 0) + (o.d - w.d) / q * f; };
+    // a boia é empurrada uma vez só por onda (senão ela "surfa" junto com a frente)
+    if ((P.mode === "float" || P.mode === "skim") && !w.hitBob && passes(P.bob.x, P.bob.d)) {
+      w.hitBob = true;
+      const b = P.bob, q = Math.hypot(b.x - w.x, b.d - w.d) || 1;
+      b.dipV -= 2.5 * kk; b.tilt = clamp(b.tilt + (b.x - w.x) / q * 0.35 * kk, -0.5, 0.5);
+      b.x += (b.x - w.x) / q * 0.12 * kk; b.d = Math.max(3.2, b.d + (b.d - w.d) / q * 0.12 * kk);
+      if (kk > 0.25) Haptics.tick(4 + 6 * kk, 60);
+    }
+    floaters.forEach(o => { if (passes(o.x, o.d)) away(o, 0.35 * kk); });
+    specks.forEach(o => { if (passes(o.x, o.d)) away(o, 0.35 * kk); });
+    pads.forEach(pd => { if (passes(pd.x, pd.d)) pd.bob = Math.max(pd.bob, 0.1 + 0.6 * kk); });
+    lake.lotus.forEach(l => { if (passes(l.u * xMax(l.d), l.d)) l._bob = Math.max(l._bob || 0, 0.1 + 0.6 * kk); });
+  });
+  waves = waves.filter(w => w.r < 7);
+}
 function sproutLotus() {
   for (let tries = 0; tries < 24; tries++) {
     const d = rnd(5.5, 15), u = (Math.random() < 0.5 ? -1 : 1) * rnd(0.35, 0.95), x = u * xMax(d);
@@ -1779,9 +1833,13 @@ function updateVisitors(dt) {
     if (env.sunUp > 0.25 && weather.rain < 0.3 && c > 60 && !has("libelula")) opts.push("libelula");
     if (env.night > 0.5 && weather.rain < 0.4 && c > 150 && !has("carpa")) opts.push("carpa");
     if ((dayT < 0.18 || dayT > 0.95) && c > 90 && !has("garca")) opts.push("garca");
-    if (opts.length && P.mode !== "fight" && Math.random() < 0.6) spawnVisitor(pick(opts));
+    if (opts.length && P.mode !== "fight" && stir < 0.35 && Math.random() < 0.6) spawnVisitor(pick(opts));
   }
-  vis.list.forEach(v => { v.t += dt; v.fade = clamp(Math.min(v.t / 4, (v.life - v.t) / 4), 0, 1); });
+  vis.list.forEach(v => {
+    v.t += dt; v.fade = clamp(Math.min(v.t / 4, (v.life - v.t) / 4), 0, 1);
+    // muita agitação: a garça e a libélula vão embora devagar (voltam outro dia, com o lago quieto)
+    if (stir > 0.65 && (v.id === "garca" || v.id === "libelula") && v.life - v.t > 4) { v.life = v.t + 4; vis.next = Math.max(vis.next, 30); if (v.id === "garca") addRipple(v.x, v.d, 0.5, 1.6, 0.35); }
+  });
   vis.list.forEach(v => {
     if (v.id === "libelula") {
       v.flee = (v.flee || 0) * Math.exp(-dt * 0.8);
@@ -1876,9 +1934,10 @@ function updateFish(fi, dt) {
       const dd = Math.hypot(fi.x - P.bob.x, fi.d - P.bob.d);
       // peixes cautelosos preferem o lago quieto: a vontade cresce com o tempo sem toques
       const tp = fi.sp.tp, quiet = clamp((performance.now() - lastActivity) / 20000, 0, 1);
-      const want = (0.12 + P.waitT * 0.02) * M().call * (tp.cauto > 0.25 ? 0.5 + quiet : 1);
+      const want = (0.12 + P.waitT * 0.02) * M().call * (tp.cauto > 0.25 ? 0.5 + quiet : 1) * (likesBait(fi.sp) ? 1.25 : 0.55);
       if (!contemplating && !(fi.spook > 0) && dd < 6 * tp.curio && Math.random() < dt * want) {
         fi.state = "approach"; fi.curious = null; P.target = fi; fi.hesit = Math.random() < tp.cauto ? 1 + (Math.random() < 0.5 ? 1 : 0) : 0;
+        if (!book[fi.sp.id]) lake.obs[fi.sp.id] = (lake.obs[fi.sp.id] || 0) + 1;
         setHint("Uma sombra se aproxima…");
       }
     }
@@ -2007,7 +2066,7 @@ function updateFight(dt) {
   P.nextRun -= dt;
   if (P.run <= 0 && P.nextRun < 0) {
     P.run = rnd(1.3, 2.6) * (0.5 + P.stamina * 0.5); P.runDir = Math.random() < 0.5 ? -1 : 1; P.nextRun = rnd(2.6, 5);
-    addRipple(fi.x, fi.d, 1.2, 1.5, 0.6); Snd.splash(0.35); cam.nudge = Math.max(cam.nudge, 0.0080); Haptics.run();
+    addRipple(fi.x, fi.d, 1.2, 1.5, 0.6); Snd.splash(0.35); cam.nudge = Math.max(cam.nudge, 0.0080); Haptics.run(); wave(fi.x, fi.d, 0.4);
     if (sp.rar >= 2 || Math.random() < 0.3) P.jump = 1;
   }
   const running = P.run > 0; if (running) P.run -= dt;
@@ -2032,7 +2091,7 @@ function updateFight(dt) {
   fi.x = clamp(fi.x, -xMax(fi.d) * 1.05, xMax(fi.d) * 1.05);
   fi.hd = running ? lerpAng(fi.hd, P.runDir > 0 ? 0.3 : Math.PI - 0.3, dt * 3) : lerpAng(fi.hd, -Math.PI / 2, dt * 2);
   P.stamina = Math.max(0, P.stamina - dt * (0.035 + r * 0.05 + P.counter * 0.06) / (0.6 + sp.pull * 0.5));
-  if (P.jump > 0) { P.jump -= dt * 1.2; if (P.jump <= 0) { addRipple(fi.x, fi.d, fi.size * 1.2, 1.8, 0.6); Snd.splash(0.45); Haptics.splash(); } }
+  if (P.jump > 0) { P.jump -= dt * 1.2; if (P.jump <= 0) { addRipple(fi.x, fi.d, fi.size * 1.2, 1.8, 0.6); Snd.splash(0.45); Haptics.splash(); wave(fi.x, fi.d, 0.8); } }
   if (Math.random() < dt * 2.5) addRipple(fi.x + rnd(-0.2, 0.2), fi.d + rnd(-0.2, 0.2), 0.3 + fi.size * 0.3, 1, 0.4);
   Snd.songSet(P.tension);
   Haptics.fight(dt, P.tension, running, pull);
@@ -2073,6 +2132,7 @@ function draw() {
   drawPads(L);
   drawLotus(L);
   drawPaperLantern(L);
+  drawPaperBoat(L);
   drawFloaters(L);
   drawSpecks();
   drawRipples();
@@ -2275,8 +2335,8 @@ const birds = Array.from({ length: 4 }, () => ({ x: -100, y: 0, v: 0, ph: rnd(0,
 function drawBirds(c) {
   if (env.sunUp < 0.1) return;
   birds.forEach(b => {
-    if (b.x < -60 || b.x > W + 60) { if (Math.random() < 0.0015) { b.x = -40; b.y = rnd(horizon * 0.15, horizon * 0.6); b.v = rnd(14, 30); } return; }
-    b.x += b.v / 60; const f = Math.sin(T * 6 + b.ph) * 4, y = b.y + cam.tilt * 0.3;
+    if (b.x < -60 || b.x > W + 60) { if (Math.random() < 0.0015 * (1 - stir)) { b.x = -40; b.y = rnd(horizon * 0.15, horizon * 0.6); b.v = rnd(14, 30); } return; }
+    b.x += b.v * (1 + stir * 0.8) / 60; const f = Math.sin(T * 6 + b.ph) * 4, y = b.y + cam.tilt * 0.3;
     c.strokeStyle = rgb(env.ink, 0.6); c.lineWidth = 1.3; c.beginPath();
     c.moveTo(b.x - 7, y - f); c.quadraticCurveTo(b.x - 3, y - 2, b.x, y); c.quadraticCurveTo(b.x + 3, y - 2, b.x + 7, y - f); c.stroke();
   });
@@ -2589,12 +2649,20 @@ function retrievePos() {
   const k = ease(clamp(P.retrieveT, 0, 1)), tip = rodGeom().tip, f = P.retrieveFrom;
   return { x: lerp(f.x, tip.x, k), y: lerp(f.y, tip.y + HANG_LEN(), k) - Math.sin(k * Math.PI) * 30 };
 }
+// a isca escolhida, pendurada no anzol logo abaixo da boia
+function drawBait(x, y, r) {
+  const c = ISCAS[isca].cor, by = y + r * 1.55;
+  g.strokeStyle = "rgba(230,226,214,.55)"; g.lineWidth = 0.8; g.beginPath(); g.moveTo(x, y + r * 0.9); g.lineTo(x, by); g.stroke();
+  g.fillStyle = rgb(c);
+  if (isca === "minhoca") { g.lineWidth = 2.2; g.strokeStyle = rgb(c); g.lineCap = "round"; g.beginPath(); g.moveTo(x - 3, by); g.quadraticCurveTo(x, by + 5 + Math.sin(T * 4) * 1.5, x + 3, by + 1); g.stroke(); g.lineCap = "butt"; }
+  else { g.beginPath(); g.arc(x, by + 2, isca === "pao" ? 2.8 : 3.2, 0, TAU); g.fill(); }
+}
 function drawHangingLure() {
   if (P.mode === "aim") {
-    drawFloatFree(P.hang.x, P.hang.y + 14 * 2.2, 14, clamp(-ptrVel(60).vx * 0.25, -0.5, 0.5));
+    drawFloatFree(P.hang.x, P.hang.y + 14 * 2.2, 14, clamp(-ptrVel(60).vx * 0.25, -0.5, 0.5)); drawBait(P.hang.x, P.hang.y + 14 * 2.2, 14);
   } else if (P.mode === "idle") {
     const tip = rodGeom().tip, h = P.hang, ang = Math.atan2(h.x - tip.x, h.y - tip.y);
-    drawFloatFree(h.x + Math.sin(ang) * 14 * 2.2, h.y + Math.cos(ang) * 14 * 2.2, 14, -ang);
+    drawFloatFree(h.x + Math.sin(ang) * 14 * 2.2, h.y + Math.cos(ang) * 14 * 2.2, 14, -ang); drawBait(h.x + Math.sin(ang) * 14 * 2.2, h.y + Math.cos(ang) * 14 * 2.2, 14);
   } else if (P.mode === "fly") {
     const p = flyPos(); drawFloatFree(p.x, p.y + p.r * 2.2, p.r, Math.sin(P.fly.t * 3) * 0.6);
   } else if (P.mode === "retrieve") {
@@ -2703,6 +2771,17 @@ function drawPier(L) {
   g.fillStyle = on > 0.02 ? `rgba(255,${200 + 30 * fl | 0},140,${0.35 + 0.6 * on})` : "rgba(200,190,170,.25)";
   g.fillRect(lp.x - 8, lp.y - 26, 16, 22);
   g.strokeStyle = "#2a2420"; g.lineWidth = 1.5; g.strokeRect(lp.x - 8, lp.y - 26, 16, 22);
+  // vaso de flores no trapiche (9 espécies)
+  if (deco >= 9) {
+    const vx = lp.x + 26, vy = y0 + 1;
+    for (let i = 0; i < 5; i++) {
+      const a = (i - 2) * 0.28 + Math.sin(T * TAU / 6 + i) * 0.05, len = 16 + (i % 2) * 6, tx = vx + Math.sin(a) * len, ty = vy - 10 - Math.cos(a) * len;
+      g.strokeStyle = rgb(mix(env.ink, [70, 110, 70], 0.4 + L * 0.3)); g.lineWidth = 1.2; g.beginPath(); g.moveTo(vx, vy - 9); g.lineTo(tx, ty); g.stroke();
+      g.fillStyle = rgb(mix([[236, 190, 200], [240, 214, 140], [214, 170, 214]][i % 3], env.ink, 0.25 + (1 - L) * 0.4)); g.beginPath(); g.arc(tx, ty, 3.2, 0, TAU); g.fill();
+    }
+    g.fillStyle = rgb(mix([150, 92, 66], env.ink, 0.3 + (1 - L) * 0.3));
+    g.beginPath(); g.moveTo(vx - 8, vy - 11); g.lineTo(vx + 8, vy - 11); g.lineTo(vx + 6, vy); g.lineTo(vx - 6, vy); g.closePath(); g.fill();
+  }
   // sino de vento pendurado na lamparina (enfeite que chega com 3 espécies conhecidas)
   if (deco >= 3) {
     const ax = lp.x + 10, ay = lp.y - 31, gust = Math.sin(T * TAU / 6) * 0.5 + weather.rain * 0.4;
@@ -2761,6 +2840,17 @@ function drawCastGuide() {
   g.fillStyle = `rgba(244,240,230,${0.5 * a})`; g.beginPath(); g.arc(x, y, 10, 0, TAU); g.fill();
   g.strokeStyle = `rgba(230,198,135,${0.7 * a})`; g.lineWidth = 1.4; g.beginPath(); g.arc(x, y, 17, 0, TAU); g.stroke();
   g.restore();
+}
+// barquinho de papel (todas as espécies): passeia devagar perto do trapiche, de um lado ao outro
+function drawPaperBoat(L) {
+  if (deco < SPECIES.length) return;
+  const d = 5.6, u = Math.sin(T * TAU / 140), p = proj(u * xMax(d) * 0.7, d), s = Math.max(5, 0.16 * kpx * p.s), y = p.y + Math.sin(T * BREATH) * s * 0.05;
+  const paperC = mix([244, 240, 230], env.ink, 0.15 + (1 - L) * 0.45), dir = Math.cos(T * TAU / 140) >= 0 ? 1 : -1;
+  g.fillStyle = rgb(paperC, 0.25); g.fillRect(p.x - s * 0.9, p.y + 1, s * 1.8, s * 0.35);
+  g.fillStyle = rgb(paperC);
+  g.beginPath(); g.moveTo(p.x - s, y - s * 0.25); g.lineTo(p.x + s, y - s * 0.25); g.lineTo(p.x + s * 0.65, y + s * 0.2); g.lineTo(p.x - s * 0.65, y + s * 0.2); g.closePath(); g.fill();
+  g.fillStyle = rgb(shade(paperC, 0.86));
+  g.beginPath(); g.moveTo(p.x - s * 0.5 * dir, y - s * 0.25); g.lineTo(p.x + s * 0.15 * dir, y - s * 1.05); g.lineTo(p.x + s * 0.55 * dir, y - s * 0.25); g.closePath(); g.fill();
 }
 // lanterna de papel boiando perto do trapiche (enfeite que chega com 6 espécies conhecidas)
 function drawPaperLantern(L) {
@@ -3048,7 +3138,10 @@ function openBook() {
   });
   const mins = Math.floor(lake.calm / 60), calmTxt = mins < 1 ? "menos de um minuto" : mins < 60 ? `${mins} ${mins === 1 ? "minuto" : "minutos"}` : `${Math.floor(mins / 60)} h ${mins % 60} min`;
   const opened = lake.lotus.filter(l => lake.calm - l.born > 126).length, budding = lake.lotus.length - opened;
-  const trapiche = deco >= 6 ? " No trapiche, um sino de vento e uma lanterna de papel." : deco >= 3 ? " Um sino de vento balança na lamparina. Conhecer mais peixes traz outro enfeite." : " Conhecer mais peixes traz pequenos enfeites para o trapiche.";
+  const trapiche = deco >= SPECIES.length ? " No trapiche, um sino de vento, uma lanterna de papel, um vaso de flores e um barquinho de papel passeando."
+    : deco >= 9 ? " No trapiche, um sino de vento, uma lanterna de papel e um vaso de flores. Falta pouco para o último enfeite."
+    : deco >= 6 ? " No trapiche, um sino de vento e uma lanterna de papel. Conhecer mais peixes traz outro enfeite."
+    : deco >= 3 ? " Um sino de vento balança na lamparina. Conhecer mais peixes traz outro enfeite." : " Conhecer mais peixes traz pequenos enfeites para o trapiche.";
   $("bookLake").textContent = `${calmTxt} de calma aqui. ` + (lake.lotus.length ? `${opened === 1 ? "Uma flor de lótus aberta" : opened + " flores de lótus abertas"}${budding ? ` e ${budding === 1 ? "uma brotando" : budding + " brotando"}` : ""}.` : "As flores de lótus brotam com o tempo de calma.") + trapiche;
   const seenList = (ul, items, prefix, secret) => {
     ul.innerHTML = "";
@@ -3073,7 +3166,11 @@ function openBook() {
     s.textContent = r ? `${r.n === 1 ? "uma vez" : r.n + " vezes"} · ${sp.fem ? "a maior" : "o maior"} com ${r.best} cm` : (sp.when ? (sp.when === "alvorada" ? "aparece ao amanhecer e no fim da tarde" : sp.when === "noite" ? "aparece à noite" : "aparece de dia") : RARITY[sp.rar].nome);
     el.appendChild(s);
     // depois de conhecer a espécie, o diário conta o jeito dela (o que dá para observar na água)
-    if (r) { const j = document.createElement("span"); j.className = "jeito"; j.textContent = sp.tp.jeito; el.appendChild(j); }
+    const obs = lake.obs[sp.id] || 0, j = document.createElement("span"); j.className = "jeito";
+    if (r) j.textContent = `${sp.tp.jeito} ${sp.tp.isca ? "Isca preferida: " + sp.tp.isca.map(k => ISCAS[k].nome).join(" ou ") + "." : "Vem com qualquer isca."}`;
+    // ainda não pescado, mas já visto rondando a boia: uma pista, sem dizer o nome
+    else if (obs >= 2) j.textContent = `Você já viu essa sombra perto da boia ${obs} vezes. ${sp.tp.pista}`;
+    if (j.textContent) el.appendChild(j);
     grid.appendChild(el);
   });
   $("book").hidden = false;
@@ -3122,6 +3219,8 @@ function segment(id, value, onPick) {
 const vibeLevel = () => !Haptics.on ? "off" : Haptics.soft ? "suave" : "normal";
 segment("segModo", modo, v => { modo = v; store.set("lagoSereno.modo", v); $("modoNota").textContent = M().nota; });
 $("modoNota").textContent = M().nota;
+segment("segIsca", isca, v => { isca = v; store.set("lagoSereno.isca", v); $("iscaNota").textContent = ISCAS[v].nota; });
+$("iscaNota").textContent = ISCAS[isca].nota;
 const syncVibeSeg = segment("segVibe", vibeLevel(), v => {
   Haptics.on = v !== "off"; Haptics.soft = v === "suave";
   store.set("lagoSereno.vibra", Haptics.on); store.set("lagoSereno.vibraSuave", Haptics.soft); syncVibeBtn();
