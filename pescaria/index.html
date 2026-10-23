@@ -1344,7 +1344,10 @@ function updateFish(fi, dt) {
 // Um dedo apoiado tremendo fica parado no lugar (raio pequeno) e não gira nada.
 function circleRate() {
   if (!ptr.down) return 0;
-  const now = performance.now(), pts = ptr.hist.filter(p => now - p.t < 550);
+  const now = performance.now();
+  // aparelho lento entrega poucos pontos: a janela cresce até 1 s para ainda reconhecer o círculo
+  let pts = ptr.hist.filter(p => now - p.t < 550);
+  if (pts.length < 5) pts = ptr.hist.filter(p => now - p.t < 1000);
   if (pts.length < 4) return 0;
   let cx = 0, cy = 0;
   pts.forEach(p => { cx += p.x; cy += p.y; }); cx /= pts.length; cy /= pts.length;
