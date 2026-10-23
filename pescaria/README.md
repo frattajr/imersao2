@@ -4,12 +4,12 @@ Um jogo de pescaria para o celular que é mais lugar do que jogo. Você está se
 
 ## Gestos
 
-Os gestos imitam o corpo de quem pesca. A parte de baixo da tela é a mão na vara; a parte de cima é a água.
+Os gestos imitam o corpo de quem pesca. A parte de baixo da tela é a mão na vara; a parte de cima é a água. Um rastro suave mostra o caminho do dedo, e a vara sempre aponta para o que você está fazendo: para o dedo, para a boia ou para o peixe.
 
 | Gesto | O que acontece |
 | --- | --- |
-| **Arrastar para cima, a partir de baixo** | Você levanta a vara. A boia pendurada na ponta balança como um pêndulo de verdade e uma luz suave aparece na água: quanto mais alto o dedo, mais longe ela vai. O lado do dedo aponta a direção, e a luz é puxada de leve para a sombra de peixe mais próxima. |
-| **Soltar** | A vara vai para trás e chicoteia para a frente; a linha canta e a boia faz um arco até a luz. |
+| **Tocar na parte de baixo e arrastar para cima** | A boia vem para a mão e fica logo acima do dedo. Uma luz aparece na água sempre à mesma distância acima do dedo e segue cada movimento, sem atraso; a ponta da vara aponta para ela. A câmera fica parada enquanto você mira, para a água não escorregar debaixo do dedo. Perto de uma sombra, a luz é puxada de leve para ela. |
+| **Soltar** | A boia sai do ponto onde o dedo soltou e faz um arco até a luz, enquanto a vara chicoteia para a frente. Soltar sem ter arrastado não lança nada. |
 | **Tocar ou passar o dedo na água** | Gotas e ondas. As vitórias-régias balançam e os peixes por perto vêm ver. |
 | **Um toque curto para cima, com a boia na água** | Dá vida à isca: a boia mexe e atrai quem estiver por perto. |
 | **Puxar firme quando a boia afunda** | Fisga, para cima ou para baixo. Puxar cedo só faz o peixe recuar e voltar; perder a hora dá uma segunda chance. Sem peixe por perto, puxar para baixo recolhe a boia. |

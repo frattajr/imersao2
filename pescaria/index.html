@@ -325,7 +325,7 @@ function timeWindow() {
    ============================================================ */
 const cv = document.getElementById("c"), g = cv.getContext("2d");
 let W = 0, H = 0, DPR = 1, horizon = 0, hz = 0, nearY = 0, kpx = 0, ZONE = 0;
-const cam = { x: 0, tilt: 0, z: 1, shake: 0, lookX: 0, roll: 0 };
+const cam = { x: 0, tilt: 0, z: 1, shake: 0, roll: 0 };
 function proj(x, d) {
   const s = 2 / d * cam.z;
   return { x: W / 2 + (x - cam.x) * kpx * s, y: hz + (nearY - hz) * s, s };
@@ -574,7 +574,7 @@ function randomVerse() {
    Mundo
    ============================================================ */
 let ripples = [], fishes = [], splashes = [], drops = [], leaves = [], floaters = [];
-let nextLeaf = rnd(12, 25);
+let nextLeaf = rnd(12, 25), trail = [];
 const book = store.get("lagoSereno.caderno", {});
 const memories = store.get("lagoSereno.lembrancas", []);
 let learned = store.get("lagoSereno.aprendeu", false);
@@ -610,7 +610,7 @@ function spawnFish(near) {
 const P = {
   mode: "intro",
   hang: { x: 0, y: 0, px: 0, py: 0 },
-  rodAim: 0, rodBack: 0, whipT: -1, twitch: 0, rodBend: 0,
+  rodA: -0.3, rodBack: 0, whipT: -1, twitch: 0, rodBend: 0, aimK: 0, aimArmed: false,
   aimU: 0, aimPt: null, lock: null,
   fly: null, bob: { x: 0, d: 0, dip: 0, dipV: 0, tilt: 0 }, bonus: 0, target: null,
   fish: null, tension: 0, over: 0, crank: 0, crankAcc: 0, reelAng: 0, tickAcc: 0, steer: 0, counter: 0,
@@ -626,11 +626,16 @@ function whipAngle(t) {
 }
 function rodGeom() {
   const b = rodBase(), L = H * 0.46;
-  const a = -0.3 + P.rodAim * 0.16 + P.rodBack * 0.28 + whipAngle(P.whipT) + Math.sin(T * 0.7) * 0.006 - P.twitch * 0.05;
+  const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + Math.sin(T * 0.7) * 0.006 - P.twitch * 0.05;
   const bend = P.rodBend;
   const tip = { x: b.x + Math.sin(a) * L - bend * 14, y: b.y - Math.cos(a) * L + bend * H * 0.085 };
   const ctrl = { x: lerp(b.x, tip.x, 0.55) + bend * 24 + Math.sin(a) * 6, y: lerp(b.y, tip.y, 0.55) + bend * 34 };
   return { base: b, tip, ctrl };
+}
+// a ponta da vara aponta para onde o dedo (ou a boia) está
+function pointRod(tx, ty, k, dt, blend = 0.75) {
+  const b = rodBase(), to = Math.atan2(tx - b.x, b.y - ty);
+  P.rodA = lerp(P.rodA, clamp(lerp(-0.3, to, blend), -0.85, 0.25), damp(k, dt));
 }
 const qpt = (a, c, b, t) => ({ x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * c.x + t * t * b.x, y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * c.y + t * t * b.y });
 
@@ -653,15 +658,14 @@ function updateCamera(dt) {
   let tx = 0, tt = 0, tz = 1, k = 1.4, roll = 0;
   const far = d => (clamp(d, D_MIN, D_MAX) - D_MIN) / (D_MAX - D_MIN);
   switch (P.mode) {
-    case "idle": tx = cam.lookX; break;
-    case "aim": case "cast": if (P.aimPt) { tx = P.aimPt.x * 0.35; tt = far(P.aimPt.d) * H * 0.045; tz = 1.02; } break;
+    case "idle": case "aim": tx = cam.x; tt = cam.tilt; tz = cam.z; k = 0.6; break;
     case "fly": tx = P.fly.x * 0.45; tt = far(P.fly.d) * H * 0.06; tz = lerp(1.02, 1.07, ease(clamp(P.fly.t, 0, 1))); k = 1.8; break;
-    case "float": tx = P.bob.x * 0.45 + cam.lookX * 0.5; tt = far(P.bob.d) * H * 0.06; tz = 1.07; break;
+    case "float": tx = P.bob.x * 0.45; tt = far(P.bob.d) * H * 0.06; tz = 1.07; break;
     case "fight": if (P.fish) { tx = P.fish.x * 0.5 + P.steer * 0.35; tt = far(P.fish.d) * H * 0.05; tz = 1.09 + P.tension * 0.03; roll = -P.steer * 0.012; k = 1.8; } break;
     case "land": case "catch": case "release": tx = cam.x * 0.98; tt = -H * 0.02; tz = 1.13; k = 0.9; break;
     case "retrieve": tx = cam.x * 0.6; tz = 1.02; break;
   }
-  if (!calm) { tx += Math.sin(T * 0.21) * 0.14; tt += Math.sin(T * 0.33) * 2.5; tz += Math.sin(T * 0.17) * 0.006; roll += Math.sin(T * 0.27) * 0.004; }
+  if (!calm && P.mode !== "aim") { tx += Math.sin(T * 0.21) * 0.14; tt += Math.sin(T * 0.33) * 2.5; tz += Math.sin(T * 0.17) * 0.006; roll += Math.sin(T * 0.27) * 0.004; }
   tx = clamp(tx, -2.6, 2.6);
   cam.x += (tx - cam.x) * damp(k, dt);
   cam.tilt += (tt - cam.tilt) * damp(k * 0.8, dt);
@@ -701,26 +705,34 @@ cv.addEventListener("pointerdown", e => {
   try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   const now = performance.now();
   Object.assign(ptr, { id: e.pointerId, down: true, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, t0: now, hist: [{ x: e.clientX, y: e.clientY, t: now }], trail: 0, used: false, twitched: false });
-  P.lastDir = null; P.idleT = 0;
+  P.lastDir = null; P.idleT = 0; trail = [{ x: e.clientX, y: e.clientY, t: T }];
   if (P.mode === "idle") {
-    if (e.clientY > ZONE) { P.mode = "aim"; P.aimPt = null; P.lock = null; P.aimU = 0; buzz(4); Snd.creak(); }
+    if (e.clientY > ZONE) { P.mode = "aim"; P.aimPt = null; P.lock = null; P.aimU = 0; P.aimArmed = false; P.aimK = e.clientY - proj(0, D_MIN).y; buzz(4); Snd.creak(); }
     else touchWater(e.clientX, e.clientY, true);
   } else if (P.mode === "float" && e.clientY < ZONE) touchWater(e.clientX, e.clientY, true);
 });
 cv.addEventListener("pointermove", e => {
   if (!ptr.down || e.pointerId !== ptr.id) return;
-  const px = ptr.x, py = ptr.y;
-  ptr.x = e.clientX; ptr.y = e.clientY;
+  let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
+  if (!evs || !evs.length) evs = [e];
   const now = performance.now();
-  ptr.hist.push({ x: ptr.x, y: ptr.y, t: now }); if (ptr.hist.length > 24) ptr.hist.shift();
-  const dx = ptr.x - px, dy = ptr.y - py, len = Math.hypot(dx, dy);
-  // carretilha: soma a variação de direção do traço (um círculo completo = 2π)
-  if (len > 1.2) {
-    const a = Math.atan2(dy, dx);
-    if (P.lastDir != null) { const da = wrapAng(a - P.lastDir); if (Math.abs(da) < 1.4 && P.mode === "fight") P.crankAcc += da; }
-    P.lastDir = a;
-  }
-  if ((P.mode === "idle" || P.mode === "float") && ptr.y < ZONE && len > 2 && now - ptr.trail > 70) { ptr.trail = now; touchWater(ptr.x, ptr.y, false); }
+  let moved = 0;
+  evs.forEach(ce => {
+    const px = ptr.x, py = ptr.y;
+    ptr.x = ce.clientX; ptr.y = ce.clientY;
+    const t = ce.timeStamp > 0 && Math.abs(ce.timeStamp - now) < 1000 ? ce.timeStamp : now;
+    ptr.hist.push({ x: ptr.x, y: ptr.y, t }); if (ptr.hist.length > 48) ptr.hist.shift();
+    trail.push({ x: ptr.x, y: ptr.y, t: T }); if (trail.length > 80) trail.shift();
+    const dx = ptr.x - px, dy = ptr.y - py, len = Math.hypot(dx, dy);
+    moved += len;
+    // carretilha: soma a variação de direção do traço (um círculo completo = 2π)
+    if (len > 1) {
+      const a = Math.atan2(dy, dx);
+      if (P.lastDir != null) { const da = wrapAng(a - P.lastDir); if (Math.abs(da) < 1.4 && P.mode === "fight") P.crankAcc += da; }
+      P.lastDir = a;
+    }
+  });
+  if ((P.mode === "idle" || P.mode === "float") && ptr.y < ZONE && moved > 2 && now - ptr.trail > 70) { ptr.trail = now; touchWater(ptr.x, ptr.y, false); }
   if (P.mode === "float") floatGesture();
 });
 function floatGesture() {
@@ -735,7 +747,7 @@ function endPointer(e) {
   if (!ptr.down || e.pointerId !== ptr.id) return;
   ptr.down = false;
   if (P.mode === "aim") {
-    if (P.aimPt && P.aimU > 0.07) cast(); else { P.mode = "idle"; }
+    if (P.aimArmed && P.aimPt) cast(); else { P.mode = "idle"; }
   } else if (P.mode === "float") floatGesture();
 }
 cv.addEventListener("pointerup", endPointer);
@@ -757,32 +769,39 @@ function setHint(s, always) {
    Lançar
    ============================================================ */
 function updateAim(dt) {
-  // levantar o dedo é levantar a vara: quanto mais alto, mais longe
-  const u = clamp((ptr.startY - ptr.y) / (H * 0.38), 0, 1);
-  P.aimU = lerp(P.aimU, u, damp(12, dt));
-  P.rodBack = P.aimU;
-  P.rodAim = lerp(P.rodAim, clamp((ptr.x - W / 2) / (W * 0.45), -1, 1), damp(8, dt));
-  if (P.aimU < 0.07) { P.aimPt = null; P.lock = null; setHint("Arraste para cima, devagar"); return; }
-  const d = lerp(D_MIN, D_MAX, Math.pow(P.aimU, 1.1));
-  const side = clamp((ptr.x - W / 2) / (W * 0.42), -1.1, 1.1);
-  const x = cam.x + side * xMax(d) * 0.95;
-  // a luz é puxada de leve para a sombra mais próxima
+  // a luz fica sempre à mesma distância acima do dedo: o dedo aponta a água
+  if (ptr.startY - ptr.y > 16) P.aimArmed = true;
+  const near = proj(0, D_MIN).y, far = proj(0, D_MAX).y;
+  const w = unproj(ptr.x, clamp(ptr.y - P.aimK, far, near));
+  const d = clamp(w.d, D_MIN, D_MAX), x = clamp(w.x, -xMax(d) * 1.05, xMax(d) * 1.05);
+  P.aimU = (d - D_MIN) / (D_MAX - D_MIN);
+  // a boia fica na mão, logo acima do dedo
+  const hy = ptr.y - 70;
+  Object.assign(P.hang, { x: ptr.x, y: hy, px: ptr.x, py: hy });
+  if (!P.aimArmed) {
+    P.aimPt = null; P.lock = null;
+    pointRod(ptr.x, near, 12, dt); P.rodBack = lerp(P.rodBack, 0, damp(10, dt));
+    setHint("Arraste para cima, devagar"); return;
+  }
+  // ímã leve: só perto de uma sombra, e sem tirar a luz de baixo do dedo
   let best = null, bd = 1e9;
   fishes.forEach(fi => { if (fi.state !== "wander" || fi.alpha < 0.4) return; const dd = Math.hypot(fi.x - x, fi.d - d); if (dd < bd) { bd = dd; best = fi; } });
   let ax = x, ad = d;
   if (best) {
-    const R = best.size * 1.5 + 1.8, pull = clamp(1 - bd / R, 0, 1);
-    if (pull > 0) { const k = ease(pull) * 0.8; ax = lerp(x, best.x, k); ad = lerp(d, best.d, k); }
-    if (pull > 0.25) { if (P.lock !== best) { P.lock = best; buzz(3); } } else P.lock = null;
+    const R = best.size * 1.2 + 0.8, pull = clamp(1 - bd / R, 0, 1);
+    if (pull > 0) { const k = ease(pull) * 0.5; ax = lerp(x, best.x, k); ad = lerp(d, best.d, k); }
+    if (pull > 0.2) { if (P.lock !== best) { P.lock = best; buzz(3); } } else P.lock = null;
   } else P.lock = null;
-  ax = clamp(ax, -xMax(ad), xMax(ad));
-  if (!P.aimPt) P.aimPt = { x: ax, d: ad };
-  P.aimPt.x = lerp(P.aimPt.x, ax, damp(10, dt)); P.aimPt.d = lerp(P.aimPt.d, ad, damp(10, dt));
+  P.aimPt = { x: ax, d: ad };
+  const sp = proj(ax, ad);
+  pointRod(sp.x, sp.y, 16, dt);
+  P.rodBack = lerp(P.rodBack, P.aimU * 0.45, damp(14, dt));
   setHint(P.lock ? "Solte quando quiser" : "Leve a luz até uma sombra");
 }
 function cast() {
-  P.mode = "cast"; P.whipT = 0; P.castLock = P.lock;
-  setHint(""); Snd.creak();
+  // a boia sai do dedo na hora em que ele solta; a vara chicoteia junto
+  P.whipT = 0.3; P.castLock = P.lock;
+  setHint(""); Snd.creak(); releaseLure();
 }
 function releaseLure() {
   const a = P.aimPt;
@@ -815,7 +834,7 @@ function twitch() {
 function hook() {
   const fi = P.target;
   P.mode = "fight"; P.fish = fi; fi.state = "hooked";
-  Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, steer: 0, counter: 0 });
+  Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0 });
   P.twitch = 1.4; Snd.splash(0.7); buzz([18, 30, 18]); cam.shake = 2.5; Snd.songStart();
   setHint("Pequenos círculos com o dedo");
 }
@@ -913,17 +932,15 @@ function update(dt) {
   pads.forEach(pd => { pd.bob *= Math.exp(-dt * 1.5); });
   updateLeaves(dt);
 
-  cam.lookX = lerp(cam.lookX, ptr.down && (P.mode === "idle" || P.mode === "float") ? (ptr.x - W / 2) / W * 1.4 : 0, damp(2, dt));
 
   switch (P.mode) {
     case "idle":
       P.idleT += dt;
-      P.rodAim = lerp(P.rodAim, ptr.down ? clamp((ptr.x - W / 2) / (W * 0.6), -0.6, 0.6) : 0, damp(2, dt));
+      if (ptr.down) pointRod(ptr.x, ptr.y, 8, dt, 0.5); else P.rodA = lerp(P.rodA, -0.3, damp(3, dt));
       P.rodBack = lerp(P.rodBack, 0, damp(4, dt));
       if (P.idleT > 30) setHint("Arraste para cima, a partir de baixo, para lançar", true);
       break;
     case "aim": updateAim(dt); break;
-    case "cast": P.rodBack = lerp(P.rodBack, 0, damp(6, dt)); break;
     case "fly": P.fly.t += dt / P.fly.dur; if (P.fly.t >= 1) landLure(); break;
     case "float": updateFloat(dt); break;
     case "fight": updateFight(dt); break;
@@ -943,14 +960,16 @@ function update(dt) {
       if (P.retrieveT >= 1) { P.mode = "idle"; P.idleT = 0; resetHang(); }
       break;
   }
-  if (P.mode !== "aim" && P.mode !== "idle") P.rodAim = lerp(P.rodAim, P.mode === "fight" ? P.steer * 0.8 : P.mode === "float" ? clamp((proj(P.bob.x, P.bob.d).x - W / 2) / W, -0.6, 0.6) : 0, damp(2.5, dt));
+  if (P.mode === "fly") { const fp = flyPos(); pointRod(fp.x, fp.y, 5, dt, 0.5); P.rodBack = lerp(P.rodBack, 0, damp(5, dt)); }
+  else if (P.mode === "float") { const bp = proj(P.bob.x, P.bob.d); pointRod(bp.x, bp.y, 4, dt, 0.6); }
+  else if (P.mode === "fight" && P.fish) { const fp = proj(P.fish.x, P.fish.d); pointRod(ptr.down ? lerp(fp.x, ptr.x, 0.5) : fp.x, fp.y, 10, dt, 0.7); P.rodBack = lerp(P.rodBack, 0, damp(5, dt)); }
+  else if (P.mode !== "idle" && P.mode !== "aim") { P.rodA = lerp(P.rodA, -0.3, damp(3, dt)); P.rodBack = lerp(P.rodBack, 0, damp(4, dt)); }
   if (P.whipT >= 0) {
     P.whipT += dt / 0.7;
-    if (P.mode === "cast" && P.whipT > 0.44) releaseLure();
     if (P.whipT >= 1) P.whipT = -1;
   }
   P.twitch *= Math.exp(-dt * 6);
-  if (["idle", "aim", "cast"].includes(P.mode)) updateHang(dt);
+  if (P.mode === "idle") updateHang(dt);
   P.rodBend = lerp(P.rodBend, P.mode === "fight" ? 0.25 + P.tension * 0.75 : P.mode === "land" || P.mode === "catch" ? 0.35 : P.mode === "float" ? 0.06 + Math.max(0, P.bob.dip) * 0.15 : 0, damp(4, dt));
   if (P.mode !== "fight") P.steer = lerp(P.steer, 0, damp(3, dt));
   if (P.snapT > 0) P.snapT -= dt;
@@ -988,7 +1007,7 @@ function updateLeaves(dt) {
 
 function updateFish(fi, dt) {
   fi.t += dt; fi.wig += dt * (3 + fi.spd * 5);
-  fi.glow = lerp(fi.glow, (P.mode === "aim" || P.mode === "cast") && P.lock === fi ? 1 : 0, damp(5, dt));
+  fi.glow = lerp(fi.glow, P.mode === "aim" && P.lock === fi ? 1 : 0, damp(5, dt));
   if (fi.state === "hooked") return;
   if (fi.state === "flee") { fi.alpha = Math.max(0, fi.alpha - dt * 0.55); fi.life -= dt; }
   else fi.alpha = Math.min(1, fi.alpha + dt * 0.4);
@@ -1051,6 +1070,7 @@ function updateFish(fi, dt) {
 
 function updateFloat(dt) {
   P.waitT += dt;
+  P.rodBack = lerp(P.rodBack, ptr.down && ptr.startY > ZONE * 0.9 ? clamp(Math.abs(ptr.y - ptr.startY) / 160, 0, 0.5) : 0, damp(16, dt));
   const b = P.bob;
   b.dipV += (-b.dip * 14 - b.dipV * 3.6) * dt; b.dip += b.dipV * dt;
   b.tilt *= Math.exp(-dt * 1.6);
@@ -1061,12 +1081,15 @@ function updateFloat(dt) {
 
 function updateFight(dt) {
   const fi = P.fish, sp = fi.sp;
-  const rate = Math.abs(P.crankAcc) / Math.max(dt, 1e-3);
+  // velocidade do giro medida numa janela curta, para não oscilar entre um toque e outro
+  P.crankWin.push({ t: T, a: P.crankAcc });
+  while (P.crankWin.length && T - P.crankWin[0].t > 0.18) P.crankWin.shift();
+  const rate = Math.abs(P.crankWin.reduce((sum, c) => sum + c.a, 0)) / 0.18;
   P.reelAng += P.crankAcc; P.tickAcc += Math.abs(P.crankAcc); P.crankAcc = 0;
-  P.crank = lerp(P.crank, ptr.down ? rate : 0, damp(5, dt));
+  P.crank = lerp(P.crank, ptr.down ? rate : 0, damp(12, dt));
   while (P.tickAcc > 0.9) { P.tickAcc -= 0.9; Snd.click(); }
   const r = clamp(P.crank / 8, 0, 1.3);
-  P.steer = lerp(P.steer, ptr.down ? clamp((ptr.x - W / 2) / (W * 0.33), -1, 1) : 0, damp(3, dt));
+  P.steer = lerp(P.steer, ptr.down ? clamp((ptr.x - W / 2) / (W * 0.33), -1, 1) : 0, damp(10, dt));
   P.nextRun -= dt;
   if (P.run <= 0 && P.nextRun < 0) {
     P.run = rnd(1.3, 2.6) * (0.5 + P.stamina * 0.5); P.runDir = Math.random() < 0.5 ? -1 : 1; P.nextRun = rnd(2.6, 5);
@@ -1138,6 +1161,7 @@ function draw() {
   drawMotes();
   drawFallingLeaves(L);
   drawGrade();
+  drawTouch();
 }
 function drawSky() {
   const sky = g.createLinearGradient(0, 0, 0, hz);
@@ -1337,10 +1361,10 @@ function drawJumpingFish() {
 }
 function drawAimLight() {
   // uma poça de luz suave mostra onde a boia vai cair
-  const end = proj(P.aimPt.x, P.aimPt.d), rr = 0.75 * kpx * end.s * (1 + Math.sin(T * 2.4) * 0.08), sq = squash(end.s);
+  const end = proj(P.aimPt.x, P.aimPt.d), rr = Math.max(26, 0.75 * kpx * end.s) * (1 + Math.sin(T * 2.4) * 0.08), sq = Math.max(0.32, squash(end.s));
   g.save(); g.translate(end.x, end.y); g.scale(1, sq);
   const gr = g.createRadialGradient(0, 0, 0, 0, 0, rr);
-  gr.addColorStop(0, "rgba(255,236,200,.42)"); gr.addColorStop(0.5, "rgba(255,236,200,.14)"); gr.addColorStop(1, "rgba(255,236,200,0)");
+  gr.addColorStop(0, "rgba(255,238,205,.75)"); gr.addColorStop(0.18, "rgba(255,238,205,.45)"); gr.addColorStop(0.6, "rgba(255,238,205,.12)"); gr.addColorStop(1, "rgba(255,238,205,0)");
   g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rr, 0, TAU); g.fill(); g.restore();
   const k = (T * 0.6) % 1;
   g.strokeStyle = `rgba(255,236,200,${0.35 * (1 - k)})`; g.lineWidth = 1.2;
@@ -1382,7 +1406,7 @@ function drawLineAndRod() {
   else if (P.held) { const h = heldPos(); end = { x: h.x, y: h.y - heldLen() * 0.5 }; }
   else end = { x: P.hang.x, y: P.hang.y };
   // a linha pega luz e treme quando estica
-  const sag = P.mode === "fight" ? (1 - P.tension) * 40 : P.mode === "float" ? 34 : P.held || ["idle", "aim", "cast"].includes(P.mode) ? 0 : 14;
+  const sag = P.mode === "fight" ? (1 - P.tension) * 40 : P.mode === "float" ? 34 : P.held || P.mode === "idle" ? 0 : P.mode === "aim" ? 22 : 14;
   const c = { x: (tip.x + end.x) / 2, y: Math.max(tip.y, end.y) + sag };
   const quiver = P.mode === "fight" ? Math.max(0, P.tension - 0.5) * 3 : 0;
   const la = 0.35 + env.light * 0.2 + (P.mode === "fight" ? P.tension * 0.35 : 0);
@@ -1433,7 +1457,9 @@ function retrievePos() {
   return { x: lerp(f.x, tip.x, k), y: lerp(f.y, tip.y + HANG_LEN(), k) - Math.sin(k * Math.PI) * 30 };
 }
 function drawHangingLure() {
-  if (["idle", "aim", "cast"].includes(P.mode)) {
+  if (P.mode === "aim") {
+    drawFloatFree(P.hang.x, P.hang.y + 14 * 2.2, 14, clamp(-ptrVel(60).vx * 0.25, -0.5, 0.5));
+  } else if (P.mode === "idle") {
     const tip = rodGeom().tip, h = P.hang, ang = Math.atan2(h.x - tip.x, h.y - tip.y);
     drawFloatFree(h.x + Math.sin(ang) * 14 * 2.2, h.y + Math.cos(ang) * 14 * 2.2, 14, -ang);
   } else if (P.mode === "fly") {
@@ -1533,6 +1559,24 @@ function drawFallingLeaves(L) {
     g.save(); g.translate(l.x, l.y); g.rotate(l.rot); g.scale(1, Math.abs(Math.sin(T * 2 + l.ph)) * 0.7 + 0.3);
     g.fillStyle = rgb(shade(l.col, 0.5 + L * 0.5)); g.beginPath(); g.ellipse(0, 0, 7, 3.4, 0, 0, TAU); g.fill(); g.restore();
   });
+}
+// um rastro suave mostra que o jogo está sentindo o dedo
+function drawTouch() {
+  trail = trail.filter(p => T - p.t < 0.45);
+  if (trail.length > 1) {
+    g.lineCap = "round";
+    for (let i = 1; i < trail.length; i++) {
+      const a = trail[i - 1], b = trail[i], k = 1 - (T - b.t) / 0.45;
+      g.strokeStyle = `rgba(255,240,215,${0.22 * k})`; g.lineWidth = 2 + 4 * k;
+      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    }
+    g.lineCap = "butt";
+  }
+  if (ptr.down) {
+    const gl = g.createRadialGradient(ptr.x, ptr.y, 0, ptr.x, ptr.y, 34);
+    gl.addColorStop(0, "rgba(255,240,215,.22)"); gl.addColorStop(1, "rgba(255,240,215,0)");
+    g.fillStyle = gl; g.beginPath(); g.arc(ptr.x, ptr.y, 34, 0, TAU); g.fill();
+  }
 }
 function drawGrade() {
   // calor da hora dourada, vinheta e grão de filme
