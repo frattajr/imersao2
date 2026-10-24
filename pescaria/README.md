@@ -32,7 +32,9 @@ Os gestos imitam o corpo de quem pesca. A parte de baixo da tela é a mão na va
 
 | Movimento de vara | O que acontece |
 | --- | --- |
-| **Um toquinho para cima** | A boia dá um pulo e faz ondas. |
+| **Um toquinho para cima** | A boia dá um pulo e faz ondas, e a ponta da vara balança. |
+| **Três toquinhos seguidos (em 3 s)** | A isca "dança" por 4,5 s: dá pulinhos ritmados que chamam os caçadores de longe (traíra, tucunaré e dourado vêm 2,4 vezes mais). Os desconfiados (pintado, tambaqui, pirarucu) se afastam. |
+| **Enroscou na vitória-régia** | Recolher perto de uma vitória-régia às vezes prende a boia nela: a boia para, a linha estica e a folha balança. Para soltar, sacuda a vara para os lados (cada troca de direção conta), dê toquinhos ou levante a vara. Ela também se solta sozinha em 5 s no modo sereno e em 9 s no natural. Nada se perde. |
 | **Arrastar para os lados** | A linha puxa a boia pela água, deixando um rastro. |
 | **Pequenos círculos** | Recolhe a linha devagar; a isca andando também atrai. Se a boia já estiver no fundo, girar fisga. |
 | **Puxar a vara para baixo** | Recolhe de uma vez: a boia volta deslizando pela água até a ponta da vara, mesmo com um peixe se aproximando. Basta um puxão curto, de uns 4 cm. |
@@ -61,6 +63,7 @@ O peixinho do medidor sacode quando o peixe resiste.
 | --- | --- |
 | **Pequenos círculos** | Giram a carretilha de madeira. Você sente a tensão pela vara que verga e dá trancos, pela linha que brilha e treme, pelo som da linha esticada e pela vibração do celular (veja abaixo). Só arrebenta se insistir girando forte por mais de 2 segundos. |
 | **Levar o dedo para o lado** | Quando o peixe corre, levar o dedo para o lado contrário segura a corrida e o cansa mais rápido. A câmera inclina junto. |
+| **Bombear: levantar e abaixar a vara** | Subir o dedo devagar levanta a vara e puxa o peixe para perto, com a linha mais esticada e a vara vergando. Descer o dedo abaixa a vara e afrouxa a linha; nesse momento, a carretilha recolhe 35% mais por quase 1 s. O jogo segue o centro do dedo suavizado, então os círculos não contam como bombear. A dica aparece uma vez, na primeira briga longa. |
 | **Deslizar a página para baixo** | Devolve o peixe: ele desce na linha, toca a água e nada para o fundo. |
 
 As dicas aparecem só até a primeira pesca. Depois, o jogo fica em silêncio, com três exceções que sempre aparecem:
@@ -69,6 +72,19 @@ As dicas aparecem só até a primeira pesca. Depois, o jogo fica em silêncio, c
 - **Linha no limite:** o aviso para descansar o dedo.
 
 **O dedo apoiado não atrapalha:** o giro da carretilha só conta quando o dedo descreve um arco em volta de um centro, com pelo menos 9 px de raio. O tremor de um dedo parado na vara não recolhe a linha nem afasta o peixe.
+
+## Física da vara e da linha
+
+- **Ponta de mola:** a ponta da vara é uma mola amortecida, que oscila umas 2 vezes por segundo. Ela fica para trás quando a mão acelera e volta balançando. Também recebe trancos:
+  - um tremor leve a cada mordisco;
+  - um mergulho na mordida;
+  - um puxão na fisgada;
+  - sacudidas da cabeça do peixe na briga;
+  - pulinhos da isca dançando.
+
+  Ler a ponta da vara, como na pesca de verdade, avisa o que está acontecendo embaixo d'água. Com movimento reduzido, a mola balança 40%.
+- **Linha de verdade:** a linha é uma corda de 16 pontos, com gravidade, um pouco de rigidez de náilon e as duas pontas presas (na vara e na boia ou no peixe). Ela faz barriga quando está frouxa e estica quando você recolhe, quando o peixe morde ou quando a briga aperta. O vento a curva, ela se desenrola no lançamento e fica reta e trêmula quando enrosca.
+- **Vento:** o mesmo vento que balança os juncos e a linha leva a boia devagar para o lado. É mais forte com chuva e quando passa uma linha de brisa.
 
 ## Vibração
 

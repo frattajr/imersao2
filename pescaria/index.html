@@ -1200,12 +1200,30 @@ function whipAngle(t) {
   if (t < 0.6) return lerp(0.14, -0.32, ease((t - 0.3) / 0.3));
   return lerp(-0.32, 0, ease((t - 0.6) / 0.4));
 }
-function rodGeom() {
+// ponta da vara com mola: verga com a inércia do movimento e com os trancos, e volta balançando
+const tipS = { ox: 0, oy: 0, vx: 0, vy: 0, px: null, py: null, pvx: 0, pvy: 0 };
+function tipKick(dx, dy) { tipS.vx += dx * 14; tipS.vy += dy * 14; }
+function updateRodSpring(dt) {
+  const raw = rodGeom(true).tip;
+  if (tipS.px == null || dt <= 0) { tipS.px = raw.x; tipS.py = raw.y; return; }
+  const vx = (raw.x - tipS.px) / dt, vy = (raw.y - tipS.py) / dt;
+  const ax = clamp((vx - tipS.pvx) / dt, -12000, 12000), ay = clamp((vy - tipS.pvy) / dt, -12000, 12000);
+  tipS.px = raw.x; tipS.py = raw.y; tipS.pvx = vx; tipS.pvy = vy;
+  // a ponta fica para trás quando a mão acelera (inércia), e a mola a puxa de volta
+  const K = 170, C = 8.5, inert = 0.2;
+  tipS.vx += (-K * tipS.ox - C * tipS.vx - ax * inert) * dt; tipS.vy += (-K * tipS.oy - C * tipS.vy - ay * inert) * dt;
+  tipS.ox = clamp(tipS.ox + tipS.vx * dt, -42, 42); tipS.oy = clamp(tipS.oy + tipS.vy * dt, -42, 42);
+}
+function rodGeom(raw) {
   const b = rodBase(), L = H * 0.46;
   const a = P.rodA + P.rodBack * 0.28 + whipAngle(P.whipT) + (P.jolt || 0) * Math.sin(T * 26) * 0.022 + Math.sin(T * BREATH) * 0.006 + (P.mode === "float" ? Math.sin(T * BREATH + 1) * 0.012 : 0) - P.twitch * 0.05;
   const bend = P.rodBend;
   const tip = { x: b.x + Math.sin(a) * L - bend * 14, y: b.y - Math.cos(a) * L + bend * H * 0.085 };
   const ctrl = { x: lerp(b.x, tip.x, 0.55) + bend * 24 + Math.sin(a) * 6, y: lerp(b.y, tip.y, 0.55) + bend * 34 };
+  if (!raw) {
+    const k = calm ? 0.4 : 1;
+    tip.x += tipS.ox * k; tip.y += tipS.oy * k; ctrl.x += tipS.ox * 0.3 * k; ctrl.y += tipS.oy * 0.3 * k;
+  }
   return { base: b, tip, ctrl };
 }
 // a ponta da vara aponta para onde o dedo (ou a boia) está
@@ -1355,6 +1373,7 @@ function floatGesture(ending) {
   if (fi && fi.state === "bite" && Math.abs(dy) > 18) { ptr.used = true; hook(); return; }
   if (circling) return; // círculos recolhem devagar (updateFloat)
   // puxar a vara para trás: a boia volta deslizando pela água
+  if (P.snag && ptr.startY > ZONE - 20 && dy < -40) { ptr.used = true; P.snag.free += 1; return; }
   if (ptr.startY > ZONE - 20 && dy > 40 && (v.vy > 0.2 || dy > 60 || ending)) {
     if (fi && fi.state === "nibble" && dy < 90) { ptr.used = true; tooSoon(fi); return; }
     ptr.used = true; skim(); return;
@@ -1435,7 +1454,7 @@ function landLure() {
   const f = P.fly; P.bob = { x: f.x, d: f.d, dip: 0.8, dipV: 0, tilt: 0 };
   addRipple(f.x, f.d, 1.1, 2.2, 0.6); addRipple(f.x, f.d, 0.55, 1.5, 0.45);
   Snd.plop(0.9); Snd.landNote(); cam.nudge = Math.max(cam.nudge, 0.0048); Haptics.land();
-  P.mode = "float"; P.waitT = 0; P.bonus = 0; P.target = null; P.reelD0 = f.d;
+  P.mode = "float"; P.waitT = 0; P.bonus = 0; P.target = null; P.reelD0 = f.d; P.snag = null; P.dance = 0; P.twHist = [];
   Object.assign(P, { crank: 0, crankAcc: 0, crankWin: [], tickAcc: 0, sweepAcc: 0, sweepDist: 0, floatT: 0 });
   const fi = f.lock && fishes.includes(f.lock) && f.lock.state === "wander" ? f.lock : null;
   if (fi) {
@@ -1465,6 +1484,7 @@ function spookWary() {
   setHint("Ele recuou. Esse prefere a isca parada");
 }
 function skim() {
+  P.snag = null; P.dance = 0;
   const fi = P.target;
   if (fi) { fi.state = "wander"; fi.curious = null; fi.spd = 0.5; }
   P.target = null; P.mode = "skim"; P.skimT = 0;
@@ -1485,7 +1505,16 @@ function flashHint(text, secs) {
 const waitTips = { call: false, back: false };
 function twitch() {
   // dar vida à isca: a boia mexe e os peixes por perto notam
-  P.twitch = 1; P.bob.dipV += 3; P.bob.tilt = rnd(-0.25, 0.25);
+  P.twitch = 1; P.bob.dipV += 3; P.bob.tilt = rnd(-0.25, 0.25); tipKick(0, -14);
+  // enroscada: cada toquinho ajuda a soltar
+  if (P.snag) { P.snag.free += 0.4; }
+  // três toquinhos em 3 s: a isca "dança" e os caçadores vêm de longe
+  P.twHist = (P.twHist || []).filter(t => T - t < 3); P.twHist.push(T);
+  if (P.twHist.length >= 3 && !(P.dance > 0) && !P.snag) {
+    P.dance = 4.5; P.danceHop = 0; P.twHist = [];
+    if (!store.get("lagoSereno.dicaDanca", false)) { store.set("lagoSereno.dicaDanca", true); flashHint("A isca está dançando. Os caçadores adoram", 3.5); }
+    const sc = Snd.scale(); [0, 2, 4].forEach((k, i) => Snd.kalimba(sc.notes[k] + 12, 0.035, i * 0.12));
+  }
   addRipple(P.bob.x, P.bob.d, 0.45, 1.3, 0.45); Snd.plop(0.35); Snd.chime(); Haptics.twitchLure();
   P.waitT += 4;
   fishes.forEach(fi => { if (fi.state === "wander" && !(fi.spook > 0) && Math.hypot(fi.x - P.bob.x, fi.d - P.bob.d) < 7 * fi.sp.tp.curio && Math.random() < 0.6 * fi.sp.tp.mexe) fi.curious = { x: P.bob.x, d: P.bob.d, t: 2.5 }; });
@@ -1496,10 +1525,11 @@ function twitch() {
    Fisgar, trazer, segurar e devolver
    ============================================================ */
 function hook() {
+  P.snag = null; P.dance = 0;
   const fi = P.target;
   P.mode = "fight"; P.fish = fi; fi.state = "hooked"; P.hookPlace = placeName(fi.x, fi.d);
-  Object.assign(P, { tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0, shakeT: 0.6, jolt: 0, dVel: 0, fightD0: Math.max(fi.d, 4) });
-  P.twitch = 1.4; Snd.splash(0.7); Snd.hookCall(); Haptics.hooked(); cam.nudge = Math.max(cam.nudge, 0.0100); Snd.songStart();
+  Object.assign(P, { lift: 0, pumpOn: false, slackT: 0, fightT: 0, tension: 0.3, over: 0, stamina: 1, run: 0, nextRun: rnd(1.6, 2.8), crank: 0, crankAcc: 0, crankWin: [], steer: 0, counter: 0, shakeT: 0.6, jolt: 0, dVel: 0, fightD0: Math.max(fi.d, 4) });
+  P.twitch = 1.4; tipKick(-8, 28); Snd.splash(0.7); Snd.hookCall(); Haptics.hooked(); cam.nudge = Math.max(cam.nudge, 0.0100); Snd.songStart();
   flashHint(learned ? "Fisgou!" : M().holdReel ? "Fisgou! Segure o dedo na tela para trazer" : "Fisgou! Agora, pequenos círculos com o dedo", learned ? 1.8 : 3.5);
   addRipple(fi.x, fi.d, 1.4, 1.4, 0.75); addRipple(fi.x, fi.d, 0.8, 1, 0.6); wave(fi.x, fi.d, 0.5); stirUp(0.3);
 }
@@ -1658,7 +1688,7 @@ function update(dt) {
   }
   if (P.mode === "fly") { const fp = flyPos(); pointRod(fp.x, fp.y, 5, dt, 0.5); P.rodBack = lerp(P.rodBack, 0, damp(5, dt)); }
   else if (P.mode === "float" || P.mode === "skim") { const bp = proj(P.bob.x, P.bob.d), hold = ptr.down && ptr.startY > ZONE - 20; pointRod(hold ? lerp(bp.x, ptr.x, 0.6) : bp.x, bp.y, hold ? 12 : 4, dt, 0.6); }
-  else if (P.mode === "fight" && P.fish) { const fp = proj(P.fish.x, P.fish.d); pointRod(ptr.down ? lerp(fp.x, ptr.x, 0.5) : fp.x, fp.y, 10, dt, 0.7); P.rodBack = lerp(P.rodBack, 0, damp(5, dt)); }
+  else if (P.mode === "fight" && P.fish) { const fp = proj(P.fish.x, P.fish.d); pointRod(ptr.down ? lerp(fp.x, ptr.x, 0.5) : fp.x, fp.y, 10, dt, 0.7); P.rodBack = lerp(P.rodBack, (P.lift || 0) * 0.6, damp(6, dt)); }
   else if (P.mode !== "idle" && P.mode !== "aim") { P.rodA = lerp(P.rodA, -0.3, damp(3, dt)); P.rodBack = lerp(P.rodBack, 0, damp(4, dt)); }
   if (P.whipT >= 0) {
     P.whipT += dt / 0.7;
@@ -1668,7 +1698,7 @@ function update(dt) {
   P.meterA = lerp(P.meterA || 0, P.mode === "fight" ? 1 : 0, damp(5, dt));
   updateReelRing(dt);
   if (P.mode === "idle") updateHang(dt);
-  P.rodBend = lerp(P.rodBend, P.mode === "fight" ? 0.25 + P.tension * 0.75 : P.mode === "land" || P.mode === "catch" ? 0.35 : P.mode === "float" ? 0.06 + Math.max(0, P.bob.dip) * 0.15 : 0, damp(4, dt));
+  P.rodBend = lerp(P.rodBend, P.mode === "fight" ? 0.25 + P.tension * 0.75 + (P.lift || 0) * 0.25 : P.mode === "float" && P.snag ? 0.4 : P.mode === "land" || P.mode === "catch" ? 0.35 : P.mode === "float" ? 0.06 + Math.max(0, P.bob.dip) * 0.15 : 0, damp(4, dt));
   if (P.mode !== "fight") P.steer = lerp(P.steer, 0, damp(3, dt));
   if (P.snapT > 0) P.snapT -= dt;
 
@@ -1688,6 +1718,8 @@ function update(dt) {
   mists.forEach(m => { m.x += m.v * dt; if (m.x > W * 1.6) m.x = -W * 0.6; if (m.x < -W * 0.6) m.x = W * 1.6; });
   if (ptr.down) [reedsL, reedsR].forEach(set => set.forEach(rd => { if (Math.abs(ptr.x - rd.x) < 50 && ptr.y > H - rd.h) rd.push = lerp(rd.push, Math.sign(rd.x - ptr.x) * 18, damp(6, dt)); }));
   [reedsL, reedsR].forEach(set => set.forEach(rd => { rd.push *= Math.exp(-dt * 1.8); }));
+  updateRodSpring(dt);
+  updateRope(dt);
   Snd.update(dt);
 }
 
@@ -1934,7 +1966,8 @@ function updateFish(fi, dt) {
       const dd = Math.hypot(fi.x - P.bob.x, fi.d - P.bob.d);
       // peixes cautelosos preferem o lago quieto: a vontade cresce com o tempo sem toques
       const tp = fi.sp.tp, quiet = clamp((performance.now() - lastActivity) / 20000, 0, 1);
-      const want = (0.12 + P.waitT * 0.02) * M().call * (tp.cauto > 0.25 ? 0.5 + quiet : 1) * (likesBait(fi.sp) ? 1.25 : 0.55);
+      const dance = P.dance > 0 ? (tp.mexe >= 1.4 ? 2.4 : tp.mexe < 0.6 ? 0.15 : 1) : 1;
+      const want = (0.12 + P.waitT * 0.02) * M().call * (tp.cauto > 0.25 ? 0.5 + quiet : 1) * (likesBait(fi.sp) ? 1.25 : 0.55) * dance;
       if (!contemplating && !(fi.spook > 0) && dd < 6 * tp.curio && Math.random() < dt * want) {
         fi.state = "approach"; fi.curious = null; P.target = fi; fi.hesit = Math.random() < tp.cauto ? 1 + (Math.random() < 0.5 ? 1 : 0) : 0;
         if (!book[fi.sp.id]) lake.obs[fi.sp.id] = (lake.obs[fi.sp.id] || 0) + 1;
@@ -1964,11 +1997,11 @@ function updateFish(fi, dt) {
     if (fi.t > fi.next) {
       if (fi.nib > 0) {
         fi.nib--; fi.t = 0; fi.next = rnd(0.9, 1.7);
-        P.bob.dipV += 2.2; P.bob.tilt = rnd(-0.3, 0.3); addRipple(P.bob.x, P.bob.d, 0.35, 1, 0.42); Snd.plop(0.4); Haptics.nibble();
+        P.bob.dipV += 2.2; P.bob.tilt = rnd(-0.3, 0.3); addRipple(P.bob.x, P.bob.d, 0.35, 1, 0.42); Snd.plop(0.4); Haptics.nibble(); tipKick(rnd(-2, 2), 7);
         setHint("Ainda não… ele está só provando");
       } else {
         fi.state = "bite"; fi.t = 0; fi.window = M().bite + P.bonus * 0.2 + fi.sp.tp.janela;
-        P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.4, 0.6); Snd.plop(1.1); Haptics.bite(); Haptics.tugT = 0.45; noteActivity(); cam.nudge = Math.max(cam.nudge, 0.0060);
+        P.bob.dipV += 8; addRipple(P.bob.x, P.bob.d, 0.8, 1.4, 0.6); Snd.plop(1.1); Haptics.bite(); tipKick(rnd(-4, 4), 24); Haptics.tugT = 0.45; noteActivity(); cam.nudge = Math.max(cam.nudge, 0.0060);
         setHint(M().tapHook ? "Agora! Toque para fisgar" : "Agora! Puxe a vara", true); Snd.biteCall();
       }
     }
@@ -2016,6 +2049,35 @@ function updateFloat(dt) {
   P.crank = lerp(P.crank, holding ? rate : 0, damp(12, dt));
   while (P.tickAcc > 0.9) { P.tickAcc -= 0.9; if (!holding) continue; Snd.click(0.7); Haptics.click(0.15); }
   const r = clamp(P.crank / 8, 0, 1.3);
+  // enrosco na vitória-régia: a boia para, a linha estica e a folha balança; mexer a vara para os lados,
+  // dar toquinhos ou levantar a vara solta (e ela sempre se solta sozinha depois de um tempo)
+  if (P.snag) {
+    const sn = P.snag; sn.t += dt; sn.pd.bob = Math.max(sn.pd.bob, 0.35 + Math.min(r, 1) * 0.5);
+    if (r > 0.05 && Math.random() < dt * 6) { Haptics.tick(6, 90); tipKick(rnd(-2, 2), 4); }
+    // sacudir a vara para os lados: cada troca de direção solta um pouco
+    if (Math.abs(P.sweepAcc || 0) > 1.5) {
+      const dir = Math.sign(P.sweepAcc); P.sweepAcc = 0;
+      if (dir !== sn.dir) { sn.dir = dir; sn.free += 0.34; Haptics.tick(8, 40); tipKick(dir * 6, 0); }
+    }
+    if (sn.free >= 1 || sn.t > (modo === "serena" ? 5 : 9)) {
+      P.snag = null; sn.pd.bob = 1; b.d = Math.min(D_MAX, b.d + 0.35);
+      addRipple(b.x, b.d, 0.6, 1.4, 0.5); wave(b.x, b.d, 0.3); Snd.plop(0.7); Snd.chime(); Haptics.play([12, 40, 8]); tipKick(0, -20);
+      floaters.push({ x: sn.pd.x, d: sn.pd.d, rot: rnd(0, TAU), col: [86, 126, 80], t: 0, life: 40, vx: rnd(-0.3, 0.3), vd: 0.2 });
+      flashHint("Soltou", 1.6);
+    }
+    return;
+  }
+  if (r > 0.05 && !(P.dance > 0)) {
+    const pd = pads.find(q => Math.hypot(q.x - b.x, q.d - b.d) < q.r + 0.3 && !(q._snagT > T));
+    if (pd) {
+      pd._snagT = T + 25;
+      if (Math.random() < 0.45) {
+        P.snag = { pd, t: 0, free: 0 }; pd.bob = 1; Snd.creak(); Haptics.play([30, 40, 24]); tipKick(0, 22);
+        flashHint("Enroscou na vitória-régia. Mexa a vara para os lados ou dê toquinhos", 4);
+        return;
+      }
+    }
+  }
   if (r > 0.05) {
     if (fi && fi.state === "bite" && r > 0.2) { hook(); return; }
     if (fi && fi.state === "nibble") fi.state = "approach";
@@ -2029,6 +2091,7 @@ function updateFloat(dt) {
   if (Math.abs(P.sweepAcc) > 1.5) {
     const p = proj(b.x, b.d), m = P.sweepAcc / (kpx * p.s) * 0.35;
     P.sweepAcc = 0;
+    tipKick(clamp(m * 30, -6, 6), 0);
     if (!(fi && fi.state === "bite")) {
       b.x = clamp(b.x + m, -xMax(b.d), xMax(b.d)); b.d = Math.max(3.2, b.d - Math.abs(m) * 0.2);
       b.tilt = clamp(b.tilt + m * 1.5, -0.5, 0.5);
@@ -2037,6 +2100,17 @@ function updateFloat(dt) {
     }
   }
   // ritmo: se nada acontece por um tempo, uma sombra por perto vem dar uma olhada (sem garantir mordida)
+  // a isca dançando: pulinhos ritmados que chamam os caçadores (e espantam os desconfiados)
+  if (P.dance > 0) {
+    P.dance -= dt;
+    if ((P.danceHop -= dt) < 0) {
+      P.danceHop = 0.42; b.dipV += 2.6; b.tilt = rnd(-0.3, 0.3); tipKick(0, -6);
+      addRipple(b.x, b.d, 0.4, 1.2, 0.4); Snd.plop(0.3); Haptics.tick(4, 60);
+      attract(b.x, b.d, 10, 0.35);
+    }
+  }
+  // o vento leva a boia devagar
+  b.x = clamp(b.x + windNow() * 0.035 * dt, -xMax(b.d), xMax(b.d));
   if (fi) P.lull = 8;
   else if (!contemplating && (P.lull = (P.lull ?? 8) - dt) < 0) {
     P.lull = rnd(8, 13);
@@ -2074,7 +2148,7 @@ function updateFight(dt) {
   if ((P.shakeT -= dt) < 0) {
     const k = clamp(sp.pull * (0.35 + 0.65 * P.stamina) * (running ? 1.2 : 0.8), 0.15, 1);
     P.shakeT = rnd(0.45, 0.9) / (0.6 + P.stamina * 0.8);
-    P.jolt = Math.max(P.jolt, k); Haptics.shake(k);
+    P.jolt = Math.max(P.jolt, k); Haptics.shake(k); tipKick(rnd(-1, 1) * 12 * k, 12 * k);
     if (Math.random() < 0.6) addRipple(fi.x + rnd(-0.2, 0.2), fi.d, 0.25 + fi.size * 0.25, 0.8, 0.45);
   }
   P.counter = lerp(P.counter, running ? clamp(-P.steer * P.runDir, 0, 1) : 0, damp(4, dt));
@@ -2083,7 +2157,22 @@ function updateFight(dt) {
   P.tension = lerp(P.tension, target, damp(1.4, dt));
   let out = running ? pull * (r < 0.1 ? 0.75 : 0.2) : 0;
   if (P.tension > 0.92) { out += (P.tension - 0.92) * 3; P.tension = lerp(P.tension, 0.95, damp(1.2, dt)); if (Math.random() < dt * 12) Snd.drag(); }
-  const reelIn = r * 1.5 * (running ? 0.35 + P.counter * 0.4 : 1);
+  // bombear: o centro do dedo (suavizado, para que os círculos não contem) subindo levanta a vara e
+  // puxa o peixe; descendo, a vara abaixa, a linha afrouxa e a carretilha recolhe mais por um momento
+  if (ptr.down) {
+    if (!P.pumpOn) { P.pumpOn = true; P.pumpSy = ptr.y; P.pumpLow = ptr.y; P.lift = 0; }
+    P.pumpSy = lerp(P.pumpSy, ptr.y, damp(2.5, dt));
+    if (P.pumpSy > P.pumpLow) P.pumpLow = P.pumpSy;
+  } else P.pumpOn = false;
+  const liftT = P.pumpOn ? clamp(((P.pumpLow - P.pumpSy) / 150 - 0.12) / 0.88, 0, 1) : 0, dl = liftT - (P.lift || 0);
+  P.lift = liftT;
+  if (dl > 0) {
+    fi.d -= dl * 1.7 * (running ? 0.45 : 1); P.tension = Math.min(1, P.tension + dl * 0.9); tipKick(0, dl * 40);
+    if ((P.pumpTick = (P.pumpTick || 0) + dl) > 0.12) { P.pumpTick = 0; Haptics.tick(5 + P.tension * 8, 50); Snd.creak(); }
+  } else if (dl < -0.01) { P.tension = Math.max(0, P.tension + dl * 0.8); P.slackT = 0.9; }
+  P.slackT = (P.slackT || 0) - dt;
+  if (!store.get("lagoSereno.dicaBombear", false) && (P.fightT = (P.fightT || 0) + dt) > 6 && !P.over) { store.set("lagoSereno.dicaBombear", true); flashHint("Levante a vara devagar para puxar. Depois abaixe e recolha", 5); }
+  const reelIn = r * 1.5 * (running ? 0.35 + P.counter * 0.4 : 1) * (P.slackT > 0 ? 1.35 : 1);
   fi.d = clamp(fi.d - (reelIn - out) * dt, 2, D_MAX + 2);
   P.dVel = lerp(P.dVel, (prevD - fi.d) / Math.max(dt, 1e-3), damp(3, dt));
   P.fightD0 = Math.max(P.fightD0, fi.d);
@@ -2589,26 +2678,73 @@ function drawBobberInWater() {
     g.fillStyle = gl; g.beginPath(); g.ellipse(p.x, wl, R, R * Math.max(0.3, squash(p.s)), 0, 0, TAU); g.fill();
   }
 }
+// onde a linha termina (boia, peixe, boia voando ou pendurada)
+function lineEnd() {
+  if (P.mode === "float" || P.mode === "skim") { const p = proj(P.bob.x, P.bob.d), r = Math.max(3, 17 * Math.pow(p.s, 0.7)); return { x: p.x, y: p.y - r * 2.2 + clamp(P.bob.dip * 0.55, -0.2, 1.15) * r * 1.6 }; }
+  if (P.mode === "fight" && P.fish) return proj(P.fish.x, P.fish.d);
+  if (P.mode === "fly") return flyPos();
+  if (P.mode === "retrieve") return retrievePos();
+  if (P.held) { const h = heldPos(); return { x: h.x, y: h.y - heldLen() * 0.5 }; }
+  return { x: P.hang.x, y: P.hang.y };
+}
+// vento do momento (-1 a 1, mais ou menos): balanço lento, chuva e as linhas de brisa passando
+const windNow = () => Math.sin(T * TAU / 6) * 0.5 + weather.rain * 0.4 + (winds.length ? 0.25 : 0);
+// a linha é uma corda de 16 pontos: pesa, faz barriga quando está frouxa, estica ao recolher e o vento a curva
+const rope = { pts: [], mode: "" };
+function lineSlack() {
+  switch (P.mode) {
+    case "fly": return 0.07;
+    case "float": return (P.snag ? 0.004 : 0.03) * (1 - clamp(P.crank / 5, 0, 0.9)) * (P.bob.dip > 1 ? 0.4 : 1);
+    case "skim": return 0.015;
+    case "fight": return 0.004 + (1 - P.tension) * 0.035 + (P.slackT > 0 ? 0.025 : 0);
+    case "retrieve": return 0.03;
+    case "aim": case "idle": return 0.01;
+    default: return 0.004;
+  }
+}
+function updateRope(dt) {
+  const N = 16, tip = rodGeom().tip, end = lineEnd();
+  const fresh = rope.pts.length !== N || ((rope.mode === "fly") !== (P.mode === "fly")) || ((rope.mode === "idle" || rope.mode === "aim") !== (P.mode === "idle" || P.mode === "aim"));
+  rope.mode = P.mode;
+  if (fresh) { rope.pts = Array.from({ length: N }, (_, i) => { const t = i / (N - 1), x = lerp(tip.x, end.x, t), y = lerp(tip.y, end.y, t); return { x, y, px: x, py: y }; }); }
+  const pts = rope.pts, seg = Math.hypot(end.x - tip.x, end.y - tip.y) * (1 + lineSlack()) / (N - 1);
+  const gy = 900 * dt * dt, wx = windNow() * 70 * dt * dt;
+  for (let i = 1; i < N - 1; i++) {
+    const q = pts[i], vx = (q.x - q.px) * 0.95, vy = (q.y - q.py) * 0.95;
+    q.px = q.x; q.py = q.y; q.x += vx + wx; q.y += vy + gy;
+  }
+  pts[0].x = tip.x; pts[0].y = tip.y; pts[N - 1].x = end.x; pts[N - 1].y = end.y;
+  for (let it = 0; it < 8; it++) {
+    for (let i = 0; i < N - 1; i++) {
+      const a = pts[i], b = pts[i + 1], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1e-3, k = (d - seg) / d;
+      // as pontas ficam presas (na vara e na boia); os pontos do meio dividem a correção
+      if (i === 0) { b.x -= dx * k; b.y -= dy * k; }
+      else if (i + 1 === N - 1) { a.x += dx * k; a.y += dy * k; }
+      else { a.x += dx * k * 0.5; a.y += dy * k * 0.5; b.x -= dx * k * 0.5; b.y -= dy * k * 0.5; }
+    }
+    // um pouco de rigidez (como náilon): cada ponto puxa o de dois passos adiante, e a curva não dobra em "V"
+    for (let i = 0; i < N - 2; i++) {
+      const a = pts[i], b = pts[i + 2], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1e-3, k = (d - seg * 1.96) / d * 0.25;
+      if (k >= 0) continue;
+      if (i > 0) { a.x += dx * k; a.y += dy * k; }
+      if (i + 2 < N - 1) { b.x -= dx * k; b.y -= dy * k; }
+    }
+    pts[0].x = tip.x; pts[0].y = tip.y; pts[N - 1].x = end.x; pts[N - 1].y = end.y;
+  }
+  if (pts.some(q => !isFinite(q.x) || !isFinite(q.y))) rope.pts = [];
+}
 function drawLineAndRod() {
   const { base, tip, ctrl } = rodGeom();
-  let end = null;
-  if (P.mode === "float" || P.mode === "skim") { const p = proj(P.bob.x, P.bob.d), r = Math.max(3, 17 * Math.pow(p.s, 0.7)); end = { x: p.x, y: p.y - r * 2.2 + clamp(P.bob.dip * 0.55, -0.2, 1.15) * r * 1.6 }; }
-  else if (P.mode === "fight" && P.fish) end = proj(P.fish.x, P.fish.d);
-  else if (P.mode === "fly") end = flyPos();
-  else if (P.mode === "retrieve") end = retrievePos();
-  else if (P.held) { const h = heldPos(); end = { x: h.x, y: h.y - heldLen() * 0.5 }; }
-  else end = { x: P.hang.x, y: P.hang.y };
   // a linha pega luz e treme quando estica
-  const sag = P.mode === "fight" ? (1 - P.tension) * 40 : P.mode === "float" ? 34 : P.mode === "skim" ? 8 : P.held || P.mode === "idle" ? 0 : P.mode === "aim" ? 22 : 14;
-  const c = { x: (tip.x + end.x) / 2, y: Math.max(tip.y, end.y) + sag };
-  const quiver = P.mode === "fight" ? Math.max(0, P.tension - 0.5) * 3 : 0;
+  const quiver = P.mode === "fight" ? Math.max(0, P.tension - 0.5) * 3 : P.snag ? 1.2 : 0;
   const la = 0.35 + env.light * 0.2 + (P.mode === "fight" ? P.tension * 0.35 : 0);
   g.strokeStyle = `rgba(240,236,226,${la})`; g.lineWidth = 0.9 + (P.mode === "fight" ? P.tension * 0.5 : 0);
   g.beginPath();
-  for (let i = 0; i <= 24; i++) {
-    const t = i / 24, q = qpt(tip, c, end, t), off = quiver * Math.sin(t * Math.PI) * Math.sin(T * 70 + i * 1.7);
-    if (i === 0) g.moveTo(q.x, q.y); else g.lineTo(q.x + off, q.y + off * 0.5);
-  }
+  const pts = rope.pts.length ? rope.pts : [tip, lineEnd()], n = pts.length - 1;
+  pts.forEach((q, i) => {
+    const t = i / n, off = quiver * Math.sin(t * Math.PI) * Math.sin(T * 70 + i * 1.7);
+    if (i === 0) g.moveTo(tip.x, tip.y); else g.lineTo(q.x + off, q.y + off * 0.5);
+  });
   g.stroke();
   // vara de bambu: afina até a ponta, com nós
   const L = env.light, bam = shade([168, 132, 78], 0.4 + L * 0.6), dark = shade(bam, 0.6);
