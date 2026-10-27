@@ -124,3 +124,48 @@ export function CopyButton({ text }: { text: string }) {
     </button>
   );
 }
+
+/** Ação destrutiva com confirmação na própria página (sem window.confirm). */
+export function ConfirmButton({
+  label,
+  question,
+  confirmLabel,
+  onConfirm,
+  className = 'btn btn-ghost',
+  icon,
+}: {
+  label: string;
+  question: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  className?: string;
+  icon?: string;
+}) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <button type="button" className={className} onClick={() => setAsking(true)}>
+        {icon && <Icon name={icon} size={16} />} {label}
+      </button>
+    );
+  }
+  return (
+    <span className="confirm" role="group" aria-label={question}>
+      <span>{question}</span>
+      <button
+        type="button"
+        className="btn btn-sm btn-danger"
+        autoFocus
+        onClick={() => {
+          setAsking(false);
+          onConfirm();
+        }}
+      >
+        {confirmLabel}
+      </button>
+      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAsking(false)}>
+        Cancelar
+      </button>
+    </span>
+  );
+}

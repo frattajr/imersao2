@@ -16,6 +16,7 @@ export function App() {
   let content;
   switch (page ?? '') {
     case '':
+    case 'inicio':
       content = <Home />;
       break;
     case 'guia':

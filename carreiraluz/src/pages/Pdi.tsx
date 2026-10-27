@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
-import { ProgressBar, SectionTitle } from '../components/ui';
+import { ConfirmButton, ProgressBar, SectionTitle } from '../components/ui';
 import { marketLabel, roleTitle, sizeLabel } from '../data/catalog';
 import { getProfile } from '../data/profiles';
 import type { PdiHorizon, PdiItem, PdiKind } from '../data/types';
@@ -117,17 +117,12 @@ export function Pdi() {
           <button type="button" className={`btn ${editing ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setEditing((e) => !e)}>
             <Icon name={editing ? 'check' : 'edit'} size={16} /> {editing ? 'Concluir edição' : 'Editar plano'}
           </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => {
-              if (confirm('Gerar um novo plano? As alterações e o progresso atuais serão substituídos.')) {
-                dispatch({ type: 'pdi:set', profileKey: key, items: generatePdi(profile, self) });
-              }
-            }}
-          >
-            Gerar novamente
-          </button>
+          <ConfirmButton
+            label="Gerar novamente"
+            question="Substituir o plano atual e o progresso?"
+            confirmLabel="Gerar novo plano"
+            onConfirm={() => dispatch({ type: 'pdi:set', profileKey: key, items: generatePdi(profile, self) })}
+          />
         </div>
       </div>
 
@@ -177,13 +172,13 @@ export function Pdi() {
         </div>
       </section>
       <p className="center">
-        <button
-          type="button"
+        <ConfirmButton
+          label="Apagar plano"
           className="link-btn danger"
-          onClick={() => confirm('Apagar este plano?') && dispatch({ type: 'pdi:clear', profileKey: key })}
-        >
-          Apagar plano
-        </button>
+          question="Apagar este plano?"
+          confirmLabel="Apagar"
+          onConfirm={() => dispatch({ type: 'pdi:clear', profileKey: key })}
+        />
       </p>
     </div>
   );

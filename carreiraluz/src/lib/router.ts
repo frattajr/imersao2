@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 
-// Rotas por hash (#/guia, #/desafio/id): funcionam em qualquer hospedagem estática.
+// Rotas por hash no formato #guia, #desafio--pedir-aumento: só letras, números
+// e hífens, para funcionar em qualquer hospedagem estática e em visualizadores
+// que não repassam "#/caminho". Também aceita o formato antigo (#/guia).
+
+const SEP = '--';
 
 function current(): string[] {
-  const h = window.location.hash.replace(/^#\/?/, '');
-  return h.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent);
+  const h = decodeURIComponent(window.location.hash.replace(/^#\/?/, '').split('?')[0]);
+  if (!h || h === 'inicio') return [];
+  return (h.includes('/') ? h.split('/') : h.split(SEP)).filter(Boolean);
 }
 
 export function useRoute(): string[] {
@@ -20,8 +25,12 @@ export function useRoute(): string[] {
   return route;
 }
 
-export function navigate(path: string) {
-  window.location.hash = path.startsWith('/') ? path : `/${path}`;
-}
+/** "/desafio/pedir-aumento" → "#desafio--pedir-aumento"; "/" → "#inicio". */
+export const href = (path: string) => {
+  const parts = path.split('/').filter(Boolean);
+  return `#${parts.length ? parts.join(SEP) : 'inicio'}`;
+};
 
-export const href = (path: string) => `#${path.startsWith('/') ? path : `/${path}`}`;
+export function navigate(path: string) {
+  window.location.hash = href(path);
+}

@@ -1,5 +1,5 @@
 import { Icon } from '../components/Icon';
-import { KIND_INFO, KindBadge, SectionTitle } from '../components/ui';
+import { ConfirmButton, KIND_INFO, KindBadge, SectionTitle } from '../components/ui';
 import type { DataKind } from '../data/types';
 import { useStore } from '../lib/store';
 
@@ -98,11 +98,12 @@ export function About() {
           Não há conta nem servidor. Seleções, autoavaliação e plano ficam apenas no armazenamento deste navegador e não são
           enviados a lugar nenhum.
         </p>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => {
-            if (!confirm('Apagar todas as suas escolhas, autoavaliações e planos deste navegador?')) return;
+        <ConfirmButton
+          label="Apagar meus dados deste navegador"
+          icon="trash"
+          question="Apagar escolhas, autoavaliações e planos?"
+          confirmLabel="Apagar tudo"
+          onConfirm={() => {
             try {
               Object.keys(localStorage)
                 .filter((k) => k.startsWith('carreiraluz:prep:'))
@@ -112,9 +113,7 @@ export function About() {
             }
             dispatch({ type: 'reset' });
           }}
-        >
-          <Icon name="trash" size={16} /> Apagar meus dados deste navegador
-        </button>
+        />
       </section>
     </div>
   );

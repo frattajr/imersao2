@@ -3,7 +3,7 @@ import { href } from '../lib/router';
 import { Icon } from './Icon';
 
 const NAV = [
-  { path: '/', label: 'Início', icon: 'home', match: ['', 'guia'] },
+  { path: '/', label: 'Início', icon: 'home', match: ['', 'inicio', 'guia'] },
   { path: '/explorar', label: 'Explorar cargos', short: 'Cargos', icon: 'compass', match: ['explorar'] },
   { path: '/pdi', label: 'Meu PDI', icon: 'target', match: ['pdi'] },
   { path: '/biblioteca', label: 'Biblioteca', icon: 'book', match: ['biblioteca', 'desafio', 'conteudo'] },
@@ -15,7 +15,14 @@ export function Layout({ route, children }: { route: string[]; children: ReactNo
   const isActive = (m: string[]) => m.includes(top);
   return (
     <div className="app">
-      <a className="skip" href="#conteudo">
+      <a
+        className="skip"
+        href="#conteudo"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById('conteudo')?.focus();
+        }}
+      >
         Pular para o conteúdo
       </a>
       <header className="topbar">
@@ -38,7 +45,7 @@ export function Layout({ route, children }: { route: string[]; children: ReactNo
           </span>
         </div>
       </header>
-      <main id="conteudo">{children}</main>
+      <main id="conteudo" tabIndex={-1}>{children}</main>
       <footer className="footer">
         <div className="wrap">
           <p>

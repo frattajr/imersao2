@@ -75,7 +75,7 @@ img, svg { flex-shrink: 0; }
 
 /* ---------- topo e navegação ---------- */
 .topbar {
-  position: sticky; top: 0; z-index: 40;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 40;
   background: color-mix(in srgb, var(--bg) 86%, transparent);
   backdrop-filter: saturate(1.4) blur(10px);
   border-bottom: 1px solid var(--line);
@@ -116,6 +116,10 @@ img, svg { flex-shrink: 0; }
 .btn-sm { padding: 7px 12px; min-height: 36px; font-size: 0.88rem; }
 .link-btn { background: none; border: 0; padding: 4px 0; color: var(--blue-ink); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; font-size: 0.9rem; }
 .link-btn.danger { color: var(--coral-ink); }
+.btn-danger { background: var(--coral); color: #fff; }
+.btn-danger:hover { background: var(--coral-ink); }
+.confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
+main:focus { outline: none; }
 .icon-btn { background: transparent; border: 1px solid var(--line); border-radius: 10px; width: 36px; height: 36px; display: inline-grid; place-items: center; color: var(--ink-2); }
 .icon-btn:hover { background: var(--line-2); }
 .icon-btn.danger { color: var(--coral-ink); }
